@@ -95,7 +95,7 @@ def test_extension_pieces_allowed_when_room_has_them_enabled() -> None:
 
 
 def test_fouille_board_includes_extensions_when_room_has_them_enabled() -> None:
-    room = Room(code="ABCDE", game="orapa_mine", mode=RoomMode.FOUILLE_PARALLEL, max_players=2, extensions_enabled=True)
+    room = Room(code="ABCDE", game="orapa_mine", mode=RoomMode.FOUILLE, max_players=2, extensions_enabled=True)
     room.add_player("Alice")
     room.add_player("Bob")
     session = OrapaMineSession(room, BoardDimensions(width=9, height=9))
@@ -106,7 +106,7 @@ def test_fouille_board_includes_extensions_when_room_has_them_enabled() -> None:
 
 
 def test_fouille_board_excludes_extensions_when_room_has_them_disabled() -> None:
-    room = Room(code="ABCDE", game="orapa_mine", mode=RoomMode.FOUILLE_PARALLEL, max_players=2, extensions_enabled=False)
+    room = Room(code="ABCDE", game="orapa_mine", mode=RoomMode.FOUILLE, max_players=2, extensions_enabled=False)
     room.add_player("Alice")
     room.add_player("Bob")
     session = OrapaMineSession(room, BoardDimensions(width=9, height=9))
@@ -141,7 +141,7 @@ def test_remove_piece_before_validating() -> None:
 
 
 def test_fouille_full_flow() -> None:
-    room = Room(code="ABCDE", game="orapa_mine", mode=RoomMode.FOUILLE_PARALLEL, max_players=2)
+    room = Room(code="ABCDE", game="orapa_mine", mode=RoomMode.FOUILLE, max_players=2)
     alice = room.add_player("Alice")
     bob = room.add_player("Bob")
     session = OrapaMineSession(room, BoardDimensions(width=9, height=9))
@@ -159,3 +159,19 @@ def test_fouille_full_flow() -> None:
     # personne (l'exception vient directement du moteur, voir fouille.py).
     with pytest.raises(FouilleError):
         session.ask_peek(bob.id, (0, 0))
+
+
+def test_fouille_solo_flow() -> None:
+    room = Room(code="ABCDE", game="orapa_mine", mode=RoomMode.FOUILLE, max_players=1)
+    solo = room.add_player("Solo")
+    session = OrapaMineSession(room, BoardDimensions(width=9, height=9))
+    session.start()
+    assert room.status == RoomStatus.PLAYING
+    assert session.fouille is not None
+    assert session.fouille.current_turn_player() == solo.id
+
+    session.ask_peek(solo.id, (0, 0))
+    correct_guess = [piece_to_payload(p) for p in session.fouille.board.pieces()]
+    session.submit_solution(solo.id, correct_guess)
+    assert session.fouille.finished
+    assert session.fouille.winner == solo.id

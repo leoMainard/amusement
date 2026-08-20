@@ -21,7 +21,7 @@
 
 import { BoardScene } from "./board-scene";
 import { colorBadgeHtml } from "./color-swatch";
-import { labelForExit } from "./entry-labels";
+import { cellLabel, labelForExit } from "./entry-labels";
 import { PlacementController } from "./placement-controller";
 import { ReflectionController, type ReflectionPaletteEntry } from "./reflection-controller";
 import {
@@ -43,8 +43,7 @@ import { BASE_PIECE_PALETTE, DEFAULT_DIMENSIONS, EXTENSION_PIECE_PALETTE, REFLEC
 
 const MODE_LABELS: Record<RoomMode, string> = {
   DUEL: "Duel (1 contre 1, règles officielles)",
-  FOUILLE_PARALLEL: "Fouille — chacun son plateau, en parallèle",
-  FOUILLE_TURN_BASED: "Fouille — plateau commun, tour par tour",
+  FOUILLE: "Fouille (plateau généré aléatoirement, tour par tour) — seul ou à plusieurs",
 };
 
 /** Palette du panneau de réflexion : les 5 pièces complètes, les
@@ -92,13 +91,13 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
           <label>Mode
             <select class="orapa-mp__mode">
               <option value="DUEL">${MODE_LABELS.DUEL}</option>
-              <option value="FOUILLE_PARALLEL">${MODE_LABELS.FOUILLE_PARALLEL}</option>
-              <option value="FOUILLE_TURN_BASED">${MODE_LABELS.FOUILLE_TURN_BASED}</option>
+              <option value="FOUILLE">${MODE_LABELS.FOUILLE}</option>
             </select>
           </label>
           <label class="orapa-mp__max-players">Nombre de joueurs
             <input type="number" class="orapa-mp__max-players-input" min="2" max="8" value="2" disabled />
           </label>
+          <p class="orapa-mp__max-players-hint" hidden>Mets 1 pour jouer seul.</p>
           <label class="orapa-mp__extensions">
             <input type="checkbox" class="orapa-mp__extensions-input" />
             Autoriser les pièces d'extension (Diamant, Corps noir)
@@ -120,10 +119,13 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
 
     const modeSelect = host.querySelector<HTMLSelectElement>(".orapa-mp__mode")!;
     const maxPlayersInput = host.querySelector<HTMLInputElement>(".orapa-mp__max-players-input")!;
+    const maxPlayersHint = host.querySelector<HTMLParagraphElement>(".orapa-mp__max-players-hint")!;
     modeSelect.addEventListener("change", () => {
       const isDuel = modeSelect.value === "DUEL";
       maxPlayersInput.disabled = isDuel;
-      maxPlayersInput.value = isDuel ? "2" : "3";
+      maxPlayersInput.min = isDuel ? "2" : "1";
+      maxPlayersInput.value = "2";
+      maxPlayersHint.hidden = isDuel;
     });
 
     const errorHost = host.querySelector<HTMLParagraphElement>(".orapa-mp__error")!;
@@ -298,7 +300,6 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
 
   function isMyTurn(): boolean {
     if (!room) return false;
-    if (room.mode === "FOUILLE_PARALLEL") return true; // pas de notion de tour
     const state = lastGameState;
     if (!state) return false;
     const turnPlayer = room.mode === "DUEL" ? state.current_prospector : state.current_turn_player;
@@ -314,14 +315,18 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
       </div>
       <div class="orapa-mp__ask-panel">
         <p class="orapa-demo__hint">
-          Clique une borne du pourtour pour tirer un rayon, ou une case pour demander ce qu'elle
-          contient. Les bornes d'entrée et de sortie se colorent durablement selon le résultat —
-          une carte de tes questions posées s'accumule au fil de la partie.
+          Clique une borne du pourtour pour tirer un rayon. Les bornes d'entrée et de sortie se
+          colorent durablement selon le résultat — une carte de tes questions posées s'accumule au
+          fil de la partie.
         </p>
         <div class="orapa-mp__ask-tools">
+          <button type="button" class="orapa-mp__peek-toggle">❓ Demander une case</button>
           <button type="button" class="orapa-mp__mark-toggle">✕ Marquer des cases</button>
           <button type="button" class="orapa-mp__reflect-toggle">🧩 Placer des repères</button>
         </div>
+        <p class="orapa-demo__hint orapa-mp__peek-hint" hidden>
+          Clique une case pour demander ce qu'elle contient. Reclique ce bouton pour arrêter.
+        </p>
         <p class="orapa-demo__hint orapa-mp__mark-hint" hidden>
           Clique une case pour y poser (ou enlever) une croix — usage personnel, jamais transmis
           à l'adversaire. Reclique ce bouton pour arrêter de marquer.
@@ -357,16 +362,28 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
     const guessBtn = controlsHost.querySelector<HTMLButtonElement>(".orapa-mp__guess-btn")!;
     const askPanel = controlsHost.querySelector<HTMLDivElement>(".orapa-mp__ask-panel")!;
     const guessPanel = controlsHost.querySelector<HTMLDivElement>(".orapa-mp__guess-panel")!;
+    const peekToggle = controlsHost.querySelector<HTMLButtonElement>(".orapa-mp__peek-toggle")!;
+    const peekHint = controlsHost.querySelector<HTMLParagraphElement>(".orapa-mp__peek-hint")!;
     const markToggle = controlsHost.querySelector<HTMLButtonElement>(".orapa-mp__mark-toggle")!;
     const markHint = controlsHost.querySelector<HTMLParagraphElement>(".orapa-mp__mark-hint")!;
     const reflectToggle = controlsHost.querySelector<HTMLButtonElement>(".orapa-mp__reflect-toggle")!;
     const reflectPanel = controlsHost.querySelector<HTMLDivElement>(".orapa-mp__reflect-panel")!;
-    let askSubMode: "question" | "mark" | "reflect" = "question";
+    // "none" par défaut : un simple clic sur une case ne déclenche plus
+    // rien tant qu'un de ces 3 outils n'est pas explicitement choisi —
+    // corrige un vrai bug où faire tourner la vue à la souris pouvait,
+    // en fin de rotation, poser une question sur la case survolée
+    // (retour utilisateur direct ; voir aussi le correctif clic/glissé
+    // dans board-scene.ts, qui protège même le tir de rayon sur les
+    // bornes). Tirer un rayon reste indépendant de ces 3 outils : les
+    // bornes du pourtour sont des cibles distinctes des cases.
+    let askSubMode: "none" | "peek" | "mark" | "reflect" = "none";
 
-    const setAskSubMode = (next: "question" | "mark" | "reflect") => {
+    const setAskSubMode = (next: "none" | "peek" | "mark" | "reflect") => {
       askSubMode = next;
+      peekToggle.classList.toggle("is-selected", next === "peek");
       markToggle.classList.toggle("is-selected", next === "mark");
       reflectToggle.classList.toggle("is-selected", next === "reflect");
+      peekHint.hidden = next !== "peek";
       markHint.hidden = next !== "mark";
       reflectPanel.hidden = next !== "reflect";
       if (!scene) return;
@@ -397,6 +414,7 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
             scene!.toggleMark(corner);
             return;
           }
+          if (askSubMode !== "peek") return; // rien d'armé : clic ignoré
           if (!isMyTurn()) {
             pushLog("⚠️ Ce n'est pas ton tour.");
             return;
@@ -407,8 +425,9 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
       }
     };
 
-    markToggle.addEventListener("click", () => setAskSubMode(askSubMode === "mark" ? "question" : "mark"));
-    reflectToggle.addEventListener("click", () => setAskSubMode(askSubMode === "reflect" ? "question" : "reflect"));
+    peekToggle.addEventListener("click", () => setAskSubMode(askSubMode === "peek" ? "none" : "peek"));
+    markToggle.addEventListener("click", () => setAskSubMode(askSubMode === "mark" ? "none" : "mark"));
+    reflectToggle.addEventListener("click", () => setAskSubMode(askSubMode === "reflect" ? "none" : "reflect"));
 
     const setMode = (next: "ask" | "guess") => {
       mode = next;
@@ -461,7 +480,7 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
 
   // Cache : "poser une question" / "proposer une solution" ne sont
   // cliquables/visibles que si c'est le tour du joueur (retour
-  // utilisateur direct) — sans notion de tour en Fouille parallèle.
+  // utilisateur direct).
   function applyTurnGating(controlsHost: HTMLElement): void {
     const askBtn = controlsHost.querySelector<HTMLButtonElement>(".orapa-mp__ask-btn");
     const guessBtn = controlsHost.querySelector<HTMLButtonElement>(".orapa-mp__guess-btn");
@@ -489,9 +508,7 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
       return;
     }
     const turnPlayer = room.mode === "DUEL" ? state.current_prospector : state.current_turn_player;
-    if (room.mode === "FOUILLE_PARALLEL") {
-      el.textContent = "Chacun joue à son rythme.";
-    } else if (turnPlayer === playerId) {
+    if (turnPlayer === playerId) {
       el.textContent = "À toi de jouer.";
     } else if (turnPlayer) {
       const name = room.players.find((p) => p.id === turnPlayer)?.name ?? turnPlayer;
@@ -559,7 +576,7 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
     });
     ws.on("peek_result", (msg) => {
       const position = msg.position as Position;
-      pushLog(`Qu'y a-t-il en (${position[0]}, ${position[1]}) ? ${colorizePeekResult(msg.result as string)}`);
+      pushLog(`Qu'y a-t-il en ${cellLabel(position)} ? ${colorizePeekResult(msg.result as string)}`);
     });
     ws.on("error", (msg) => {
       // ⚠️ Limite connue (voir docs/plan.md) : une pose optimiste que le

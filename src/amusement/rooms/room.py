@@ -35,8 +35,7 @@ class RoomStatus(Enum):
 
 class RoomMode(Enum):
     DUEL = auto()
-    FOUILLE_PARALLEL = auto()
-    FOUILLE_TURN_BASED = auto()
+    FOUILLE = auto()  # plateau généré aléatoirement, tour par tour ; jouable seul ou à plusieurs
 
 
 @dataclass
@@ -62,8 +61,8 @@ class Room:
     def __post_init__(self) -> None:
         if self.mode == RoomMode.DUEL and self.max_players != 2:
             raise RoomError("Le mode Duel se joue exactement à 2.")
-        if self.max_players < 2:
-            raise RoomError("Il faut au moins 2 joueurs.")
+        if self.mode == RoomMode.FOUILLE and self.max_players < 1:
+            raise RoomError("Il faut au moins 1 joueur.")
 
     def add_player(self, name: str) -> Player:
         if self.status != RoomStatus.LOBBY:

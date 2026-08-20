@@ -25,7 +25,7 @@ def test_add_player_until_full() -> None:
 
 
 def test_cannot_join_once_started() -> None:
-    room = Room(code="ABCDE", game="orapa_mine", mode=RoomMode.FOUILLE_PARALLEL, max_players=3)
+    room = Room(code="ABCDE", game="orapa_mine", mode=RoomMode.FOUILLE, max_players=3)
     room.add_player("Alice")
     room.status = RoomStatus.PLAYING
     with pytest.raises(RoomError):
@@ -37,3 +37,15 @@ def test_remove_player_frees_a_slot_conceptually() -> None:
     alice = room.add_player("Alice")
     room.remove_player(alice.id)
     assert room.players == []
+
+
+def test_fouille_room_allows_a_single_player() -> None:
+    room = Room(code="ABCDE", game="orapa_mine", mode=RoomMode.FOUILLE, max_players=1)
+    alice = room.add_player("Alice")
+    assert room.is_full()
+    assert room.players == [alice]
+
+
+def test_fouille_room_rejects_zero_players() -> None:
+    with pytest.raises(RoomError):
+        Room(code="ABCDE", game="orapa_mine", mode=RoomMode.FOUILLE, max_players=0)

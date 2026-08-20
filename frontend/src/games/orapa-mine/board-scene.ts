@@ -117,6 +117,14 @@ export class BoardScene {
   private pointer = new THREE.Vector2();
   private resizeObserver: ResizeObserver;
   private animationHandle = 0;
+  // Position à l'appui du bouton, pour distinguer un vrai clic d'un
+  // relâchement après avoir fait tourner la vue à la souris. Le DOM
+  // déclenche quand même un "click" natif tant que l'appui et le
+  // relâchement ciblent le même élément — même après un déplacement
+  // important entre les deux — ce qui armait à tort une question sur la
+  // case survolée en fin de rotation (retour utilisateur direct).
+  private pointerDownPosition: { x: number; y: number } | null = null;
+  private static readonly CLICK_DRAG_THRESHOLD_PX = 6;
 
   constructor(container: HTMLElement, dimensions: BoardDimensions = DEFAULT_DIMENSIONS) {
     this.container = container;
@@ -155,6 +163,7 @@ export class BoardScene {
     this.scene.add(this.markGroup);
     this.scene.add(this.reflectionGroup);
 
+    this.renderer.domElement.addEventListener("pointerdown", this.handlePointerDown);
     this.renderer.domElement.addEventListener("click", this.handleClick);
     this.renderer.domElement.addEventListener("pointermove", this.handlePointerMove);
 
@@ -329,6 +338,7 @@ export class BoardScene {
   dispose(): void {
     cancelAnimationFrame(this.animationHandle);
     this.resizeObserver.disconnect();
+    this.renderer.domElement.removeEventListener("pointerdown", this.handlePointerDown);
     this.renderer.domElement.removeEventListener("click", this.handleClick);
     this.renderer.domElement.removeEventListener("pointermove", this.handlePointerMove);
     this.renderer.dispose();
@@ -454,7 +464,19 @@ export class BoardScene {
     material.color.lerp(new THREE.Color(this.ghostValid ? 0x2ecc71 : 0xe74c3c), 0.45);
   }
 
+  private handlePointerDown = (event: PointerEvent): void => {
+    this.pointerDownPosition = { x: event.clientX, y: event.clientY };
+  };
+
   private handleClick = (event: MouseEvent): void => {
+    const down = this.pointerDownPosition;
+    this.pointerDownPosition = null;
+    if (down) {
+      const dx = event.clientX - down.x;
+      const dy = event.clientY - down.y;
+      if (Math.hypot(dx, dy) > BoardScene.CLICK_DRAG_THRESHOLD_PX) return; // c'était une rotation, pas un clic
+    }
+
     this.updatePointer(event);
     this.raycaster.setFromCamera(this.pointer, this.camera);
 

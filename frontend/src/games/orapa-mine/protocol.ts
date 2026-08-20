@@ -7,7 +7,7 @@ import { API_BASE_URL } from "../../lib/config";
 import type { RoomSocket } from "../../lib/room-socket";
 import type { Direction, Piece, Position } from "./types";
 
-export type RoomMode = "DUEL" | "FOUILLE_PARALLEL" | "FOUILLE_TURN_BASED";
+export type RoomMode = "DUEL" | "FOUILLE";
 export type RoomStatus = "LOBBY" | "PLACING" | "PLAYING" | "FINISHED";
 
 export interface RoomPlayer {

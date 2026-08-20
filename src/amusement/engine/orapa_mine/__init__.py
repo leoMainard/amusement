@@ -12,7 +12,7 @@ documentées) :
 - `solution` : vérification d'une proposition de solution.
 - `duel` : déroulement d'une partie en mode Duel (2 joueurs, règles officielles).
 - `fouille` : déroulement d'une partie en mode Fouille (placement
-  aléatoire, 2 variantes : parallèle privé / tour par tour).
+  aléatoire, tour par tour, jouable seul ou à plusieurs).
 
 Reste à faire (Phase 3+ du plan) : rendu 3D et interactions à jour avec
 ces silhouettes réelles, couche multijoueur temps réel (salons,
@@ -23,7 +23,7 @@ from .board import Board, BoardDimensions, GemKind, PlacementError, Piece, Posit
 from .borders import Entry, LabelScheme
 from .colors import Color, resolve_ray_color
 from .duel import DuelError, DuelGame, LogEntry
-from .fouille import FouilleError, FouilleGame, FouilleMode
+from .fouille import FouilleError, FouilleGame
 from .generation import BASE_PIECE_SET, EXTENSION_PIECE_SET, PieceSpec, random_board
 from .geometry import Quadrant
 from .pieces import PieceShape
@@ -56,6 +56,5 @@ __all__ = [
     "DuelError",
     "LogEntry",
     "FouilleGame",
-    "FouilleMode",
     "FouilleError",
 ]

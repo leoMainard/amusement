@@ -26,3 +26,13 @@ export function labelForExit(position: Position, direction: Direction, scheme: L
     return `(${position[0]}, ${position[1]})`;
   }
 }
+
+/** Désigne une case INTÉRIEURE (pas un point du pourtour, voir
+ * `labelForExit` pour ça) par une combinaison lettre+chiffre façon
+ * Bataille navale — colonne en lettre (A, B, C...), ligne en chiffre à
+ * partir de 1 — plutôt que des coordonnées brutes (col, row), pas
+ * lisibles pour un joueur (retour utilisateur direct). Utilisé pour
+ * répondre à « qu'y a-t-il en [case] ? ». */
+export function cellLabel([col, row]: Position): string {
+  return `${String.fromCharCode(65 + col)}${row + 1}`;
+}

@@ -50,13 +50,13 @@ def test_create_room_rejects_unknown_mode() -> None:
 
 
 def test_get_room_returns_its_info() -> None:
-    code = create_room(mode="fouille_parallel", max_players=3, extensions_enabled=True)
+    code = create_room(mode="fouille", max_players=3, extensions_enabled=True)
     response = client.get(f"/api/rooms/{code}")
     assert response.status_code == 200
     body = response.json()
     assert body["code"] == code
     assert body["game"] == "orapa_mine"
-    assert body["mode"] == "FOUILLE_PARALLEL"
+    assert body["mode"] == "FOUILLE"
     assert body["max_players"] == 3
     assert body["extensions_enabled"] is True
 
@@ -181,8 +181,8 @@ def test_duel_full_flow_over_websocket() -> None:
             asker_ws.receive_json()  # game_state (tour passé à bob)
 
 
-def test_fouille_parallel_full_flow_over_websocket() -> None:
-    code = create_room(mode="fouille_parallel", max_players=2)
+def test_fouille_full_flow_over_websocket() -> None:
+    code = create_room(mode="fouille", max_players=2)
 
     with client.websocket_connect(f"/ws/rooms/{code}?name=Alice") as alice_ws:
         alice_ws.receive_json()  # joined
@@ -194,15 +194,36 @@ def test_fouille_parallel_full_flow_over_websocket() -> None:
             assert room_update["room"]["status"] == "PLAYING"
             game_state = alice_ws.receive_json()
             assert game_state["type"] == "game_state"
+            assert game_state["current_turn_player"] is not None  # tour par tour dès le départ
 
             bob_ws.receive_json()  # room_update PLAYING
             bob_ws.receive_json()  # game_state
 
-            # Alice pose une question sur son propre plateau généré :
-            # réponse privée, Bob ne doit rien recevoir.
+            # Plateau commun, tour par tour, variante officielle : la
+            # réponse est diffusée à tout le monde, pas seulement au
+            # demandeur (contrairement à Duel).
             alice_ws.send_json({"type": "ask_peek", "position": [8, 8]})
-            response = alice_ws.receive_json()
-            assert response["type"] == "peek_result"
+            alice_response = alice_ws.receive_json()
+            assert alice_response["type"] == "peek_result"
+            bob_response = bob_ws.receive_json()
+            assert bob_response["type"] == "peek_result"
+            alice_ws.receive_json()  # game_state (tour passé à bob)
+            bob_ws.receive_json()  # game_state
+
+
+def test_fouille_solo_full_flow_over_websocket() -> None:
+    code = create_room(mode="fouille", max_players=1)
+
+    with client.websocket_connect(f"/ws/rooms/{code}?name=Solo") as ws:
+        ws.receive_json()  # joined
+        room_update = ws.receive_json()  # room_update: PLAYING (auto, salon déjà plein à 1)
+        assert room_update["room"]["status"] == "PLAYING"
+        game_state = ws.receive_json()
+        assert game_state["type"] == "game_state"
+
+        ws.send_json({"type": "ask_peek", "position": [8, 8]})
+        assert ws.receive_json()["type"] == "peek_result"
+        ws.receive_json()  # game_state — toujours son tour, seul joueur
 
 
 def test_error_message_on_invalid_action() -> None:

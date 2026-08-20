@@ -17,7 +17,6 @@ from amusement.engine.orapa_mine import (
     Color,
     DuelGame,
     FouilleGame,
-    FouilleMode,
     GemKind,
     LabelScheme,
     Piece,
@@ -89,11 +88,10 @@ class OrapaMineSession:
             self.placements = {p.id: PendingPlacement(board=Board(self.dimensions)) for p in self.room.players}
             self.room.status = RoomStatus.PLACING
         else:
-            fouille_mode = FouilleMode.TURN_BASED if self.room.mode == RoomMode.FOUILLE_TURN_BASED else FouilleMode.PARALLEL_PRIVATE
             pieces = BASE_PIECE_SET + EXTENSION_PIECE_SET if self.room.extensions_enabled else BASE_PIECE_SET
             board = random_board(self.dimensions, pieces)
             players = tuple(p.id for p in self.room.players)
-            self.fouille = FouilleGame(board=board, players=players, mode=fouille_mode, label_scheme=self.label_scheme)
+            self.fouille = FouilleGame(board=board, players=players, label_scheme=self.label_scheme)
             self.room.status = RoomStatus.PLAYING
 
     # --- Duel : placement ---------------------------------------------------

@@ -158,9 +158,10 @@ async def _handle_message(
         elif msg_type == "ask_ray":
             result = session.ask_ray(player_id, message["entry_label"])
             payload = {"type": "ray_result", "entry_label": message["entry_label"], "result": ray_result_payload(result)}
-            # Duel / Fouille parallèle : réponse privée au demandeur.
-            # Fouille tour par tour : visible de tous (variante officielle).
-            if room.mode == RoomMode.FOUILLE_TURN_BASED:
+            # Duel : réponse privée au demandeur. Fouille : visible de
+            # tous (variante officielle tour par tour) — y compris en
+            # solo, où ça ne concerne qu'un seul destinataire.
+            if room.mode == RoomMode.FOUILLE:
                 await connections.broadcast(code, {**payload, "player_id": player_id})
             else:
                 await connections.send_to(code, player_id, payload)
@@ -169,7 +170,7 @@ async def _handle_message(
         elif msg_type == "ask_peek":
             result = session.ask_peek(player_id, tuple(message["position"]))
             payload = {"type": "peek_result", "position": message["position"], "result": result}
-            if room.mode == RoomMode.FOUILLE_TURN_BASED:
+            if room.mode == RoomMode.FOUILLE:
                 await connections.broadcast(code, {**payload, "player_id": player_id})
             else:
                 await connections.send_to(code, player_id, payload)

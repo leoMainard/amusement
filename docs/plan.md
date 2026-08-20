@@ -7,14 +7,12 @@ Site de jeux en ligne entre amis. Premier jeu : **Orapa Mine**.
 - **Stack** : backend Python (FastAPI + WebSockets) dans `src/amusement/`,
   frontend TypeScript + Three.js dans `frontend/`.
 - **Salons** : par lien, sans compte utilisateur (v1).
-- **Mode Fouille** (placement aléatoire) : proposé avec deux variantes au
-  choix à la création du salon :
-  - *parallèle privé* : chaque joueur interroge sa propre instance du
-    plateau caché (même génération pour tous), sans voir les questions
-    des autres ; premier à soumettre une solution complète et correcte
-    gagne ;
-  - *tour par tour* : un plateau commun, questions/réponses visibles de
-    tous, tour par tour ; premier à trouver la solution complète gagne.
+- **Mode Fouille** (placement aléatoire) : un plateau commun généré une
+  fois, questions/réponses visibles de tous, tour par tour ; premier à
+  trouver la solution complète gagne. Jouable seul (toujours son tour)
+  comme à plusieurs. (Une variante "parallèle privé" — chacun sa propre
+  instance du plateau, sans tour — a existé puis a été retirée : plus
+  besoin, voir la révision du 2026-08-21.)
 - **Mode Duel** (officiel) : placement secret par chaque joueur,
   alternance maître du jeu / prospecteur, exactement comme dans le
   livret, mais sur plateau 3D.
@@ -323,6 +321,58 @@ rencontré et documenté : calculer la position de clic AVANT d'ouvrir un
 panneau qui change la mise en page (donc la taille/position réelle du
 canvas) produit des clics décalés — toujours recalculer juste avant
 chaque clic, pas une fois en début de script.
+
+## Révision (2026-08-21) : Fouille consolidé + solo, clic accidentel, cases lisibles
+
+**Mode Fouille "parallèle" retiré**, plus besoin (retour utilisateur
+direct) — il ne restait que la variante tour par tour, renommée
+`RoomMode.FOUILLE` (`FOUILLE_PARALLEL`/`FOUILLE_TURN_BASED` supprimés).
+`FouilleGame` simplifié en même temps : l'enum `FouilleMode` disparaît,
+le jeu est désormais toujours tour par tour.
+
+**Fouille jouable seul** : `Room`/`FouilleGame` acceptent 1 joueur
+minimum pour ce mode (Duel reste figé à exactement 2). Avec un seul
+joueur, `current_turn_player()` renvoie toujours ce joueur — "tour par
+tour" dégénère naturellement en "toujours ton tour", sans cas
+particulier à coder. Salon plein dès la connexion du joueur solo, la
+partie démarre donc immédiatement (même mécanisme qu'à plusieurs).
+
+**Clic accidentel pendant la rotation de la caméra à la souris**
+(retour utilisateur direct) : le DOM déclenche un "click" natif dès que
+l'appui et le relâchement du bouton ciblent le même élément — même
+après un déplacement important entre les deux (pas de tolérance de
+distance native) — donc relâcher la souris sur une case après avoir
+fait tourner la vue pouvait armer à tort une question dessus. Corrigé à
+la racine dans `BoardScene` : la position au `pointerdown` est comparée
+à celle du `click` ; au-delà de 6px de déplacement, le clic est ignoré
+(rotation, pas un vrai clic) — protège aussi bien le tir de rayon sur
+une borne que le clic sur une case, où que ce soit dans l'app.
+
+En plus de ce correctif racine, la question posée sur une case a
+maintenant son propre bouton (« ❓ Demander une case »), au même niveau
+que « ✕ Marquer » et « 🧩 Réflexion » — un simple clic sur une case ne
+déclenche donc plus RIEN par défaut tant qu'aucun de ces 3 outils n'est
+choisi explicitement (double protection). Le tir de rayon sur une borne
+du pourtour reste indépendant de ces 3 boutons : une borne est une
+cible distincte d'une case.
+
+**Cases lisibles** : `entry-labels.ts:cellLabel` désigne une case
+intérieure par lettre+chiffre façon Bataille navale (colonne en lettre,
+ligne en chiffre à partir de 1 — ex. "E5") plutôt que des coordonnées
+brutes `(col, row)`, utilisé pour la réponse à « qu'y a-t-il en
+[case] ? ». Distinct de `labelForExit`, qui désigne un point du
+POURTOUR (numéro/lettre du livret) — deux systèmes différents pour deux
+concepts différents (case intérieure vs point d'entrée/sortie).
+
+Vérifié (Playwright, backend + frontend) : sélecteur de mode n'offre
+plus que Duel/Fouille, salon Fouille à 1 joueur démarre immédiatement
+et reste "à toi de jouer" en continu, un clic de case sans outil choisi
+ne fait rien, activer « Demander une case » puis cliquer produit bien
+un résultat étiqueté "E5" (pas de coordonnées brutes), simuler une
+rotation à la souris (appui-déplacement-relâché) sur une case ne
+déclenche aucune question, et un vrai clic sur une borne continue de
+tirer un rayon normalement. Backend : 103/103 tests (`test_fouille.py`
+réécrit pour l'alternance de tour, nouveaux tests solo).
 
 ## Décisions prises en Phase 1 (moteur de règles)
 

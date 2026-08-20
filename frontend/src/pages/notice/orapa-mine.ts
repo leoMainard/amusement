@@ -139,17 +139,12 @@ export function mountOrapaMineNotice(root: HTMLElement): () => void {
       </section>
 
       <section class="notice__section">
-        <h3>Mode Fouille (2 joueurs ou plus)</h3>
+        <h3>Mode Fouille (seul, ou à plusieurs)</h3>
         <p>
           Le plateau est généré aléatoirement par le site — personne ne le connaît à l'avance.
-          Deux variantes possibles, au choix à la création du salon :
+          Un plateau commun, questions et réponses visibles de tous, chacun son tour — jouable
+          seul (dans ce cas, c'est toujours ton tour) comme à plusieurs.
         </p>
-        <ul>
-          <li><strong>Parallèle</strong> : chacun interroge sa propre instance du plateau (la
-            même disposition pour tous), à son rythme, sans voir les questions des autres.</li>
-          <li><strong>Tour par tour</strong> : un plateau commun, questions et réponses visibles
-            de tous, chacun son tour.</li>
-        </ul>
         <p>
           Le premier à proposer la disposition exacte gagne. Une proposition erronée ne fait
           pas perdre tout de suite : il faut se tromper deux fois pour être éliminé. Si tout le

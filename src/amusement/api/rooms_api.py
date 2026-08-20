@@ -14,8 +14,10 @@ router = APIRouter(prefix="/api/rooms", tags=["rooms"])
 
 class CreateRoomRequest(BaseModel):
     game: str = "orapa_mine"
-    mode: str  # "duel" | "fouille_parallel" | "fouille_turn_based"
-    max_players: int = Field(default=2, ge=2, le=8)
+    mode: str  # "duel" | "fouille"
+    # Le mode Fouille se joue seul (min 1) ou à plusieurs ; Duel exige
+    # exactement 2 (vérifié dans Room.__post_init__, pas ici).
+    max_players: int = Field(default=2, ge=1, le=8)
     # Fixé une fois pour tout le salon (voir Room.extensions_enabled) :
     # évite qu'un joueur pose le Diamant/Corps noir pendant qu'un autre
     # s'en tient aux 5 gemmes de base.
