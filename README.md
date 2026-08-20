@@ -109,3 +109,46 @@ Ces tunnels "quick" sont éphémères et sans garantie de disponibilité —
 pratiques pour un test ponctuel, pas pour un usage régulier. Une fois
 le test terminé, arrête les tunnels (Ctrl+C) et supprime ou vide
 `frontend/.env.local` pour repasser en mode LAN/localhost normal.
+
+### En résumé
+
+**Même Wi-Fi** — 2 terminaux :
+
+```sh
+# terminal 1 — backend
+uv run uvicorn amusement.api.main:app --host 0.0.0.0
+
+# terminal 2 — frontend
+cd frontend
+npm run dev
+```
+
+Puis ouvrir `http://<IP-de-la-machine>:5173` (ligne `Network:` affichée
+par `npm run dev`) sur les deux appareils.
+
+**Hors réseau (tunnel)** — 4 terminaux :
+
+```sh
+# terminal 1 — backend
+uv run uvicorn amusement.api.main:app --host 0.0.0.0
+
+# terminal 2 — tunnel backend (note l'URL affichée = URL A)
+cloudflared tunnel --url http://localhost:8000
+
+# terminal 3 — frontend (après avoir renseigné frontend/.env.local, voir ci-dessous)
+cd frontend
+npm run dev
+
+# terminal 4 — tunnel frontend (note l'URL affichée = URL B, à partager)
+cloudflared tunnel --url http://localhost:5173
+```
+
+Avant de lancer le terminal 3, renseigne l'URL A (backend) dans
+`frontend/.env.local` :
+
+```
+VITE_API_BASE_URL=https://<URL-A>
+VITE_WS_BASE_URL=wss://<URL-A>
+```
+
+Partage l'URL B (frontend, terminal 4) à ton ami.
