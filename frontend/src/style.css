@@ -297,3 +297,145 @@ body {
   max-height: 220px;
   overflow-y: auto;
 }
+
+/* Notice (Phase 5) */
+.notice {
+  max-width: 68ch;
+  margin-top: 1.5rem;
+}
+
+.notice__intro {
+  font-size: 1.02rem;
+}
+
+.notice__section {
+  margin-top: 2rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid light-dark(#e2e2e2, #333);
+}
+
+.notice__section h3 {
+  margin-bottom: 0.5rem;
+}
+
+.notice__section h4 {
+  margin: 1.2rem 0 0.4rem;
+}
+
+.notice__section ul {
+  padding-left: 1.2rem;
+}
+
+.notice__section li {
+  margin-bottom: 0.35rem;
+}
+
+.notice__hint {
+  font-size: 0.88rem;
+  opacity: 0.8;
+}
+
+.notice__piece-gallery {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 0.75rem;
+}
+
+.notice__piece {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.75rem 0.5rem;
+  border: 1px solid light-dark(#e2e2e2, #333);
+  border-radius: 0.5rem;
+  text-align: center;
+  font-size: 0.82rem;
+}
+
+.notice__diagram-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+  margin: 1rem 0;
+}
+
+.notice__diagram {
+  margin: 0;
+  text-align: center;
+}
+
+.notice__diagram figcaption {
+  font-size: 0.8rem;
+  opacity: 0.75;
+  max-width: 190px;
+  margin-top: 0.4rem;
+}
+
+/* Guide de jeu (Phase 5) */
+.guide {
+  max-width: 900px;
+  margin-top: 1.5rem;
+}
+
+.guide__nav {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.guide__nav button {
+  padding: 0.4rem 0.9rem;
+  border-radius: 0.4rem;
+  border: 1px solid light-dark(#999, #666);
+  background: light-dark(#f5f5f5, #2a2a2a);
+  cursor: pointer;
+}
+
+.guide__nav button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.guide__progress {
+  font-size: 0.85rem;
+  opacity: 0.75;
+}
+
+.guide__fire {
+  padding: 0.5rem 1rem;
+  border-radius: 0.4rem;
+  border: 1px solid #2ecc71;
+  background: light-dark(#eafaf0, #163823);
+  color: light-dark(#1e7e46, #7cdba0);
+  font-weight: 600;
+  cursor: pointer;
+  margin: 0.5rem 0;
+}
+
+.guide__result {
+  font-size: 0.9rem;
+  min-height: 1.4em;
+}
+
+.guide__canvas {
+  aspect-ratio: 16 / 9;
+  max-width: 700px;
+  border: 1px solid light-dark(#ccc, #444);
+  border-radius: 0.5rem;
+  overflow: hidden;
+  margin-top: 0.5rem;
+}
+
+.guide__canvas canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.hidden {
+  display: none;
+}

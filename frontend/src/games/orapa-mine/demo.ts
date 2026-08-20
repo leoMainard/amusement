@@ -11,7 +11,7 @@
  */
 
 import { BoardScene } from "./board-scene";
-import { placeShape } from "./piece-shapes";
+import { pieceIconSvg } from "./piece-icon";
 import { type RayResult, fireRayPreview, PlacementError, PreviewBoard } from "./preview-engine";
 import { BASE_PIECE_PALETTE, DEFAULT_DIMENSIONS, GemKind, type Piece, type PieceShape, type Position } from "./types";
 
@@ -67,7 +67,7 @@ export function mountOrapaMineDemo(root: HTMLElement): () => void {
     button.type = "button";
     button.className = "orapa-demo__swatch";
     button.title = label;
-    button.innerHTML = paletteIcon(shape, color);
+    button.innerHTML = pieceIconSvg(shape, color);
     button.addEventListener("click", () => {
       if (button.disabled) return;
       armed = {
@@ -207,26 +207,4 @@ function describeResult(entryLabel: string, result: RayResult): string {
   }
   const [col, row] = result.exit!;
   return `<strong>Rayon depuis ${entryLabel}</strong> : sort en (${col}, ${row}) — couleur <em>${result.colorName}</em>.`;
-}
-
-/** Icône SVG miniature d'une pièce, pour la palette — utilise sa vraie
- * silhouette (voir `piece-shapes.ts`), pas juste une pastille de couleur. */
-function paletteIcon(shape: PieceShape, color: string): string {
-  const verts = placeShape(shape, [0, 0]);
-  const xs = verts.map(([x]) => x);
-  const ys = verts.map(([, y]) => y);
-  const minX = Math.min(...xs);
-  const maxX = Math.max(...xs);
-  const minY = Math.min(...ys);
-  const maxY = Math.max(...ys);
-  const w = Math.max(maxX - minX, 0.001);
-  const h = Math.max(maxY - minY, 0.001);
-  const pad = 0.3;
-  const viewW = w + pad * 2;
-  const viewH = h + pad * 2;
-  const points = verts.map(([x, y]) => `${x - minX + pad},${y - minY + pad}`).join(" ");
-  const fill = { RED: "#d64545", YELLOW: "#e0c23c", BLUE: "#3f7fd6", WHITE: "#ffffff" }[color] ?? "#999";
-  return `<svg viewBox="0 0 ${viewW} ${viewH}" width="44" height="44" role="img" aria-hidden="true">
-    <polygon points="${points}" fill="${fill}" stroke="#3b3a35" stroke-width="0.06" />
-  </svg>`;
 }

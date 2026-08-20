@@ -167,8 +167,24 @@ Site de jeux en ligne entre amis. Premier jeu : **Orapa Mine**.
    voir le commentaire dans `multiplayer.ts`), affichage du plateau
    généré aléatoirement pour la relecture après une partie Fouille
    terminée.
-5. **Notice & Guide de jeu** — page de règles reformulées + tutoriel
-   interactif jouable.
+5. **Notice & Guide de jeu** — *(fait)*. Voir `frontend/src/pages/`.
+   - `notice/orapa-mine.ts` : règles reformulées avec nos propres mots
+     (rien copié du livret) — plateau et gemmes, placement, physique du
+     rayon (schémas SVG faits maison pour la déviation diagonale et le
+     rebond droit, et pour la règle de contact par un point), couleurs,
+     les deux modes, extensions. Utilise la vraie palette de pièces
+     (`piece-icon.ts`, factorisé depuis `demo.ts`/`placement-controller.ts`
+     qui le dupliquaient) pour illustrer chaque gemme avec sa vraie
+     silhouette.
+   - `guide/orapa-mine.ts` : tutoriel pas-à-pas sur un plateau 3D réel
+     (6 étapes : plateau, une gemme posée, déviation diagonale, rebond
+     droit, mélange de couleurs, puis la démo hors ligne complète pour
+     s'entraîner librement). Les scénarios (positions, sens de
+     réflexion) sont exactement ceux vérifiés dans
+     `test_raycast.py` côté backend, pas re-inventés.
+   Vérifié visuellement (Playwright) : les 3 tirs guidés (étapes 3 à 5)
+   produisent exactement les résultats attendus — mêmes chiffres que les
+   tests backend — et la démo finale s'intègre sans erreur console.
 6. **Portail multi-jeux** — accueil listant les jeux, création/jonction de
    salon générique, réutilisable pour de futurs jeux.
 
