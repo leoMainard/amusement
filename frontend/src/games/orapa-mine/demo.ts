@@ -22,7 +22,7 @@ export function mountOrapaMineDemo(root: HTMLElement): () => void {
     <div class="orapa-demo">
       <div class="orapa-demo__canvas"></div>
       <aside class="orapa-demo__panel">
-        <h3>Aperçu 3D hors ligne</h3>
+        <span class="om-eyebrow">Aperçu 3D hors ligne</span>
         <p class="orapa-demo__hint">
           Choisis une pièce, oriente-la (touches <kbd>R</kbd> pivoter / <kbd>F</kbd> retourner,
           en plus des boutons), puis clique une case pour la poser (reclique une pièce posée —
@@ -33,7 +33,7 @@ export function mountOrapaMineDemo(root: HTMLElement): () => void {
         </p>
         <div class="orapa-demo__palette"></div>
         <div class="orapa-demo__transform">
-          <button type="button" class="orapa-demo__rotate">⟳ Pivoter</button>
+          <button type="button" class="orapa-demo__rotate">⟳ Pivoter 90°</button>
           <button type="button" class="orapa-demo__mirror">⇋ Retourner</button>
         </div>
         <button type="button" class="orapa-demo__validate" disabled>Valider le placement (0/5)</button>

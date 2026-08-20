@@ -63,15 +63,16 @@ export const Direction = {
 } as const;
 export type Direction = (typeof Direction)[keyof typeof Direction];
 
-/** Couleurs d'affichage (hexadécimal Three.js) pour chaque `Color`. Le
- * blanc reste un vrai blanc (pas grisé) : sa lisibilité sur le fond
- * clair du plateau vient du contour sombre ajouté à chaque pièce en 3D
- * (voir `board-scene.ts`), pas d'une teinte approximative. */
+/** Couleurs d'affichage (hexadécimal Three.js) pour chaque `Color` —
+ * reprises de la maquette Claude Design (`claude_design/orapa-board.js`,
+ * table `PIECES`). Le blanc est un vrai crème (`#f7f4ee`), pas blanc
+ * pur : reste lisible sur le fond bleu nuit du plateau sans avoir
+ * besoin d'être éclatant. */
 export const GEM_DISPLAY_COLOR: Record<Color, number> = {
-  RED: 0xd64545,
-  YELLOW: 0xe0c23c,
-  BLUE: 0x3f7fd6,
-  WHITE: 0xffffff,
+  RED: 0xd8443c,
+  YELLOW: 0xf2c24b,
+  BLUE: 0x2f6fd0,
+  WHITE: 0xf7f4ee,
 };
 
 /** Les 5 silhouettes de la variante de base, avec leur couleur/nature —

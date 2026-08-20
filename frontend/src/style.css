@@ -1,58 +1,879 @@
+/**
+ * Système de tokens repris de deux maquettes Claude Design (voir
+ * claude_design/, non versionné) : `--am-*` pour l'accueil (portail,
+ * fond crème, style "neo-brutaliste" à bordures noires + ombres dures),
+ * `--om-*` pour Orapa Mine (fond bleu nuit, accent or, style
+ * "prospection/mine"). Chaque famille de page a son propre thème fixe
+ * (pas de bascule clair/sombre ici, contrairement au reste du site :
+ * les deux maquettes sont conçues pour un seul rendu).
+ */
 :root {
   color-scheme: light dark;
   font-family: system-ui, sans-serif;
+
+  /* --- Accueil --------------------------------------------------- */
+  --am-bg: #f6efe2;
+  --am-text: #1b1a22;
+  --am-text-muted: #4a4655;
+  --am-text-dim: #6b6678;
+  --am-coral: #ff5a3c;
+  --am-coral-dark: #e63d1f;
+  --am-yellow: #ffc53d;
+  --am-purple: #6c4bf6;
+  --am-green: #17be8c;
+
+  /* --- Orapa Mine -------------------------------------------------- */
+  --om-bg-deep: #070e26;
+  --om-bg-mid: #0e1a40;
+  --om-bg-top: #1b2c62;
+  --om-surface: #0b1330;
+  --om-surface-2: #16265a;
+  --om-text: #f4ead6;
+  --om-text-1: #cdd7f0;
+  --om-text-2: #b9c6e6;
+  --om-text-3: #a8b7dc;
+  --om-text-4: #8fa4d8;
+  --om-text-5: #6d7ea8;
+  --om-gold: #f2c24b;
+  --om-gold-hover: #ffd772;
+  --om-gold-dark: #c8912c;
+  --om-border: rgba(244, 234, 214, 0.14);
+  --om-border-soft: rgba(244, 234, 214, 0.1);
+  --om-panel: rgba(11, 19, 48, 0.55);
+  --om-panel-soft: rgba(244, 234, 214, 0.04);
+  --om-red: #d8443c;
+  --om-red-dark: #9c2a26;
+  --om-blue: #2f6fd0;
+  --om-blue-dark: #1b4288;
+  --om-cream: #f7f4ee;
+  --om-cream-dark: #cdc4b4;
 }
 
 body {
   margin: 0;
   min-height: 100vh;
+  background: var(--am-bg);
 }
 
-#app {
-  max-width: 1100px;
+* {
+  box-sizing: border-box;
+}
+
+/* #app a deux thèmes exclusifs, selon l'écran affiché : l'accueil
+   (`.am-home`, crème/corail — voir claude_design/Amusement - Accueil)
+   ou un jeu (`.om-shell`, bleu nuit/or — voir claude_design/Orapa Mine).
+   Un seul est monté à la fois (voir main.ts). */
+body:has(#app.om-shell) {
+  background: var(--om-bg-deep);
+}
+
+/* ================================================================ */
+/* Accueil                                                           */
+/* ================================================================ */
+
+#app.am-home {
+  max-width: 1320px;
   margin: 0 auto;
-  padding: 2rem 1rem;
+  padding: 0 0 2rem;
+  font-family: "Sora", system-ui, sans-serif;
+  color: var(--am-text);
+}
+
+.am-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 22px 12px;
+  border-bottom: 2px solid var(--am-text);
+}
+
+.am-header__brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.am-header__logo {
+  position: relative;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: var(--am-coral);
+  border: 2px solid var(--am-text);
+}
+
+.am-header__logo::before,
+.am-header__logo::after {
+  content: "";
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--am-text);
+}
+
+.am-header__logo::before {
+  left: 7px;
+  top: 7px;
+}
+
+.am-header__logo::after {
+  right: 7px;
+  bottom: 7px;
+}
+
+.am-header__name {
+  font-family: "Bricolage Grotesque", sans-serif;
+  font-weight: 800;
+  font-size: 25px;
+  letter-spacing: -0.02em;
+}
+
+.am-header__nav {
+  display: flex;
+  align-items: center;
+  gap: 26px;
+  font-size: 14.5px;
+  font-weight: 500;
+}
+
+.am-header__link {
+  cursor: pointer;
+  background: none;
+  border: none;
+  font: inherit;
+  color: inherit;
+  padding: 0;
+}
+
+.am-header__link:hover {
+  color: var(--am-coral);
+}
+
+.am-header__cta {
+  padding: 11px 20px;
+  border-radius: 999px;
+  border: none;
+  background: var(--am-text);
+  color: var(--am-bg);
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  transition: transform 0.2s ease, background 0.2s ease;
+}
+
+.am-header__cta:hover {
+  transform: translateY(-2px);
+  background: var(--am-coral);
+}
+
+.am-hero {
+  position: relative;
+  padding: 62px 12px 34px;
+  overflow: hidden;
+}
+
+.am-hero__grid {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 260px;
+  gap: 40px;
+  align-items: start;
+}
+
+.am-hero__title {
+  margin: 22px 0 0;
+  font-family: "Bricolage Grotesque", sans-serif;
+  font-weight: 800;
+  font-size: clamp(38px, 5.6vw, 82px);
+  line-height: 0.94;
+  letter-spacing: -0.035em;
+}
+
+.am-hero__lede {
+  margin: 24px 0 0;
+  max-width: 470px;
+  font-size: 17px;
+  line-height: 1.6;
+  color: var(--am-text-muted);
+}
+
+.am-hero__shapes {
+  position: relative;
+  height: 260px;
+  display: none;
+}
+
+@media (min-width: 860px) {
+  .am-hero__shapes {
+    display: block;
+  }
+}
+
+.am-hero__shape-circle {
+  position: absolute;
+  right: -60px;
+  top: -50px;
+  width: 220px;
+  height: 220px;
+  border-radius: 50%;
+  background: var(--am-yellow);
+  border: 2px solid var(--am-text);
+}
+
+.am-hero__shape-tri {
+  position: absolute;
+  right: 76px;
+  top: 110px;
+  width: 100px;
+  height: 100px;
+  background: var(--am-purple);
+  border: 2px solid var(--am-text);
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+  animation: am-bob 6s ease-in-out infinite;
+}
+
+.am-hero__shape-square {
+  position: absolute;
+  right: -6px;
+  top: 170px;
+  width: 68px;
+  height: 68px;
+  border-radius: 18px;
+  background: var(--am-green);
+  border: 2px solid var(--am-text);
+  animation: am-bob 5s ease-in-out 0.8s infinite;
+  transform: rotate(-8deg);
+}
+
+@keyframes am-bob {
+  0%,
+  100% {
+    transform: translateY(0) rotate(var(--r, 0deg));
+  }
+  50% {
+    transform: translateY(-9px) rotate(var(--r, 0deg));
+  }
+}
+
+.am-ticker {
+  /* Plein-bord jusqu'aux bords du viewport (comme la maquette) plutôt
+     que confiné à la colonne `max-width: 1320px` de `#app.am-home` — le
+     seul bandeau de la page à faire ce débordement volontaire. */
+  width: 100vw;
+  margin-left: calc(50% - 50vw);
+  margin-right: calc(50% - 50vw);
+  margin-top: 26px;
+  padding: 13px 0;
+  background: var(--am-text);
+  color: var(--am-bg);
+  border-top: 2px solid var(--am-text);
+  border-bottom: 2px solid var(--am-text);
+  overflow: hidden;
+}
+
+.am-ticker__track {
+  display: flex;
+  width: 200%;
+  animation: am-marquee 26s linear infinite;
+}
+
+.am-ticker__set {
+  display: flex;
+  gap: 40px;
+  width: 50%;
+  flex: 0 0 50%;
+  font-family: "Bricolage Grotesque", sans-serif;
+  font-weight: 700;
+  font-size: 16px;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.am-ticker__item {
+  display: flex;
+  align-items: center;
+  gap: 40px;
+}
+
+.am-ticker__item::after {
+  content: "◆";
+  color: var(--am-coral);
+}
+
+@keyframes am-marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.am-table-heading {
+  margin: 0 auto;
+  padding: 54px 12px 20px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.am-table-heading h2 {
+  margin: 0;
+  font-family: "Bricolage Grotesque", sans-serif;
+  font-weight: 800;
+  font-size: 34px;
+  letter-spacing: -0.02em;
+}
+
+.am-table-heading__meta {
+  font-size: 14px;
+  color: var(--am-text-dim);
+}
+
+.am-table {
+  padding: 0 12px 34px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 22px;
+}
+
+@media (max-width: 860px) {
+  .am-hero__grid {
+    grid-template-columns: 1fr;
+  }
+  .am-table {
+    grid-template-columns: 1fr;
+  }
+  .game-card--main,
+  .am-card--wide {
+    grid-column: span 1 !important;
+  }
 }
 
 .game-card {
-  border: 1px solid light-dark(#ccc, #444);
-  border-radius: 0.5rem;
-  padding: 1rem 1.5rem;
-}
-
-.game-card button {
-  margin-top: 0.75rem;
-  padding: 0.5rem 1rem;
-  border-radius: 0.4rem;
-  border: 1px solid light-dark(#999, #666);
-  background: light-dark(#f5f5f5, #2a2a2a);
-  cursor: pointer;
-}
-
-.game-card button:disabled {
-  opacity: 0.5;
+  position: relative;
+  grid-column: span 2;
+  min-height: 380px;
+  padding: 30px;
+  border-radius: 26px;
+  background: var(--am-coral);
+  border: 2px solid var(--am-text);
+  color: #fff6ef;
   cursor: default;
+  overflow: hidden;
+  display: flex;
+  gap: 26px;
+  align-items: stretch;
+  transition: transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.35s ease;
 }
 
-.game-card button.is-selected {
-  border-color: #2ecc71;
-  border-width: 2px;
+.game-card:hover {
+  transform: translate(-6px, -6px);
+  box-shadow: 14px 14px 0 var(--am-text);
+}
+
+.game-card__body {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.game-card__badge {
+  align-self: flex-start;
+  padding: 6px 13px;
+  border-radius: 999px;
+  background: var(--am-bg);
+  color: var(--am-text);
+  font-size: 12px;
   font-weight: 600;
 }
 
-/* Démo Orapa Mine (Phase 3) */
+.game-card h2 {
+  margin: 18px 0 0;
+  font-family: "Bricolage Grotesque", sans-serif;
+  font-weight: 800;
+  font-size: clamp(30px, 3.6vw, 46px);
+  line-height: 0.95;
+  letter-spacing: -0.03em;
+}
+
+.game-card p {
+  margin: 14px 0 0;
+  max-width: 340px;
+  font-size: 15.5px;
+  line-height: 1.55;
+  opacity: 0.92;
+}
+
+.game-card__tags {
+  margin-top: 18px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.game-card__tag {
+  padding: 7px 13px;
+  border-radius: 999px;
+  border: 1.5px solid rgba(246, 239, 226, 0.55);
+  font-size: 12.5px;
+}
+
+.game-card__actions {
+  margin-top: auto;
+  padding-top: 24px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.game-card__actions button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 20px;
+  border-radius: 999px;
+  border: none;
+  background: var(--am-text);
+  color: var(--am-bg);
+  font-family: "Bricolage Grotesque", sans-serif;
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  transition: gap 0.25s ease, transform 0.2s ease;
+}
+
+.game-card__actions button:hover {
+  gap: 16px;
+  transform: translateY(-2px);
+}
+
+.game-card__actions button.is-selected {
+  background: var(--am-coral-dark);
+}
+
+/* Bloc décoratif (formes géométriques sur fond noir, reprises de la
+   maquette) — purement illustratif, mêmes teintes que les formes
+   flottantes du hero (`--am-purple`/`--am-yellow`), pas les couleurs
+   réelles des gemmes du jeu. */
+.game-card__icon {
+  position: relative;
+  flex: 0 0 240px;
+  align-self: center;
+  width: 240px;
+  height: 240px;
+  border-radius: 22px;
+  background: var(--am-text);
+  overflow: hidden;
+}
+
+@media (max-width: 640px) {
+  .game-card__icon {
+    display: none;
+  }
+}
+
+.game-card__icon-shape {
+  position: absolute;
+  display: block;
+}
+
+.game-card__icon-shape--tri-a {
+  left: 22px;
+  bottom: 20px;
+  width: 118px;
+  height: 118px;
+  background: #f6efe2;
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+}
+
+.game-card__icon-shape--tri-b {
+  left: 98px;
+  bottom: 20px;
+  width: 104px;
+  height: 104px;
+  background: var(--am-purple);
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+}
+
+.game-card__icon-shape--para {
+  left: 100px;
+  bottom: 16px;
+  width: 68px;
+  height: 46px;
+  background: var(--am-yellow);
+  clip-path: polygon(32% 0, 100% 0, 68% 100%, 0 100%);
+}
+
+.am-card--stub {
+  position: relative;
+  min-height: 300px;
+  padding: 26px;
+  border-radius: 26px;
+  border: 2px solid var(--am-text);
+  cursor: default;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  color: var(--am-text);
+}
+
+.am-card--stub h3 {
+  margin: 0;
+  font-family: "Bricolage Grotesque", sans-serif;
+  font-weight: 800;
+  font-size: 30px;
+  letter-spacing: -0.02em;
+}
+
+.am-card--stub p {
+  margin: 7px 0 0;
+  font-size: 14px;
+  opacity: 0.8;
+}
+
+.am-card--stub .am-card__badge {
+  align-self: flex-start;
+  padding: 6px 13px;
+  border-radius: 999px;
+  border: 1.5px solid rgba(27, 26, 34, 0.45);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.am-card--empty {
+  grid-column: span 1;
+  min-height: 300px;
+  padding: 26px;
+  border-radius: 26px;
+  background: var(--am-bg);
+  border: 2px dashed #b8ae9c;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.am-card--empty .am-card__badge {
+  display: inline-flex;
+  align-self: flex-start;
+  padding: 6px 13px;
+  border-radius: 999px;
+  background: #fff;
+  border: 1.5px solid var(--am-text);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.am-card--empty__spin {
+  align-self: center;
+  width: 56px;
+  height: 56px;
+  border: 2px dashed #b8ae9c;
+  border-radius: 50%;
+  animation: am-spin 18s linear infinite;
+}
+
+@keyframes am-spin {
+  from {
+    transform: rotate(0);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.am-card--empty h3 {
+  margin: 0;
+  font-family: "Bricolage Grotesque", sans-serif;
+  font-weight: 800;
+  font-size: 24px;
+  letter-spacing: -0.02em;
+  color: var(--am-text-dim);
+}
+
+.am-card--empty p {
+  margin: 7px 0 0;
+  font-size: 14px;
+  color: #8b8598;
+}
+
+.am-steps {
+  padding: 30px 12px 70px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 22px;
+}
+
+@media (max-width: 720px) {
+  .am-steps {
+    grid-template-columns: 1fr;
+  }
+}
+
+.am-step {
+  padding: 26px;
+  border-radius: 22px;
+  background: #fff;
+  border: 2px solid var(--am-text);
+}
+
+.am-step__n {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  border: 2px solid var(--am-text);
+  font-family: "Bricolage Grotesque", sans-serif;
+  font-weight: 800;
+  font-size: 17px;
+}
+
+.am-step__title {
+  margin-top: 16px;
+  font-family: "Bricolage Grotesque", sans-serif;
+  font-weight: 700;
+  font-size: 20px;
+  letter-spacing: -0.01em;
+}
+
+.am-step p {
+  margin: 8px 0 0;
+  font-size: 14.5px;
+  line-height: 1.55;
+  color: var(--am-text-muted);
+}
+
+.am-footer {
+  padding: 34px 12px;
+  background: var(--am-text);
+  color: var(--am-bg);
+  margin: 0 -12px;
+  border-radius: 0 0 8px 8px;
+}
+
+.am-footer__inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+.am-footer__brand {
+  font-family: "Bricolage Grotesque", sans-serif;
+  font-weight: 800;
+  font-size: 22px;
+}
+
+.am-footer__links {
+  display: flex;
+  gap: 24px;
+  font-size: 14px;
+  color: #b6b1c2;
+}
+
+/* ================================================================ */
+/* Orapa Mine — coquille de page (jeu) + thème commun                */
+/* ================================================================ */
+
+#app.om-shell {
+  min-height: 100vh;
+  font-family: "DM Sans", system-ui, sans-serif;
+  color: var(--om-text);
+  background: radial-gradient(120% 45% at 50% 0%, var(--om-bg-top) 0%, var(--om-bg-mid) 45%, transparent 100%);
+}
+
+#app.om-shell h1,
+#app.om-shell h2,
+#app.om-shell h3,
+#app.om-shell h4 {
+  font-family: "Chakra Petch", sans-serif;
+  letter-spacing: 0.04em;
+}
+
+.om-shell__header {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 13px clamp(16px, 4vw, 26px);
+  background: rgba(7, 14, 38, 0.86);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--om-border);
+}
+
+.om-shell__brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+}
+
+.om-shell__brand-mark {
+  width: 24px;
+  height: 24px;
+  background: linear-gradient(135deg, var(--om-gold) 50%, var(--om-gold-dark) 50%);
+  clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
+  flex-shrink: 0;
+}
+
+.om-shell__brand-name {
+  font-family: "Chakra Petch", sans-serif;
+  font-weight: 700;
+  font-size: 16px;
+  letter-spacing: 0.18em;
+}
+
+.om-shell__crumbs {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  letter-spacing: 0.05em;
+}
+
+.om-shell__back {
+  padding: 8px 15px;
+  border: 1px solid var(--om-border);
+  border-radius: 999px;
+  cursor: pointer;
+  color: var(--om-text-1);
+  background: none;
+  font: inherit;
+}
+
+.om-shell__back:hover {
+  border-color: var(--om-gold);
+  color: var(--om-gold);
+}
+
+.om-shell__crumb {
+  padding: 8px 15px;
+  border-radius: 999px;
+  background: rgba(242, 194, 75, 0.13);
+  color: var(--om-gold);
+  font-family: "Chakra Petch", sans-serif;
+  letter-spacing: 0.1em;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.om-shell__tabs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 22px clamp(16px, 4vw, 40px) 0;
+}
+
+.om-shell__tabs button {
+  padding: 10px 18px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-family: "Chakra Petch", sans-serif;
+  letter-spacing: 0.1em;
+  font-size: 12.5px;
+  background: rgba(244, 234, 214, 0.07);
+  color: var(--om-text-3);
+  border: none;
+}
+
+.om-shell__tabs button.is-selected {
+  background: var(--om-gold);
+  color: var(--om-surface);
+}
+
+#view-root {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 22px clamp(16px, 4vw, 40px) 70px;
+}
+
+.om-eyebrow {
+  display: block;
+  font-family: "Chakra Petch", sans-serif;
+  font-size: 12px;
+  letter-spacing: 0.16em;
+  color: var(--om-text-4);
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+
+.om-btn {
+  font-family: "Chakra Petch", sans-serif;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  border-radius: 10px;
+  border: none;
+  cursor: pointer;
+  padding: 12px 20px;
+  background: var(--om-gold);
+  color: var(--om-surface);
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.om-btn:hover:not(:disabled) {
+  background: var(--om-gold-hover);
+  transform: translateY(-2px);
+}
+
+.om-btn:disabled {
+  background: var(--om-panel-soft);
+  color: var(--om-text-5);
+  cursor: default;
+  transform: none;
+}
+
+.om-btn--ghost {
+  background: transparent;
+  color: var(--om-text-1);
+  border: 1px solid var(--om-border);
+}
+
+.om-btn--ghost:hover:not(:disabled) {
+  border-color: var(--om-gold);
+  color: var(--om-gold);
+  background: transparent;
+}
+
+.om-panel {
+  padding: 18px;
+  border-radius: 16px;
+  background: var(--om-panel);
+  border: 1px solid var(--om-border);
+}
+
+/* --- Démo / plateau ------------------------------------------------ */
+
 .orapa-demo {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 260px;
-  gap: 1rem;
-  margin-top: 1.5rem;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 18px;
+  align-items: start;
 }
 
 .orapa-demo__canvas {
   aspect-ratio: 4 / 3;
-  border: 1px solid light-dark(#ccc, #444);
-  border-radius: 0.5rem;
+  border-radius: 14px;
   overflow: hidden;
+  border: 1px solid var(--om-border);
+  background: radial-gradient(80% 70% at 50% 0%, var(--om-surface-2) 0%, var(--om-bg-deep) 100%);
 }
 
 .orapa-demo__canvas canvas {
@@ -67,26 +888,42 @@ body {
   gap: 0.75rem;
 }
 
+.orapa-demo__panel > h3 {
+  margin: 0;
+}
+
 .orapa-demo__hint {
-  font-size: 0.85rem;
-  opacity: 0.8;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--om-text-3);
+}
+
+.orapa-demo__hint kbd {
+  border-color: var(--om-border);
+  background: rgba(244, 234, 214, 0.08);
+  color: var(--om-text);
 }
 
 .orapa-demo__palette {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 0.4rem;
+  gap: 8px;
 }
 
 .orapa-demo__swatch {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 0.3rem;
-  border-radius: 0.4rem;
-  border: 1px solid light-dark(#999, #666);
-  background: light-dark(#f5f5f5, #2a2a2a);
+  padding: 8px;
+  border-radius: 10px;
+  border: 1px solid var(--om-border);
+  background: var(--om-panel-soft);
   cursor: pointer;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.orapa-demo__swatch:hover:not(:disabled) {
+  border-color: var(--om-gold);
 }
 
 .orapa-demo__swatch svg {
@@ -94,9 +931,9 @@ body {
 }
 
 .orapa-demo__swatch.is-selected {
-  border-color: #2ecc71;
+  border-color: var(--om-gold);
   border-width: 2px;
-  box-shadow: 0 0 0 1px #2ecc71 inset;
+  background: rgba(242, 194, 75, 0.14);
 }
 
 .orapa-demo__swatch:disabled {
@@ -106,16 +943,26 @@ body {
 
 .orapa-demo__transform {
   display: flex;
-  gap: 0.5rem;
+  gap: 8px;
 }
 
 .orapa-demo__transform button {
   flex: 1;
-  padding: 0.4rem;
-  border-radius: 0.4rem;
-  border: 1px solid light-dark(#999, #666);
-  background: light-dark(#f5f5f5, #2a2a2a);
+  padding: 11px;
+  border-radius: 10px;
+  border: 1px solid var(--om-border);
+  background: transparent;
+  color: var(--om-text-1);
+  font-family: "Chakra Petch", sans-serif;
+  font-size: 12.5px;
+  letter-spacing: 0.1em;
   cursor: pointer;
+  transition: border-color 0.2s ease, color 0.2s ease;
+}
+
+.orapa-demo__transform button:hover:not(:disabled) {
+  border-color: var(--om-gold);
+  color: var(--om-gold);
 }
 
 .orapa-demo__transform button:disabled,
@@ -126,33 +973,43 @@ body {
 }
 
 .orapa-demo__validate {
-  padding: 0.5rem;
-  border-radius: 0.4rem;
-  border: 1px solid light-dark(#2ecc71, #2ecc71);
-  background: light-dark(#eafaf0, #163823);
-  color: light-dark(#1e7e46, #7cdba0);
-  font-weight: 600;
+  padding: 13px;
+  border-radius: 10px;
+  border: none;
+  background: var(--om-gold);
+  color: var(--om-surface);
+  font-family: "Chakra Petch", sans-serif;
+  font-weight: 700;
+  letter-spacing: 0.1em;
   cursor: pointer;
 }
 
 .orapa-demo__validate:disabled {
-  border-color: light-dark(#999, #666);
-  background: light-dark(#f5f5f5, #2a2a2a);
-  color: inherit;
-  font-weight: normal;
+  background: var(--om-panel-soft);
+  color: var(--om-text-5);
 }
 
 .orapa-demo__clear {
-  padding: 0.4rem;
-  border-radius: 0.4rem;
-  border: 1px solid light-dark(#999, #666);
-  background: light-dark(#f5f5f5, #2a2a2a);
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid var(--om-border);
+  background: transparent;
+  color: var(--om-text-1);
+  font-family: "Chakra Petch", sans-serif;
+  font-size: 12.5px;
+  letter-spacing: 0.1em;
   cursor: pointer;
+}
+
+.orapa-demo__clear:hover:not(:disabled) {
+  border-color: var(--om-red);
+  color: var(--om-red);
 }
 
 .orapa-demo__result {
   font-size: 0.9rem;
   min-height: 1.4em;
+  color: var(--om-text-1);
 }
 
 kbd {
@@ -181,37 +1038,79 @@ kbd {
   }
 }
 
-/* Multijoueur Orapa Mine (Phase 4) */
+/* --- Placement panel (cadre "aperçu" + pivoter/retourner) ---------- */
+
+.orapa-place__preview {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.orapa-place__preview-box {
+  margin-top: 10px;
+  height: 92px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background:
+    repeating-linear-gradient(0deg, rgba(143, 164, 216, 0.12) 0 1px, transparent 1px 22px),
+    repeating-linear-gradient(90deg, rgba(143, 164, 216, 0.12) 0 1px, transparent 1px 22px),
+    rgba(7, 14, 38, 0.5);
+}
+
+.orapa-place__preview-box svg {
+  filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.45));
+}
+
+.orapa-place__preview-empty {
+  font-size: 12.5px;
+  color: var(--om-text-5);
+}
+
+/* ================================================================ */
+/* Multijoueur                                                       */
+/* ================================================================ */
+
 .orapa-mp__setup {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 1rem;
-  margin-top: 1.5rem;
+  gap: 16px;
 }
 
 .orapa-mp__panel {
-  border: 1px solid light-dark(#ccc, #444);
-  border-radius: 0.5rem;
-  padding: 1rem 1.25rem;
+  border-radius: 16px;
+  background: var(--om-panel);
+  border: 1px solid var(--om-border);
+  padding: 20px 22px;
   display: flex;
   flex-direction: column;
-  gap: 0.6rem;
+  gap: 0.7rem;
+}
+
+.orapa-mp__panel h3 {
+  margin: 0 0 4px;
 }
 
 .orapa-mp__panel label {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
-  font-size: 0.9rem;
+  gap: 0.3rem;
+  font-size: 13px;
+  color: var(--om-text-3);
+  letter-spacing: 0.02em;
 }
 
 .orapa-mp__panel input,
 .orapa-mp__panel select {
-  padding: 0.4rem;
-  border-radius: 0.35rem;
-  border: 1px solid light-dark(#999, #666);
-  background: light-dark(#fff, #1c1c1c);
-  color: inherit;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--om-border);
+  background: rgba(7, 14, 38, 0.6);
+  color: var(--om-text);
+  font-family: inherit;
+  font-size: 14px;
 }
 
 .orapa-mp__panel label.orapa-mp__extensions {
@@ -224,70 +1123,95 @@ kbd {
   width: auto;
 }
 
-.orapa-mp__extensions-hint {
+.orapa-mp__extensions-hint,
+.orapa-mp__max-players-hint {
   margin: -0.25rem 0 0;
-  font-size: 0.78rem;
-  opacity: 0.7;
+  font-size: 12.5px;
+  color: var(--om-text-5);
 }
 
 .orapa-mp__extensions-label {
-  font-size: 0.85rem;
-  opacity: 0.75;
+  font-size: 13px;
+  color: var(--om-text-3);
 }
 
 .orapa-mp__create-btn,
 .orapa-mp__join-btn {
   margin-top: 0.5rem;
-  padding: 0.5rem;
-  border-radius: 0.4rem;
-  border: 1px solid light-dark(#999, #666);
-  background: light-dark(#f5f5f5, #2a2a2a);
+  padding: 13px;
+  border-radius: 10px;
+  border: none;
+  background: var(--om-gold);
+  color: var(--om-surface);
   cursor: pointer;
-  font-weight: 600;
+  font-family: "Chakra Petch", sans-serif;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+}
+
+.orapa-mp__create-btn:hover,
+.orapa-mp__join-btn:hover {
+  background: var(--om-gold-hover);
 }
 
 .orapa-mp__error {
   grid-column: 1 / -1;
-  color: #c0392b;
+  color: #ff8a80;
   min-height: 1.2em;
 }
 
 .orapa-mp__lobby {
-  margin-top: 1.5rem;
-  border: 1px solid light-dark(#ccc, #444);
-  border-radius: 0.5rem;
-  padding: 1.25rem;
-  max-width: 480px;
+  border-radius: 16px;
+  background: var(--om-panel);
+  border: 1px solid var(--om-border);
+  padding: 24px;
+  max-width: 520px;
 }
 
-.orapa-mp__mode-label {
-  font-size: 0.85rem;
-  opacity: 0.75;
+.orapa-mp__lobby h3 {
+  margin-top: 0;
+}
+
+.orapa-mp__mode-label,
+.orapa-mp__extensions-label {
+  font-size: 13px;
+  color: var(--om-text-3);
 }
 
 .orapa-mp__share {
   display: flex;
   gap: 0.5rem;
-  margin: 0.75rem 0;
+  margin: 0.9rem 0;
 }
 
 .orapa-mp__link {
   flex: 1;
-  padding: 0.4rem;
-  border-radius: 0.35rem;
-  border: 1px solid light-dark(#999, #666);
-  background: light-dark(#fff, #1c1c1c);
-  color: inherit;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--om-border);
+  background: rgba(7, 14, 38, 0.7);
+  color: var(--om-text);
+  font-family: "Chakra Petch", sans-serif;
+  letter-spacing: 0.06em;
 }
 
 .orapa-mp__copy {
-  padding: 0.4rem 0.8rem;
-  border-radius: 0.35rem;
-  border: 1px solid light-dark(#999, #666);
-  background: light-dark(#f5f5f5, #2a2a2a);
+  padding: 10px 16px;
+  border-radius: 10px;
+  border: 1px solid var(--om-border);
+  background: transparent;
+  color: var(--om-text-1);
   cursor: pointer;
   flex-shrink: 0;
   white-space: nowrap;
+  font-family: "Chakra Petch", sans-serif;
+  font-size: 12.5px;
+  letter-spacing: 0.08em;
+}
+
+.orapa-mp__copy:hover {
+  border-color: var(--om-gold);
+  color: var(--om-gold);
 }
 
 .orapa-mp__players {
@@ -297,26 +1221,31 @@ kbd {
 }
 
 .orapa-mp__players li {
-  padding: 0.3rem 0;
-  border-bottom: 1px solid light-dark(#eee, #333);
+  padding: 0.4rem 0;
+  border-bottom: 1px solid var(--om-border-soft);
 }
 
 .orapa-mp__phase {
-  font-size: 0.9rem;
+  font-size: 14px;
+  color: var(--om-text-3);
 }
 
 .orapa-mp__turn {
   font-weight: 600;
+  color: var(--om-gold);
+  font-family: "Chakra Petch", sans-serif;
+  letter-spacing: 0.04em;
 }
 
 .orapa-mp__result-banner {
-  font-size: 1.1rem;
+  font-size: 1.2rem;
   font-weight: 700;
+  font-family: "Chakra Petch", sans-serif;
 }
 
 .orapa-mp__wait {
-  font-size: 0.85rem;
-  opacity: 0.75;
+  font-size: 13px;
+  color: var(--om-text-5);
 }
 
 .orapa-mp__mode-toggle {
@@ -327,61 +1256,70 @@ kbd {
 
 .orapa-mp__mode-toggle button {
   flex: 1;
-  padding: 0.4rem;
-  border-radius: 0.4rem;
-  border: 1px solid light-dark(#999, #666);
-  background: light-dark(#f5f5f5, #2a2a2a);
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid var(--om-border);
+  background: transparent;
+  color: var(--om-text-1);
   cursor: pointer;
+  font-family: "Chakra Petch", sans-serif;
+  font-size: 12.5px;
+  letter-spacing: 0.08em;
 }
 
 .orapa-mp__mode-toggle button.is-selected {
-  border-color: #2ecc71;
+  border-color: var(--om-gold);
   border-width: 2px;
+  color: var(--om-gold);
 }
 
 .orapa-mp__log {
   display: flex;
   flex-direction: column-reverse;
-  gap: 0.2rem;
+  gap: 0.3rem;
   max-height: 220px;
   overflow-y: auto;
+  font-size: 13.5px;
+  color: var(--om-text-2);
 }
 
 .orapa-mp__ask-tools {
   display: flex;
   gap: 0.5rem;
   margin: 0.4rem 0;
+  flex-wrap: wrap;
 }
 
 .orapa-mp__peek-toggle,
 .orapa-mp__mark-toggle,
 .orapa-mp__reflect-toggle {
-  padding: 0.3rem 0.6rem;
-  border-radius: 0.4rem;
-  border: 1px solid light-dark(#999, #666);
-  background: light-dark(#f5f5f5, #2a2a2a);
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--om-border);
+  background: transparent;
+  color: var(--om-text-1);
   cursor: pointer;
-  font-size: 0.85rem;
+  font-size: 13px;
 }
 
 .orapa-mp__peek-toggle.is-selected {
-  border-color: #2ecc71;
+  border-color: var(--om-green, #2ecc71);
   border-width: 2px;
-  color: #2ecc71;
+  color: #7bbf8a;
   font-weight: 600;
 }
 
 .orapa-mp__mark-toggle.is-selected {
-  border-color: #e74c3c;
+  border-color: var(--om-red);
   border-width: 2px;
-  color: #e74c3c;
+  color: var(--om-red);
   font-weight: 600;
 }
 
 .orapa-mp__reflect-toggle.is-selected {
-  border-color: #8a5fd6;
+  border-color: #8a5fc0;
   border-width: 2px;
-  color: #8a5fd6;
+  color: #b899e0;
   font-weight: 600;
 }
 
@@ -392,9 +1330,10 @@ kbd {
 
 .orapa-mp__reflect-panel {
   margin-top: 0.5rem;
-  padding: 0.6rem;
-  border: 1px solid light-dark(#e2e2e2, #333);
-  border-radius: 0.5rem;
+  padding: 14px;
+  border-radius: 12px;
+  border: 1px solid var(--om-border-soft);
+  background: var(--om-panel-soft);
 }
 
 .orapa-mp__reflect-palette {
@@ -403,24 +1342,30 @@ kbd {
 
 .orapa-mp__reflect-clear {
   margin-top: 0.5rem;
-  padding: 0.35rem 0.7rem;
-  border-radius: 0.4rem;
-  border: 1px solid light-dark(#999, #666);
-  background: light-dark(#f5f5f5, #2a2a2a);
+  padding: 9px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--om-border);
+  background: transparent;
+  color: var(--om-text-1);
   cursor: pointer;
-  font-size: 0.85rem;
+  font-size: 13px;
+}
+
+.orapa-mp__reflect-clear:hover {
+  border-color: var(--om-red);
+  color: var(--om-red);
 }
 
 .orapa-mp__notepad-block {
   margin-top: 0.75rem;
-  border-top: 1px solid light-dark(#e2e2e2, #333);
+  border-top: 1px solid var(--om-border-soft);
   padding-top: 0.6rem;
 }
 
 .orapa-mp__notepad-block summary {
   cursor: pointer;
-  font-size: 0.85rem;
-  opacity: 0.8;
+  font-size: 13px;
+  color: var(--om-text-3);
 }
 
 .orapa-mp__notepad {
@@ -428,44 +1373,56 @@ kbd {
   box-sizing: border-box;
   margin-top: 0.5rem;
   min-height: 120px;
-  padding: 0.5rem;
-  border-radius: 0.4rem;
-  border: 1px solid light-dark(#999, #666);
-  background: light-dark(#fff, #1c1c1c);
-  color: inherit;
+  padding: 11px;
+  border-radius: 10px;
+  border: 1px solid var(--om-border);
+  background: rgba(7, 14, 38, 0.8);
+  color: var(--om-text);
   font-family: inherit;
-  font-size: 0.85rem;
+  font-size: 13px;
+  line-height: 1.5;
   resize: vertical;
 }
 
-/* Notice (Phase 5) */
+/* ================================================================ */
+/* Notice                                                            */
+/* ================================================================ */
+
 .notice {
   max-width: 100%;
-  margin-top: 1.5rem;
 }
 
 .notice__intro {
-  font-size: 1.02rem;
-  max-width: 68ch;
+  font-size: 16.5px;
+  line-height: 1.65;
+  color: var(--om-text-2);
+  max-width: 660px;
 }
 
 .notice__section p,
 .notice__section ul {
-  max-width: 68ch;
+  max-width: 660px;
+  color: var(--om-text-2);
+  font-size: 15.5px;
+  line-height: 1.65;
 }
 
 .notice__section {
-  margin-top: 2rem;
-  padding-top: 1.25rem;
-  border-top: 1px solid light-dark(#e2e2e2, #333);
+  margin-top: 2.2rem;
+  padding-top: 1.4rem;
+  border-top: 1px solid var(--om-border-soft);
 }
 
 .notice__section h3 {
   margin-bottom: 0.5rem;
+  font-size: 21px;
+  color: var(--om-gold);
 }
 
 .notice__section h4 {
-  margin: 1.2rem 0 0.4rem;
+  margin: 1.4rem 0 0.5rem;
+  font-size: 17px;
+  color: var(--om-text);
 }
 
 .notice__section ul {
@@ -473,12 +1430,12 @@ kbd {
 }
 
 .notice__section li {
-  margin-bottom: 0.35rem;
+  margin-bottom: 0.4rem;
 }
 
 .notice__hint {
-  font-size: 0.88rem;
-  opacity: 0.8;
+  font-size: 13.5px;
+  color: var(--om-text-5);
 }
 
 .notice__piece-gallery {
@@ -493,12 +1450,14 @@ kbd {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.4rem;
-  padding: 0.75rem 0.5rem;
-  border: 1px solid light-dark(#e2e2e2, #333);
-  border-radius: 0.5rem;
+  gap: 0.5rem;
+  padding: 14px 10px;
+  border-radius: 12px;
+  background: var(--om-panel-soft);
+  border: 1px solid var(--om-border-soft);
   text-align: center;
-  font-size: 0.82rem;
+  font-size: 12px;
+  color: var(--om-text-3);
 }
 
 .notice__combo-gallery {
@@ -515,9 +1474,10 @@ kbd {
   flex-direction: column;
   align-items: center;
   gap: 0.4rem;
-  padding: 0.5rem 0.6rem;
-  border: 1px solid light-dark(#e2e2e2, #333);
-  border-radius: 0.5rem;
+  padding: 0.6rem;
+  border-radius: 10px;
+  background: var(--om-panel-soft);
+  border: 1px solid var(--om-border-soft);
   min-width: 0;
 }
 
@@ -538,14 +1498,14 @@ kbd {
 }
 
 .notice__combo-arrow {
-  opacity: 0.6;
+  color: var(--om-text-5);
   flex-shrink: 0;
 }
 
 .notice__combo-result {
   align-self: stretch;
-  padding: 0.25rem 0.4rem;
-  border-radius: 0.35rem;
+  padding: 0.3rem 0.4rem;
+  border-radius: 8px;
   font-size: 0.8rem;
   font-weight: 600;
   text-align: center;
@@ -567,15 +1527,17 @@ kbd {
 
 .notice__diagram figcaption {
   font-size: 0.8rem;
-  opacity: 0.75;
+  color: var(--om-text-5);
   max-width: 190px;
   margin-top: 0.4rem;
 }
 
-/* Guide de jeu (Phase 5) */
+/* ================================================================ */
+/* Guide de jeu                                                      */
+/* ================================================================ */
+
 .guide {
   max-width: 900px;
-  margin-top: 1.5rem;
 }
 
 .guide__nav {
@@ -586,11 +1548,20 @@ kbd {
 }
 
 .guide__nav button {
-  padding: 0.4rem 0.9rem;
-  border-radius: 0.4rem;
-  border: 1px solid light-dark(#999, #666);
-  background: light-dark(#f5f5f5, #2a2a2a);
+  padding: 10px 18px;
+  border-radius: 999px;
+  border: 1px solid var(--om-border);
+  background: transparent;
+  color: var(--om-text-1);
   cursor: pointer;
+  font-family: "Chakra Petch", sans-serif;
+  font-size: 13px;
+  letter-spacing: 0.08em;
+}
+
+.guide__nav button:hover:not(:disabled) {
+  border-color: var(--om-gold);
+  color: var(--om-gold);
 }
 
 .guide__nav button:disabled {
@@ -599,32 +1570,89 @@ kbd {
 }
 
 .guide__progress {
-  font-size: 0.85rem;
-  opacity: 0.75;
+  font-size: 13px;
+  color: var(--om-text-5);
+}
+
+.guide__heading {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.guide__badge {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--om-gold);
+  border-radius: 8px;
+  transform: rotate(45deg);
+  animation: guide-badge-pulse 2.4s ease-in-out infinite;
+}
+
+.guide__badge span {
+  display: block;
+  transform: rotate(-45deg);
+  font-family: "Chakra Petch", sans-serif;
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--om-gold);
+}
+
+@keyframes guide-badge-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(242, 194, 75, 0.35);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(242, 194, 75, 0);
+  }
+}
+
+.guide h3 {
+  margin: 0;
+  font-size: 24px;
+}
+
+.guide p {
+  color: var(--om-text-2);
+  line-height: 1.6;
+  font-size: 15.5px;
 }
 
 .guide__fire {
-  padding: 0.5rem 1rem;
-  border-radius: 0.4rem;
-  border: 1px solid #2ecc71;
-  background: light-dark(#eafaf0, #163823);
-  color: light-dark(#1e7e46, #7cdba0);
-  font-weight: 600;
+  padding: 12px 20px;
+  border-radius: 10px;
+  border: none;
+  background: var(--om-gold);
+  color: var(--om-surface);
+  font-family: "Chakra Petch", sans-serif;
+  font-weight: 700;
+  letter-spacing: 0.08em;
   cursor: pointer;
   margin: 0.5rem 0;
+}
+
+.guide__fire:hover {
+  background: var(--om-gold-hover);
 }
 
 .guide__result {
   font-size: 0.9rem;
   min-height: 1.4em;
+  color: var(--om-text-1);
 }
 
 .guide__canvas {
   aspect-ratio: 16 / 9;
   max-width: 700px;
-  border: 1px solid light-dark(#ccc, #444);
-  border-radius: 0.5rem;
+  border-radius: 14px;
   overflow: hidden;
+  border: 1px solid var(--om-border);
+  background: radial-gradient(80% 70% at 50% 0%, var(--om-surface-2) 0%, var(--om-bg-deep) 100%);
   margin-top: 0.5rem;
 }
 
@@ -632,6 +1660,10 @@ kbd {
   display: block;
   width: 100%;
   height: 100%;
+}
+
+.guide__notes {
+  min-height: 220px;
 }
 
 .hidden {

@@ -200,18 +200,26 @@ function colorComboCard(combo: readonly Color[]): string {
     </li>`;
 }
 
+// Couleurs des schémas alignées sur la palette de la maquette (voir
+// `types.ts:GEM_DISPLAY_COLOR`) : lignes de grille en crème translucide
+// (au lieu de gris clair, invisible sur le fond bleu nuit).
+const DIAGRAM_GRID = "rgba(244, 234, 214, 0.3)";
+const DIAGRAM_RED = "#d8443c";
+const DIAGRAM_BLUE = "#2f6fd0";
+const DIAGRAM_GOLD = "#f2c24b";
+
 function touchDiagram(cornerOnly: boolean): string {
   const secondTriangle = cornerOnly
-    ? `<polygon points="96,0 192,0 192,96" fill="#d64545" fill-opacity="0.3" stroke="#d64545" stroke-width="3" />`
-    : `<polygon points="96,0 192,0 192,96 96,96" fill="#d64545" fill-opacity="0.3" stroke="#d64545" stroke-width="3" />`;
+    ? `<polygon points="96,0 192,0 192,96" fill="${DIAGRAM_RED}" fill-opacity="0.35" stroke="${DIAGRAM_RED}" stroke-width="3" />`
+    : `<polygon points="96,0 192,0 192,96 96,96" fill="${DIAGRAM_RED}" fill-opacity="0.35" stroke="${DIAGRAM_RED}" stroke-width="3" />`;
   const firstShape = cornerOnly
-    ? `<polygon points="0,96 96,96 96,0" fill="#3f7fd6" fill-opacity="0.3" stroke="#3f7fd6" stroke-width="3" />`
-    : `<polygon points="0,0 96,0 96,96 0,96" fill="#3f7fd6" fill-opacity="0.3" stroke="#3f7fd6" stroke-width="3" />`;
+    ? `<polygon points="0,96 96,96 96,0" fill="${DIAGRAM_BLUE}" fill-opacity="0.35" stroke="${DIAGRAM_BLUE}" stroke-width="3" />`
+    : `<polygon points="0,0 96,0 96,96 0,96" fill="${DIAGRAM_BLUE}" fill-opacity="0.35" stroke="${DIAGRAM_BLUE}" stroke-width="3" />`;
   const marker = cornerOnly
-    ? `<circle cx="96" cy="0" r="4" fill="#2ecc71" />`
-    : `<line x1="96" y1="0" x2="96" y2="96" stroke="#e74c3c" stroke-width="4" />`;
+    ? `<circle cx="96" cy="0" r="4" fill="${DIAGRAM_GOLD}" />`
+    : `<line x1="96" y1="0" x2="96" y2="96" stroke="#ff8a80" stroke-width="4" />`;
   return `<svg viewBox="-6 -6 204 108" width="180" height="96">
-    <g stroke="#ddd" stroke-width="1">
+    <g stroke="${DIAGRAM_GRID}" stroke-width="1">
       <line x1="0" y1="0" x2="192" y2="0"/><line x1="0" y1="96" x2="192" y2="96"/>
       <line x1="0" y1="0" x2="0" y2="96"/><line x1="96" y1="0" x2="96" y2="96"/><line x1="192" y1="0" x2="192" y2="96"/>
     </g>
@@ -227,17 +235,17 @@ function diagonalDiagram(): string {
   // dévie et ressort clairement à l'écart d'elle, en bas — pas à
   // travers un de ses côtés.
   return `<svg viewBox="-6 -6 300 168" width="220" height="124">
-    <g stroke="#ddd" stroke-width="1">
+    <g stroke="${DIAGRAM_GRID}" stroke-width="1">
       <line x1="0" y1="0" x2="288" y2="0"/><line x1="0" y1="96" x2="288" y2="96"/>
       <line x1="0" y1="0" x2="0" y2="96"/><line x1="96" y1="0" x2="96" y2="96"/>
       <line x1="192" y1="0" x2="192" y2="96"/><line x1="288" y1="0" x2="288" y2="96"/>
     </g>
-    <polygon points="96,0 192,0 96,96" fill="#e0c23c" fill-opacity="0.35" stroke="#e0c23c" stroke-width="3" />
-    <path d="M288,48 L144,48 L144,140" fill="none" stroke="#3f7fd6" stroke-width="4" marker-end="url(#arrow)" />
-    <circle cx="144" cy="48" r="4" fill="#2ecc71" />
+    <polygon points="96,0 192,0 96,96" fill="${DIAGRAM_GOLD}" fill-opacity="0.4" stroke="${DIAGRAM_GOLD}" stroke-width="3" />
+    <path d="M288,48 L144,48 L144,140" fill="none" stroke="${DIAGRAM_BLUE}" stroke-width="4" marker-end="url(#arrow)" />
+    <circle cx="144" cy="48" r="4" fill="#f4ead6" />
     <defs>
       <marker id="arrow" markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto">
-        <path d="M0,0 L8,4 L0,8 Z" fill="#3f7fd6" />
+        <path d="M0,0 L8,4 L0,8 Z" fill="${DIAGRAM_BLUE}" />
       </marker>
     </defs>
   </svg>`;
@@ -245,16 +253,16 @@ function diagonalDiagram(): string {
 
 function bounceDiagram(): string {
   return `<svg viewBox="-6 -6 204 108" width="180" height="96">
-    <g stroke="#ddd" stroke-width="1">
+    <g stroke="${DIAGRAM_GRID}" stroke-width="1">
       <line x1="0" y1="0" x2="192" y2="0"/><line x1="0" y1="96" x2="192" y2="96"/>
       <line x1="0" y1="0" x2="0" y2="96"/><line x1="96" y1="0" x2="96" y2="96"/><line x1="192" y1="0" x2="192" y2="96"/>
     </g>
-    <rect x="96" y="0" width="96" height="96" fill="#d64545" fill-opacity="0.35" stroke="#d64545" stroke-width="3" />
-    <path d="M0,44 L96,44" fill="none" stroke="#3f7fd6" stroke-width="4" />
-    <path d="M96,52 L0,52" fill="none" stroke="#3f7fd6" stroke-width="4" marker-end="url(#arrow2)" />
+    <rect x="96" y="0" width="96" height="96" fill="${DIAGRAM_RED}" fill-opacity="0.4" stroke="${DIAGRAM_RED}" stroke-width="3" />
+    <path d="M0,44 L96,44" fill="none" stroke="${DIAGRAM_BLUE}" stroke-width="4" />
+    <path d="M96,52 L0,52" fill="none" stroke="${DIAGRAM_BLUE}" stroke-width="4" marker-end="url(#arrow2)" />
     <defs>
       <marker id="arrow2" markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto">
-        <path d="M0,0 L8,4 L0,8 Z" fill="#3f7fd6" />
+        <path d="M0,0 L8,4 L0,8 Z" fill="${DIAGRAM_BLUE}" />
       </marker>
     </defs>
   </svg>`;

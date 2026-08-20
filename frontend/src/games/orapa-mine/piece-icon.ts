@@ -5,18 +5,20 @@
 import { placeShape } from "./piece-shapes";
 import { GemKind, type PieceShape } from "./types";
 
+// Mêmes hex que `types.ts:GEM_DISPLAY_COLOR` (source : maquette Claude
+// Design, `claude_design/orapa-board.js`).
 const FILL_BY_COLOR: Record<string, string> = {
-  RED: "#d64545",
-  YELLOW: "#e0c23c",
-  BLUE: "#3f7fd6",
-  WHITE: "#ffffff",
+  RED: "#d8443c",
+  YELLOW: "#f2c24b",
+  BLUE: "#2f6fd0",
+  WHITE: "#f7f4ee",
 };
 
 // Le Diamant et le Corps noir n'ont pas de `color` (voir types.ts) :
 // leur icône se distingue par nature plutôt que par couleur.
 const FILL_BY_KIND: Partial<Record<GemKind, string>> = {
   [GemKind.DIAMOND]: "#bfe3f0",
-  [GemKind.BLACK_BODY]: "#1a1a1a",
+  [GemKind.BLACK_BODY]: "#0b1330",
 };
 
 export function pieceIconSvg(shape: PieceShape, color: string | undefined, size: number = 44, kind: GemKind = GemKind.NORMAL): string {
@@ -36,6 +38,6 @@ export function pieceIconSvg(shape: PieceShape, color: string | undefined, size:
   const fill = FILL_BY_KIND[kind] ?? (color ? (FILL_BY_COLOR[color] ?? "#999") : "#999");
   const dash = kind === GemKind.DIAMOND ? ' stroke-dasharray="0.08 0.08"' : "";
   return `<svg viewBox="0 0 ${viewW} ${viewH}" width="${size}" height="${size}" role="img" aria-hidden="true">
-    <polygon points="${points}" fill="${fill}" stroke="#3b3a35" stroke-width="0.06"${dash} />
+    <polygon points="${points}" fill="${fill}" stroke="#0b1330" stroke-width="0.07"${dash} />
   </svg>`;
 }

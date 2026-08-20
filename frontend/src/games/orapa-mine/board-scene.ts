@@ -37,27 +37,41 @@ const GEM_HEIGHT = 0.5;
 const GHOST_OPACITY = 0.55;
 const REFLECTION_OPACITY = 0.7;
 const RAY_HEIGHT = 0.32;
-const ENTRY_MARKER_DEFAULT_COLOR = 0x6b7280;
+// Palette reprise de la maquette Claude Design (`claude_design/orapa-board.js`).
+const ENTRY_MARKER_DEFAULT_COLOR = 0x24345f;
+const ENTRY_MARKER_HOVER_COLOR = 0xf2c24b;
+const TILE_DARK = 0x0c1636;
+const TILE_LIGHT = 0x11204c;
+const TILE_EMISSIVE_IDLE = 0x0a1b3d;
+const TILE_EMISSIVE_HOVER = 0xf2c24b;
+const TILE_BASE_Y = -0.07;
+const TILE_HOVER_Y = -0.02;
+const ENTRY_BASE_Y = 0.06;
+const ENTRY_HOVER_Y = 0.18;
+const HOVER_LERP_SPEED = 0.22;
 
 type PieceMeshStyle = "solid" | "ghost" | "reflection";
 
+// Reprises de la maquette Claude Design (`claude_design/orapa-board.js`,
+// table `COLOR_RESULTS`) — mêmes teintes que les gemmes elles-mêmes
+// (`types.ts:GEM_DISPLAY_COLOR`) pour rester cohérent.
 export const RAY_COLOR_HEX: Record<string, number> = {
   transparent: 0x9aa0a6,
-  rouge: 0xd64545,
-  jaune: 0xe0c23c,
-  bleu: 0x3f7fd6,
-  blanc: 0xe8e6df,
-  rose: 0xe98fa6,
-  "jaune clair": 0xefe08a,
-  "bleu clair": 0x9dc3ec,
-  orange: 0xe08a3c,
-  vert: 0x4caf6e,
-  violet: 0x8a5fd6,
-  gris: 0x8a8f96,
-  "orange clair": 0xf0c79a,
-  "vert clair": 0xa8dcb6,
-  "violet clair": 0xc6b0ec,
-  noir: 0x2f2f2f,
+  rouge: 0xd8443c,
+  jaune: 0xf2c24b,
+  bleu: 0x2f6fd0,
+  blanc: 0xf4ead6,
+  rose: 0xf09fb2,
+  "jaune clair": 0xf8de9c,
+  "bleu clair": 0x8ab7ef,
+  orange: 0xe8873a,
+  vert: 0x5aa860,
+  violet: 0x8a5fc0,
+  gris: 0x9aa3b8,
+  "orange clair": 0xf0b57e,
+  "vert clair": 0x98cf9d,
+  "violet clair": 0xb899e0,
+  noir: 0x141a2c,
   absorbé: 0x1a1a1a,
 };
 
@@ -89,6 +103,11 @@ export class BoardScene {
   private ghostMesh: THREE.Object3D | null = null;
   private ghostValid = true;
   private rayGroup = new THREE.Group();
+  // Tracé du rayon : tube + point lumineux animé le long de son
+  // parcours (voir `animateRay`/`tick`, style repris de la maquette).
+  private rayCurve: THREE.CurvePath<THREE.Vector3> | null = null;
+  private rayDot: THREE.Mesh | null = null;
+  private rayT = 0;
   // Croix personnelles posées par le joueur pour s'aider (voir
   // `toggleMark`) : purement visuel, jamais transmis au serveur ni à
   // l'adversaire — indépendant de tout état de jeu.
@@ -112,11 +131,22 @@ export class BoardScene {
   // manqués près de pièces volumineuses (voir docs/plan.md).
   private groundMathPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
 
+  // Cases du plateau (voir `buildGrid`) et bornes d'entrée : animées au
+  // survol (lueur + léger soulèvement, voir `tick`) — l'état survolé
+  // n'est recalculé qu'au déplacement de la souris (`handlePointerMove`),
+  // pas à chaque frame, pour ne pas reconstruire le fantôme de
+  // placement 60 fois par seconde (`onCornerHover` doit rester rare).
+  private tiles: THREE.Mesh[] = [];
+  private hoveredTileCorner: Position | null = null;
+  private hoveredEntryMesh: THREE.Object3D | null = null;
+  private markerIdleColor = new Map<THREE.Object3D, number>();
+
   private entryTargets: THREE.Object3D[] = [];
   private raycaster = new THREE.Raycaster();
   private pointer = new THREE.Vector2();
   private resizeObserver: ResizeObserver;
   private animationHandle = 0;
+  private clock = new THREE.Clock();
   // Position à l'appui du bouton, pour distinguer un vrai clic d'un
   // relâchement après avoir fait tourner la vue à la souris. Le DOM
   // déclenche quand même un "click" natif tant que l'appui et le
@@ -132,7 +162,10 @@ export class BoardScene {
     this.labelScheme = new LabelScheme(dimensions);
 
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0xf4f4f6);
+    // Pas de fond opaque : le canevas est transparent (voir `alpha:
+    // true` ci-dessous), le dégradé bleu nuit vient du CSS du
+    // conteneur (`.orapa-demo__canvas`/`.guide__canvas`), comme dans la
+    // maquette Claude Design.
 
     const { clientWidth, clientHeight } = container;
     this.camera = new THREE.PerspectiveCamera(45, clientWidth / Math.max(clientHeight, 1), 0.1, 100);
@@ -140,7 +173,7 @@ export class BoardScene {
     this.camera.position.set(span * 0.55, span * 0.95, span * 0.85);
     this.camera.lookAt(0, 0, 0);
 
-    this.renderer = new THREE.WebGLRenderer({ antialias: true });
+    this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.setSize(clientWidth, clientHeight);
     container.appendChild(this.renderer.domElement);
@@ -151,10 +184,13 @@ export class BoardScene {
     this.controls.minDistance = span * 0.6;
     this.controls.maxDistance = span * 2.2;
 
-    this.scene.add(new THREE.AmbientLight(0xffffff, 0.7));
-    const sun = new THREE.DirectionalLight(0xffffff, 0.6);
+    this.scene.add(new THREE.HemisphereLight(0x8fa4d8, 0x070e26, 0.8));
+    const sun = new THREE.DirectionalLight(0xffe6b0, 1.4);
     sun.position.set(4, 8, 3);
     this.scene.add(sun);
+    const fill = new THREE.DirectionalLight(0x5f86e0, 0.7);
+    fill.position.set(-6, 6, -6);
+    this.scene.add(fill);
 
     this.buildGrid();
     this.buildEntryMarkers();
@@ -231,32 +267,53 @@ export class BoardScene {
     this.removeHighlightOriginalColor = null;
   }
 
-  /** Trace le chemin d'un rayon. `entry` et les positions de `steps`
-   * doivent être des coordonnées déjà CONTINUES (voir
-   * `geometry.toContinuousCorner` pour convertir un point d'entrée/
-   * sortie discret — ceux de `preview-engine.fireRayPreview` le sont
-   * déjà). Mélanger discret et continu décale le tracé d'une demi-case. */
+  /** Trace le chemin d'un rayon en tube lumineux, avec un point animé qui
+   * parcourt le trajet et des anneaux à l'entrée/la sortie (style repris
+   * de la maquette — remplace l'ancienne ligne fine). `entry` et les
+   * positions de `steps` doivent être des coordonnées déjà CONTINUES
+   * (voir `geometry.toContinuousCorner` pour convertir un point
+   * d'entrée/sortie discret — ceux de `preview-engine.fireRayPreview` le
+   * sont déjà). Mélanger discret et continu décale le tracé d'une
+   * demi-case. */
   animateRay(entry: Point, steps: RayStep[], colorName: string): void {
-    this.rayGroup.clear();
+    this.clearRay();
     const points = [entry, ...steps.map((s) => s.position)].map((p) => {
       const c = this.continuousToWorld(p);
       return new THREE.Vector3(c.x, RAY_HEIGHT, c.z);
     });
+    if (points.length < 2) return;
 
-    const geometry = new THREE.BufferGeometry().setFromPoints(points);
-    const color = RAY_COLOR_HEX[colorName] ?? 0x666666;
-    const line = new THREE.Line(geometry, new THREE.LineBasicMaterial({ color, linewidth: 2 }));
-    this.rayGroup.add(line);
+    const color = new THREE.Color(RAY_COLOR_HEX[colorName] ?? 0x666666);
 
-    for (const point of points) {
-      const dot = new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 8), new THREE.MeshBasicMaterial({ color }));
-      dot.position.copy(point);
-      this.rayGroup.add(dot);
+    const curvePath = new THREE.CurvePath<THREE.Vector3>();
+    for (let i = 0; i < points.length - 1; i++) curvePath.add(new THREE.LineCurve3(points[i]!, points[i + 1]!));
+    const tube = new THREE.Mesh(
+      new THREE.TubeGeometry(curvePath, Math.max(8, points.length * 8), 0.045, 6, false),
+      new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.85 }),
+    );
+    this.rayGroup.add(tube);
+
+    const dot = new THREE.Mesh(new THREE.SphereGeometry(0.09, 12, 12), new THREE.MeshBasicMaterial({ color }));
+    this.rayGroup.add(dot);
+    this.rayCurve = curvePath;
+    this.rayDot = dot;
+    this.rayT = 0;
+
+    for (const p of [points[0]!, points[points.length - 1]!]) {
+      const ring = new THREE.Mesh(
+        new THREE.RingGeometry(0.22, 0.3, 32),
+        new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.8, side: THREE.DoubleSide }),
+      );
+      ring.rotation.x = -Math.PI / 2;
+      ring.position.set(p.x, 0.16, p.z);
+      this.rayGroup.add(ring);
     }
   }
 
   clearRay(): void {
     this.rayGroup.clear();
+    this.rayCurve = null;
+    this.rayDot = null;
   }
 
   /** Pose ou retire une croix personnelle sur `corner` (case du plateau,
@@ -302,14 +359,20 @@ export class BoardScene {
   colorEntryMarker(label: string, colorName: string): void {
     const marker = this.entryTargets.find((m) => m.userData.label === label);
     if (!marker) return;
+    const hex = RAY_COLOR_HEX[colorName] ?? ENTRY_MARKER_DEFAULT_COLOR;
+    // Fixe aussi la couleur "au repos" (voir `tick`) : sans ça,
+    // l'animation de survol la ramènerait au gris neutre dès que la
+    // souris quitte la borne.
+    this.markerIdleColor.set(marker, hex);
     const material = (marker as THREE.Mesh).material as THREE.MeshStandardMaterial;
-    material.color.setHex(RAY_COLOR_HEX[colorName] ?? ENTRY_MARKER_DEFAULT_COLOR);
+    material.color.setHex(hex);
   }
 
   /** Remet toutes les bornes à leur couleur neutre (ex : au début d'une
    * nouvelle partie sur la même scène). */
   clearMarkerColors(): void {
     for (const marker of this.entryTargets) {
+      this.markerIdleColor.set(marker, ENTRY_MARKER_DEFAULT_COLOR);
       const material = (marker as THREE.Mesh).material as THREE.MeshStandardMaterial;
       material.color.setHex(ENTRY_MARKER_DEFAULT_COLOR);
     }
@@ -376,29 +439,35 @@ export class BoardScene {
     return new THREE.Vector3(x - this.dimensions.width / 2, 0, z - this.dimensions.height / 2);
   }
 
+  /** Damier de cases pleines (au lieu d'un simple plan + grille de
+   * lignes) : lueur émissive et léger soulèvement au survol, comme la
+   * maquette. Chaque case garde sa surface supérieure à y=0 (`TILE_BASE_Y`
+   * + moitié de la hauteur de la boîte), pour que les pièces posées
+   * dessus restent alignées avec le reste du rendu (bornes, rayon...). */
   private buildGrid(): void {
     const { width, height } = this.dimensions;
     const halfW = width / 2;
     const halfH = height / 2;
+    const tileGeometry = new THREE.BoxGeometry(0.94, 0.14, 0.94);
 
-    const base = new THREE.Mesh(
-      new THREE.PlaneGeometry(width, height),
-      new THREE.MeshStandardMaterial({ color: 0xe4e4e8, roughness: 0.9 }),
-    );
-    base.rotation.x = -Math.PI / 2;
-    this.scene.add(base);
-
-    const linePositions: number[] = [];
-    for (let c = 0; c <= width; c++) {
-      linePositions.push(c - halfW, 0.001, -halfH, c - halfW, 0.001, halfH);
+    for (let row = 0; row < height; row++) {
+      for (let col = 0; col < width; col++) {
+        const dark = (col + row) % 2 === 0;
+        const material = new THREE.MeshStandardMaterial({
+          color: dark ? TILE_DARK : TILE_LIGHT,
+          emissive: new THREE.Color(TILE_EMISSIVE_IDLE),
+          emissiveIntensity: 0.5,
+          roughness: 0.6,
+          metalness: 0.3,
+          flatShading: true,
+        });
+        const tile = new THREE.Mesh(tileGeometry, material);
+        tile.position.set(col - halfW + 0.5, TILE_BASE_Y, row - halfH + 0.5);
+        tile.userData = { col, row };
+        this.tiles.push(tile);
+        this.scene.add(tile);
+      }
     }
-    for (let r = 0; r <= height; r++) {
-      linePositions.push(-halfW, 0.001, r - halfH, halfW, 0.001, r - halfH);
-    }
-    const lineGeometry = new THREE.BufferGeometry();
-    lineGeometry.setAttribute("position", new THREE.Float32BufferAttribute(linePositions, 3));
-    const lines = new THREE.LineSegments(lineGeometry, new THREE.LineBasicMaterial({ color: 0xb5b5bd }));
-    this.scene.add(lines);
   }
 
   private buildEntryMarkers(): void {
@@ -406,17 +475,26 @@ export class BoardScene {
       const center = this.cornerAverageWorld(entry.position);
 
       const marker = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.16, 0.16, 0.12, 12),
-        new THREE.MeshStandardMaterial({ color: ENTRY_MARKER_DEFAULT_COLOR }),
+        new THREE.CylinderGeometry(0.19, 0.22, 0.14, 6),
+        new THREE.MeshStandardMaterial({
+          color: ENTRY_MARKER_DEFAULT_COLOR,
+          roughness: 0.45,
+          metalness: 0.5,
+          flatShading: true,
+        }),
       );
-      marker.position.set(center.x, 0.06, center.z);
+      marker.position.set(center.x, ENTRY_BASE_Y, center.z);
       marker.userData.label = label;
       marker.userData.entry = entry;
       this.entryTargets.push(marker);
+      this.markerIdleColor.set(marker, ENTRY_MARKER_DEFAULT_COLOR);
       this.scene.add(marker);
 
-      const sprite = makeTextSprite(label);
-      sprite.position.set(center.x, 0.45, center.z);
+      // Or pour les numéros (bords haut/bas), cyan clair pour les
+      // lettres (bords gauche/droit) — même convention que la maquette.
+      const isNumeric = /\d/.test(label);
+      const sprite = makeTextSprite(label, isNumeric ? "#f2c24b" : "#8fd0e8");
+      sprite.position.set(center.x, 0.42, center.z);
       this.scene.add(sprite);
     }
   }
@@ -434,34 +512,44 @@ export class BoardScene {
     });
     shape.closePath();
 
-    const geometry = new THREE.ExtrudeGeometry(shape, { depth: GEM_HEIGHT, bevelEnabled: false });
+    // Biseau (comme la maquette) : les pièces ont un vrai profil taillé
+    // plutôt que des arêtes vives — se voit surtout sur les grandes faces.
+    const geometry = new THREE.ExtrudeGeometry(shape, {
+      depth: GEM_HEIGHT,
+      bevelEnabled: true,
+      bevelThickness: 0.06,
+      bevelSize: 0.05,
+      bevelSegments: 2,
+    });
 
     const isDiamond = piece.kind === GemKind.DIAMOND;
     const isBlackBody = piece.kind === GemKind.BLACK_BODY;
-    const color = isDiamond ? 0xbfe3f0 : isBlackBody ? 0x1a1a1a : piece.color ? GEM_DISPLAY_COLOR[piece.color] : 0x999999;
+    const color = isDiamond ? 0xbfe3f0 : isBlackBody ? 0x0b1330 : piece.color ? GEM_DISPLAY_COLOR[piece.color] : 0x999999;
     const transparent = isGhost || isReflection || isDiamond;
     const opacity = isGhost ? GHOST_OPACITY : isReflection ? REFLECTION_OPACITY : isDiamond ? 0.5 : 1;
     const material = new THREE.MeshStandardMaterial({
       color,
-      roughness: isDiamond ? 0.15 : isBlackBody ? 0.6 : 0.35,
+      roughness: isDiamond ? 0.15 : isBlackBody ? 0.6 : 0.22,
+      metalness: 0.28,
+      flatShading: true,
       transparent,
       opacity,
     });
     if (isGhost) this.tintGhost(material);
     const mesh = new THREE.Mesh(geometry, material);
-    // Contour sombre : sans lui, une pièce blanche se distingue mal du
-    // sol clair du plateau (retour utilisateur direct sur ce point).
-    const edges = new THREE.LineSegments(
-      new THREE.EdgesGeometry(geometry, 20),
-      new THREE.LineBasicMaterial({ color: 0x3a3a38, transparent, opacity }),
-    );
-    mesh.add(edges);
     mesh.rotation.x = -Math.PI / 2;
     return mesh;
   }
 
+  /** Teinte le fantôme en vert/rouge selon la validité du placement
+   * (retour utile, absent de la maquette qui n'a pas cette vérification
+   * en direct) et lui ajoute une lueur émissive de cette même teinte,
+   * pour le style "prospection" de la maquette. */
   private tintGhost(material: THREE.MeshStandardMaterial): void {
-    material.color.lerp(new THREE.Color(this.ghostValid ? 0x2ecc71 : 0xe74c3c), 0.45);
+    const tint = new THREE.Color(this.ghostValid ? 0x2ecc71 : 0xe74c3c);
+    material.color.lerp(tint, 0.45);
+    material.emissive = tint;
+    material.emissiveIntensity = 0.35;
   }
 
   private handlePointerDown = (event: PointerEvent): void => {
@@ -497,7 +585,14 @@ export class BoardScene {
   private handlePointerMove = (event: MouseEvent): void => {
     this.updatePointer(event);
     this.raycaster.setFromCamera(this.pointer, this.camera);
-    this.onCornerHover?.(this.cornerUnderPointer());
+
+    // Survol d'une borne d'entrée : mémorisé ici (pas recalculé chaque
+    // frame) pour piloter son animation dans `tick`, sans re-raycaster
+    // 60 fois par seconde.
+    const entryHit = this.raycaster.intersectObjects(this.entryTargets, false)[0];
+    this.hoveredEntryMesh = entryHit ? entryHit.object : null;
+    this.hoveredTileCorner = this.hoveredEntryMesh ? null : this.cornerUnderPointer();
+    this.onCornerHover?.(this.hoveredTileCorner);
   };
 
   /** Case du plateau sous le curseur, via l'intersection avec le plan
@@ -540,7 +635,36 @@ export class BoardScene {
   }
 
   private tick = (): void => {
+    const dt = Math.min(this.clock.getDelta(), 0.05);
     this.controls.update();
+
+    for (const tile of this.tiles) {
+      const { col, row } = tile.userData as { col: number; row: number };
+      const isHovered = !!this.hoveredTileCorner && this.hoveredTileCorner[0] === col && this.hoveredTileCorner[1] === row;
+      tile.position.y += ((isHovered ? TILE_HOVER_Y : TILE_BASE_Y) - tile.position.y) * HOVER_LERP_SPEED;
+      const material = tile.material as THREE.MeshStandardMaterial;
+      material.emissive.lerp(new THREE.Color(isHovered ? TILE_EMISSIVE_HOVER : TILE_EMISSIVE_IDLE), HOVER_LERP_SPEED);
+      material.emissiveIntensity = isHovered ? 0.6 : 0.5;
+    }
+
+    for (const marker of this.entryTargets) {
+      const isHovered = marker === this.hoveredEntryMesh;
+      const idle = this.markerIdleColor.get(marker) ?? ENTRY_MARKER_DEFAULT_COLOR;
+      marker.position.y += ((isHovered ? ENTRY_HOVER_Y : ENTRY_BASE_Y) - marker.position.y) * HOVER_LERP_SPEED;
+      const material = (marker as THREE.Mesh).material as THREE.MeshStandardMaterial;
+      material.color.lerp(new THREE.Color(isHovered ? ENTRY_MARKER_HOVER_COLOR : idle), HOVER_LERP_SPEED);
+    }
+
+    if (this.ghostMesh) {
+      this.ghostMesh.position.y = Math.sin(this.clock.elapsedTime * 3) * 0.04;
+    }
+
+    if (this.rayDot && this.rayCurve) {
+      this.rayT = (this.rayT + dt * 0.4) % 1;
+      const p = this.rayCurve.getPoint(this.rayT);
+      if (p) this.rayDot.position.copy(p);
+    }
+
     this.renderer.render(this.scene, this.camera);
     this.animationHandle = requestAnimationFrame(this.tick);
   };
@@ -563,14 +687,14 @@ function buildCrossMark(): THREE.Object3D {
   return group;
 }
 
-function makeTextSprite(text: string): THREE.Sprite {
+function makeTextSprite(text: string, color: string = "#f4ead6"): THREE.Sprite {
   const canvas = document.createElement("canvas");
   canvas.width = 64;
   canvas.height = 64;
   const ctx = canvas.getContext("2d");
   if (ctx) {
-    ctx.fillStyle = "#374151";
-    ctx.font = "bold 40px system-ui, sans-serif";
+    ctx.fillStyle = color;
+    ctx.font = "bold 40px 'Chakra Petch', system-ui, sans-serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillText(text, 32, 34);
