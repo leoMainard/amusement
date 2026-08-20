@@ -49,7 +49,7 @@ def test_pieces_touching_only_by_a_corner_allowed() -> None:
     assert len(board.pieces()) == 2
 
 
-def test_diamond_and_black_body_use_square_footprint() -> None:
+def test_diamond_and_black_body_use_tent_footprint() -> None:
     board = make_board()
     board.place_piece(Piece.diamond(origin=(3, 3)))
     board.place_piece(Piece.black_body(origin=(5, 5)))
@@ -65,9 +65,9 @@ def test_normal_piece_requires_a_color() -> None:
         Piece(shape=PieceShape.RHOMBUS, kind=GemKind.NORMAL, color=None, origin=(0, 0))
 
 
-def test_normal_piece_cannot_use_square_shape() -> None:
+def test_normal_piece_cannot_use_tent_shape() -> None:
     with pytest.raises(ValueError):
-        Piece(shape=PieceShape.SQUARE, kind=GemKind.NORMAL, color=Color.RED, origin=(0, 0))
+        Piece(shape=PieceShape.TENT, kind=GemKind.NORMAL, color=Color.RED, origin=(0, 0))
 
 
 def test_diamond_cannot_use_a_colored_shape() -> None:

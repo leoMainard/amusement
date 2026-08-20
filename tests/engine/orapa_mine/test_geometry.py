@@ -9,7 +9,7 @@ EXPECTED_QUADRANT_COUNT = {
     PieceShape.PARALLELOGRAM: 4 + 2 + 2,  # 1 carré + 2 triangles
     PieceShape.RHOMBUS: 2 + 2 + 2 + 2,  # 4 triangles
     PieceShape.LARGE_TRIANGLE: 4 + 4 + 2 + 2 + 2 + 2,  # 2 carrés + 4 triangles
-    PieceShape.SQUARE: 4,  # 1 carré (Diamant / Corps noir)
+    PieceShape.TENT: 2 + 2,  # 2 demi-cases (Diamant / Corps noir, tente à 2 pans)
 }
 
 

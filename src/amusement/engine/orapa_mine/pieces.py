@@ -7,10 +7,10 @@ Cinq silhouettes réelles, confirmées manuellement (voir docs/plan.md) :
 - `LARGE_TRIANGLE` (blanc ou bleu — même silhouette, deux couleurs
   possibles) : 2 carrés + 4 triangles, triangle rectangle deux fois plus
   grand que le triangle moyen.
-- `SQUARE` : emprise du Diamant et du Corps noir (extensions). Ces deux
-  pièces sont décrites dans le livret par leur profil 3D (une tente à
-  deux pans) plutôt que par une silhouette au sol ; une case 1×1 est
-  l'hypothèse la plus simple — à confirmer (voir docs/plan.md).
+- `TENT` : emprise du Diamant et du Corps noir (extensions). Deux
+  triangles accolés par leur hypoténuse, formant un triangle isocèle de
+  2 cases de large sur 1 de haut, pointe vers le haut — au sol, la
+  silhouette d'une tente à deux pans vue de dessus.
 
 Chaque forme est définie une fois, dans une orientation locale
 canonique, à coins entiers. Le placement applique une rotation par pas
@@ -33,7 +33,7 @@ class PieceShape(Enum):
     PARALLELOGRAM = auto()
     RHOMBUS = auto()
     LARGE_TRIANGLE = auto()
-    SQUARE = auto()
+    TENT = auto()
 
 
 # Vertices en orientation locale canonique (sens de parcours peu
@@ -43,7 +43,7 @@ _CANONICAL_VERTICES: dict[PieceShape, tuple[Point, ...]] = {
     PieceShape.PARALLELOGRAM: ((0, 0), (2, 0), (3, 1), (1, 1)),
     PieceShape.RHOMBUS: ((1, 0), (2, 1), (1, 2), (0, 1)),
     PieceShape.LARGE_TRIANGLE: ((0, 0), (2, 2), (0, 4)),
-    PieceShape.SQUARE: ((0, 0), (1, 0), (1, 1), (0, 1)),
+    PieceShape.TENT: ((0, 1), (2, 1), (1, 0)),
 }
 
 

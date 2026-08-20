@@ -4,20 +4,17 @@
  * le jeu multijoueur (Duel/Fouille, Phase 4) — voir `preview-engine.ts`
  * pour la mise en garde sur la logique de jeu utilisée ici.
  *
- * Chaque pièce de la variante de base ne peut être posée qu'une seule
- * fois (comme dans le vrai jeu, où chaque joueur dispose d'un exemplaire
- * de chaque gemme) ; le placement doit être validé — les 5 pièces
- * posées — avant de pouvoir considérer le plateau comme prêt.
+ * Le placement lui-même (palette, pose, retrait, validation) est géré
+ * par `placement-controller.ts`, partagé avec l'écran de placement Duel
+ * en multijoueur — voir ce module pour cette logique.
  */
 
 import { BoardScene } from "./board-scene";
-import { pieceIconSvg } from "./piece-icon";
-import { type RayResult, fireRayPreview, PlacementError, PreviewBoard } from "./preview-engine";
-import { BASE_PIECE_PALETTE, DEFAULT_DIMENSIONS, GemKind, type Piece, type PieceShape, type Position } from "./types";
-
-function paletteKey(shape: PieceShape, color: string): string {
-  return `${shape}:${color}`;
-}
+import { labelForExit } from "./entry-labels";
+import { toContinuousCorner } from "./geometry";
+import { PlacementController } from "./placement-controller";
+import { type RayResult, fireRayPreview } from "./preview-engine";
+import { DEFAULT_DIMENSIONS, EXTENSION_PIECE_PALETTE } from "./types";
 
 export function mountOrapaMineDemo(root: HTMLElement): () => void {
   root.innerHTML = `
@@ -28,7 +25,8 @@ export function mountOrapaMineDemo(root: HTMLElement): () => void {
         <p class="orapa-demo__hint">
           Choisis une pièce, oriente-la, puis clique une case pour la poser (reclique une pièce
           posée pour la retirer). Chaque pièce ne peut être posée qu'une fois. Une fois les 5
-          posées, valide le placement, puis clique une borne du pourtour pour tirer un rayon.
+          gemmes de base posées, valide le placement, puis clique une borne du pourtour pour
+          tirer un rayon. Le Diamant et le Corps noir (extensions) sont optionnels.
         </p>
         <div class="orapa-demo__palette"></div>
         <div class="orapa-demo__transform">
@@ -53,158 +51,67 @@ export function mountOrapaMineDemo(root: HTMLElement): () => void {
     throw new Error("Gabarit de la démo Orapa Mine incomplet.");
   }
 
-  // La pièce "armée" : celle qu'on s'apprête à poser, avec sa
-  // rotation/miroir en cours d'ajustement. `null` = rien de sélectionné.
-  let armed: Piece | null = null;
-  let hoveredCorner: Position | null = null;
-  const usedKeys = new Set<string>(); // pièces déjà posées, une seule fois chacune
-  let validated = false;
-
-  const swatchByKey = new Map<string, HTMLButtonElement>();
-  for (const { shape, color, label } of BASE_PIECE_PALETTE) {
-    const key = paletteKey(shape, color);
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "orapa-demo__swatch";
-    button.title = label;
-    button.innerHTML = pieceIconSvg(shape, color);
-    button.addEventListener("click", () => {
-      if (button.disabled) return;
-      armed = {
-        shape,
-        kind: GemKind.NORMAL,
-        color,
-        origin: hoveredCorner ?? [0, 0],
-        rotationSteps: 0,
-        mirrored: false,
-      };
-      updateSwatchSelection(button);
-      refreshGhost();
-    });
-    paletteHost.appendChild(button);
-    swatchByKey.set(key, button);
-  }
-
-  function updateSwatchSelection(active: HTMLButtonElement | null): void {
-    for (const button of paletteHost!.querySelectorAll<HTMLButtonElement>(".orapa-demo__swatch")) {
-      button.classList.toggle("is-selected", button === active);
-    }
-  }
-
-  function updatePaletteAvailability(): void {
-    for (const [key, button] of swatchByKey) {
-      button.disabled = validated || usedKeys.has(key);
-    }
-    validateButton!.textContent = `Valider le placement (${usedKeys.size}/${BASE_PIECE_PALETTE.length})`;
-    validateButton!.disabled = validated || usedKeys.size < BASE_PIECE_PALETTE.length;
-    rotateButton!.disabled = validated;
-    mirrorButton!.disabled = validated;
-  }
-  updatePaletteAvailability();
-
-  rotateButton.addEventListener("click", () => {
-    if (!armed) return;
-    armed = { ...armed, rotationSteps: (armed.rotationSteps + 1) % 4 };
-    refreshGhost();
-  });
-  mirrorButton.addEventListener("click", () => {
-    if (!armed) return;
-    armed = { ...armed, mirrored: !armed.mirrored };
-    refreshGhost();
-  });
-
-  const board = new PreviewBoard(DEFAULT_DIMENSIONS);
   const scene = new BoardScene(canvasHost, DEFAULT_DIMENSIONS);
-
-  function refreshPieces(): void {
-    scene.setPieces(board.pieces());
-  }
-
-  function refreshGhost(): void {
-    if (!armed || validated) {
-      scene.setGhost(null);
-      return;
-    }
-    const positioned: Piece = { ...armed, origin: hoveredCorner ?? armed.origin };
-    scene.setGhost(positioned, board.canPlace(positioned));
-  }
-
-  scene.onCornerHover = (corner) => {
-    hoveredCorner = corner;
-    refreshGhost();
-  };
-
-  scene.onCornerClick = ({ corner }) => {
-    if (validated) return;
-    // Cliquer une case déjà occupée retire la pièce qui s'y trouve, que
-    // l'on ait ou non une pièce armée en attente de pose.
-    const existing = board.pieceAtCell(corner);
-    if (existing) {
-      board.removePiece(existing);
-      usedKeys.delete(paletteKey(existing.shape, existing.color!));
-      refreshPieces();
-      updatePaletteAvailability();
-      resultHost.textContent = "";
-      return;
-    }
-    if (!armed) return;
-    const positioned: Piece = { ...armed, origin: corner };
-    try {
-      board.placePiece(positioned);
-      usedKeys.add(paletteKey(positioned.shape, positioned.color!));
-      armed = null;
-      updateSwatchSelection(null);
-      refreshPieces();
-      refreshGhost();
-      updatePaletteAvailability();
-      resultHost.textContent = "";
-    } catch (error) {
-      resultHost.textContent = error instanceof PlacementError ? error.message : String(error);
-    }
-  };
+  let placement: PlacementController | null = new PlacementController({
+    scene,
+    paletteHost,
+    rotateButton,
+    mirrorButton,
+    validateButton,
+    statusHost: resultHost,
+    extensionPieces: EXTENSION_PIECE_PALETTE,
+    onValidate: () => {
+      resultHost.textContent = "Placement validé — clique une borne du pourtour pour tirer un rayon.";
+    },
+  });
 
   scene.onEntryClick = ({ label, entry }) => {
+    if (!placement) return;
     let result: RayResult;
     try {
-      result = fireRayPreview(board, entry.position, entry.direction);
+      result = fireRayPreview(placement.board, entry.position, entry.direction);
     } catch (error) {
       resultHost.textContent = error instanceof Error ? error.message : String(error);
       return;
     }
-    scene.animateRay(entry.position, result.path, result.colorName);
+    // `entry.position` est une position DISCRÈTE (voir borders.ts) ;
+    // `result.path` est déjà en coordonnées continues (preview-engine.ts)
+    // — il ne faut surtout pas les mélanger sans convertir l'entrée.
+    scene.animateRay(toContinuousCorner(entry.position), result.path, result.colorName);
     resultHost.innerHTML = describeResult(label, result);
   };
 
-  validateButton.addEventListener("click", () => {
-    if (usedKeys.size < BASE_PIECE_PALETTE.length) return;
-    validated = true;
-    armed = null;
-    updateSwatchSelection(null);
-    refreshGhost();
-    updatePaletteAvailability();
-    resultHost.textContent = "";
-  });
-
   clearButton.addEventListener("click", () => {
-    for (const piece of board.pieces()) board.removePiece(piece);
-    usedKeys.clear();
-    validated = false;
-    armed = null;
-    updateSwatchSelection(null);
-    refreshPieces();
-    refreshGhost();
-    updatePaletteAvailability();
+    placement?.dispose();
+    paletteHost.innerHTML = "";
+    scene.setPieces([]);
+    scene.setGhost(null);
     scene.clearRay();
     resultHost.textContent = "";
+    placement = new PlacementController({
+      scene,
+      paletteHost,
+      rotateButton,
+      mirrorButton,
+      validateButton,
+      statusHost: resultHost,
+      extensionPieces: EXTENSION_PIECE_PALETTE,
+      onValidate: () => {
+        resultHost.textContent = "Placement validé — clique une borne du pourtour pour tirer un rayon.";
+      },
+    });
   });
 
-  return () => scene.dispose();
+  return () => {
+    placement?.dispose();
+    scene.dispose();
+  };
 }
 
 function describeResult(entryLabel: string, result: RayResult): string {
   if (result.absorbed) {
     return `<strong>Rayon depuis ${entryLabel}</strong> : signal absorbé.`;
   }
-  const [col, row] = result.exit!;
-  return `<strong>Rayon depuis ${entryLabel}</strong> : sort en (${col}, ${row}) — couleur <em>${result.colorName}</em>.`;
+  const exitLabel = labelForExit(result.exit!, result.exitDirection!);
+  return `<strong>Rayon depuis ${entryLabel}</strong> : sort en ${exitLabel} — couleur <em>${result.colorName}</em>.`;
 }

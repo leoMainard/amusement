@@ -9,6 +9,8 @@
 
 import { BoardScene } from "../../games/orapa-mine/board-scene";
 import { mountOrapaMineDemo } from "../../games/orapa-mine/demo";
+import { labelForExit } from "../../games/orapa-mine/entry-labels";
+import { toContinuousCorner } from "../../games/orapa-mine/geometry";
 import { fireRayPreview, PreviewBoard, type RayResult } from "../../games/orapa-mine/preview-engine";
 import { Color, DEFAULT_DIMENSIONS, GemKind, type Piece, PieceShape } from "../../games/orapa-mine/types";
 
@@ -65,7 +67,7 @@ const STEPS: StepDef[] = [
     fire: {
       entry: [4, 9],
       direction: "UP",
-      explain: (r) => `Le rayon entre par le bas, dévie sur la diagonale, et ressort en (${r.exit![0]}, ${r.exit![1]}) — couleur ${r.colorName}.`,
+      explain: (r) => `Le rayon entre par le bas, dévie sur la diagonale, et ressort en ${labelForExit(r.exit!, r.exitDirection!)} — couleur ${r.colorName}.`,
     },
   },
   {
@@ -82,7 +84,7 @@ const STEPS: StepDef[] = [
       direction: "RIGHT",
       explain: (r) =>
         r.exit
-          ? `Le rayon ressort en (${r.exit[0]}, ${r.exit[1]}) — exactement son point d'entrée. Couleur ${r.colorName}.`
+          ? `Le rayon ressort en ${labelForExit(r.exit, r.exitDirection!)} — exactement son point d'entrée. Couleur ${r.colorName}.`
           : "Absorbé.",
     },
   },
@@ -96,7 +98,7 @@ const STEPS: StepDef[] = [
     fire: {
       entry: [4, 9],
       direction: "UP",
-      explain: (r) => `Le rayon touche le jaune puis le blanc, et ressort en (${r.exit![0]}, ${r.exit![1]}) — couleur ${r.colorName}.`,
+      explain: (r) => `Le rayon touche le jaune puis le blanc, et ressort en ${labelForExit(r.exit!, r.exitDirection!)} — couleur ${r.colorName}.`,
     },
   },
   {
@@ -160,7 +162,7 @@ export function mountOrapaMineGuide(root: HTMLElement): () => void {
       const resultHost = root.querySelector<HTMLParagraphElement>(".guide__result")!;
       root.querySelector<HTMLButtonElement>(".guide__fire")!.addEventListener("click", () => {
         const result = fireRayPreview(board, entry, direction);
-        scene!.animateRay(entry, result.path, result.colorName);
+        scene!.animateRay(toContinuousCorner(entry), result.path, result.colorName);
         resultHost.textContent = explain(result);
       });
     }

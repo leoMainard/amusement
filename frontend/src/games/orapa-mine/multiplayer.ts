@@ -15,6 +15,8 @@
  */
 
 import { BoardScene } from "./board-scene";
+import { labelForExit } from "./entry-labels";
+import { toContinuousCorner } from "./geometry";
 import { PlacementController } from "./placement-controller";
 import {
   type GameStatePayload,
@@ -31,7 +33,7 @@ import {
 } from "./protocol";
 import { WS_BASE_URL } from "../../lib/config";
 import { RoomSocket } from "../../lib/room-socket";
-import { DEFAULT_DIMENSIONS, type Position } from "./types";
+import { DEFAULT_DIMENSIONS, EXTENSION_PIECE_PALETTE, type Position } from "./types";
 
 const MODE_LABELS: Record<RoomMode, string> = {
   DUEL: "Duel (1 contre 1, règles officielles)",
@@ -225,6 +227,7 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
       mirrorButton: controlsHost.querySelector(".orapa-demo__mirror")!,
       validateButton: controlsHost.querySelector(".orapa-demo__validate")!,
       statusHost: controlsHost.querySelector(".orapa-mp__placement-status")!,
+      extensionPieces: EXTENSION_PIECE_PALETTE,
       onPlace: (piece) => sendPlacePiece(socket!, piece),
       onRemove: (piece) => sendRemovePiece(socket!, piece.origin),
       onValidate: () => {
@@ -281,6 +284,7 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
           mirrorButton: guessPanel.querySelector(".orapa-demo__mirror")!,
           validateButton: guessPanel.querySelector(".orapa-demo__validate")!,
           statusHost: guessPanel.querySelector(".orapa-mp__guess-status")!,
+          extensionPieces: EXTENSION_PIECE_PALETTE,
           onValidate: (pieces) => sendSubmitSolution(socket!, pieces),
         });
       } else {
@@ -374,8 +378,12 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
         } else {
           // Ligne droite entrée -> sortie uniquement (voir docstring du
           // module : pas de rebonds intermédiaires affichés, le serveur
-          // ne les renvoie pas non plus).
-          scene.animateRay(result.entry, [{ position: result.exit, direction: result.exit_direction! }], result.color);
+          // ne les renvoie pas non plus). `entry`/`exit` sont des
+          // positions DISCRÈTES (le serveur parle la même convention que
+          // borders.ts) : il faut les convertir en continu avant de les
+          // passer à animateRay, sans quoi le tracé se décale d'une
+          // demi-case.
+          scene.animateRay(toContinuousCorner(result.entry), [{ position: toContinuousCorner(result.exit), direction: result.exit_direction! }], result.color);
         }
       }
     });
@@ -405,8 +413,8 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
 
 function describeRay(label: string, result: RayResultPayload): string {
   if (result.absorbed) return `Rayon depuis ${label} : signal absorbé.`;
-  const [col, row] = result.exit!;
-  return `Rayon depuis ${label} : sort en (${col}, ${row}) — couleur ${result.color}.`;
+  const exitLabel = labelForExit(result.exit!, result.exit_direction!);
+  return `Rayon depuis ${label} : sort en ${exitLabel} — couleur ${result.color}.`;
 }
 
 function escapeHtml(text: string): string {

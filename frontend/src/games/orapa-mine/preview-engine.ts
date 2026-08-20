@@ -138,6 +138,7 @@ export interface RayStep {
 export interface RayResult {
   path: RayStep[]; // toutes les positions traversées, entrée -> sortie
   exit: Point | null; // null si absorbé
+  exitDirection: Direction | null; // null si absorbé
   colorsTouched: Set<Color>;
   colorName: string;
   absorbed: boolean;
@@ -167,11 +168,18 @@ export function fireRayPreview(board: PreviewBoard, entry: Point, direction: Dir
 
     if (!hit.piece) {
       const exit = fromScaledExit(hit.point);
-      return { path, exit, colorsTouched: touched, colorName: resolveRayColorName(touched), absorbed: false };
+      return {
+        path,
+        exit,
+        exitDirection: currentDirection,
+        colorsTouched: touched,
+        colorName: resolveRayColorName(touched),
+        absorbed: false,
+      };
     }
 
     if (hit.piece.kind === GemKind.BLACK_BODY) {
-      return { path, exit: null, colorsTouched: touched, colorName: "absorbé", absorbed: true };
+      return { path, exit: null, exitDirection: null, colorsTouched: touched, colorName: "absorbé", absorbed: true };
     }
     if (hit.piece.kind === GemKind.NORMAL && hit.piece.color) {
       touched.add(hit.piece.color);

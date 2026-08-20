@@ -34,6 +34,12 @@ body {
   cursor: default;
 }
 
+.game-card button.is-selected {
+  border-color: #2ecc71;
+  border-width: 2px;
+  font-weight: 600;
+}
+
 /* Démo Orapa Mine (Phase 3) */
 .orapa-demo {
   display: grid;
@@ -300,12 +306,18 @@ body {
 
 /* Notice (Phase 5) */
 .notice {
-  max-width: 68ch;
+  max-width: 100%;
   margin-top: 1.5rem;
 }
 
 .notice__intro {
   font-size: 1.02rem;
+  max-width: 68ch;
+}
+
+.notice__section p,
+.notice__section ul {
+  max-width: 68ch;
 }
 
 .notice__section {
@@ -353,6 +365,58 @@ body {
   border-radius: 0.5rem;
   text-align: center;
   font-size: 0.82rem;
+}
+
+.notice__combo-gallery {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 0.6rem;
+  margin: 0.75rem 0 0;
+}
+
+.notice__combo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid light-dark(#e2e2e2, #333);
+  border-radius: 0.5rem;
+  min-width: 0;
+}
+
+.notice__combo-top {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  min-width: 0;
+}
+
+.notice__combo-pieces {
+  display: flex;
+  align-items: center;
+}
+
+.notice__combo-pieces svg {
+  margin-right: -0.35rem;
+}
+
+.notice__combo-arrow {
+  opacity: 0.6;
+  flex-shrink: 0;
+}
+
+.notice__combo-result {
+  align-self: stretch;
+  padding: 0.25rem 0.4rem;
+  border-radius: 0.35rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-align: center;
+  white-space: normal;
+  overflow-wrap: break-word;
 }
 
 .notice__diagram-row {

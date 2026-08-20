@@ -21,7 +21,7 @@ export const PieceShape = {
   PARALLELOGRAM: "PARALLELOGRAM", // rouge : 1 carré + 2 triangles
   RHOMBUS: "RHOMBUS", // blanc : 4 triangles
   LARGE_TRIANGLE: "LARGE_TRIANGLE", // blanc ou bleu : 2 carrés + 4 triangles
-  SQUARE: "SQUARE", // emprise du Diamant / Corps noir (hypothèse — voir docs/plan.md)
+  TENT: "TENT", // emprise du Diamant / Corps noir : 2 demi-cases, pointe vers le haut
 } as const;
 export type PieceShape = (typeof PieceShape)[keyof typeof PieceShape];
 
@@ -75,4 +75,12 @@ export const BASE_PIECE_PALETTE: ReadonlyArray<{ shape: PieceShape; color: Color
   { shape: PieceShape.LARGE_TRIANGLE, color: Color.BLUE, label: "Grand triangle bleu" },
   { shape: PieceShape.RHOMBUS, color: Color.WHITE, label: "Losange blanc" },
   { shape: PieceShape.LARGE_TRIANGLE, color: Color.WHITE, label: "Grand triangle blanc" },
+];
+
+/** Les deux extensions (voir la notice) : optionnelles, pas comptées
+ * dans les "5 gemmes" à poser pour valider un placement. Emprise `TENT` :
+ * 2 demi-cases accolées par leur hypoténuse, pointe vers le haut. */
+export const EXTENSION_PIECE_PALETTE: ReadonlyArray<{ shape: PieceShape; kind: GemKind; label: string }> = [
+  { shape: PieceShape.TENT, kind: GemKind.DIAMOND, label: "Diamant" },
+  { shape: PieceShape.TENT, kind: GemKind.BLACK_BODY, label: "Corps noir" },
 ];

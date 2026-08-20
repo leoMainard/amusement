@@ -10,6 +10,17 @@ export type Quadrant = "N" | "E" | "S" | "W";
 export type Point = readonly [x: number, y: number];
 export type QuadrantKey = string; // `${col},${row},${quadrant}`
 
+/** Convertit une position DISCRÈTE de case/bord (ex : un point d'entrée
+ * du livret, toujours un couple d'entiers) en coordonnée CONTINUE
+ * exacte (le centre de cette case). À utiliser avant `BoardScene.
+ * animateRay`, qui attend des coordonnées déjà continues comme celles
+ * que produit `preview-engine.fireRayPreview` — mélanger les deux sans
+ * cette conversion décale le tracé d'une demi-case (bug corrigé une
+ * fois, voir docs/plan.md). */
+export function toContinuousCorner([col, row]: Point): Point {
+  return [col + 0.5, row + 0.5];
+}
+
 const QUADRANT_PROBE: Record<Quadrant, Point> = {
   N: [2, 1],
   E: [3, 2],

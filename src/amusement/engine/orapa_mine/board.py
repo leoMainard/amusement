@@ -54,14 +54,14 @@ class Piece:
         if self.kind == GemKind.NORMAL:
             if self.color is None:
                 raise ValueError("Une pièce normale doit avoir une couleur.")
-            if self.shape == PieceShape.SQUARE:
-                raise ValueError("La forme SQUARE est réservée au Diamant et au Corps noir.")
+            if self.shape == PieceShape.TENT:
+                raise ValueError("La forme TENT est réservée au Diamant et au Corps noir.")
         else:
             if self.color is not None:
                 raise ValueError(f"Une pièce de type {self.kind.name} n'a pas de couleur.")
-            if self.shape != PieceShape.SQUARE:
+            if self.shape != PieceShape.TENT:
                 raise ValueError(
-                    f"Une pièce de type {self.kind.name} utilise la forme SQUARE "
+                    f"Une pièce de type {self.kind.name} utilise la forme TENT "
                     "(hypothèse de forme au sol — voir docs/plan.md)."
                 )
 
@@ -77,11 +77,11 @@ class Piece:
 
     @staticmethod
     def diamond(origin: Position) -> "Piece":
-        return Piece(shape=PieceShape.SQUARE, kind=GemKind.DIAMOND, origin=origin)
+        return Piece(shape=PieceShape.TENT, kind=GemKind.DIAMOND, origin=origin)
 
     @staticmethod
     def black_body(origin: Position) -> "Piece":
-        return Piece(shape=PieceShape.SQUARE, kind=GemKind.BLACK_BODY, origin=origin)
+        return Piece(shape=PieceShape.TENT, kind=GemKind.BLACK_BODY, origin=origin)
 
 
 class Board:

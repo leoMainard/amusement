@@ -1,16 +1,18 @@
 /**
  * Contrôleur de placement réutilisable : palette de pièces (icônes SVG
  * réelles), pièce fantôme au survol, rotation/miroir, pose/retrait,
- * validation une fois toutes les pièces posées. Générique par rapport à
- * la source de vérité — voir `onPlace`/`onRemove`/`onValidate` — pour
+ * validation une fois les pièces requises posées. Générique par rapport
+ * à la source de vérité — voir `onPlace`/`onRemove`/`onValidate` — pour
  * servir à la fois pour :
  * - le placement de son propre plateau en Duel (la pose passe par le
  *   serveur, ce contrôleur ne fait que l'affichage local optimiste) ;
  * - la construction d'une proposition de solution (locale, envoyée
  *   d'un coup à la validation).
  *
- * Extrait de la démo hors ligne (`demo.ts`) pour être partagé — voir
- * celle-ci pour la version autonome d'origine.
+ * Les pièces de `pieces` sont requises (comptées dans "X/N" pour
+ * valider) ; celles de `extensionPieces` (Diamant, Corps noir) sont
+ * optionnelles — posables ou non, elles ne bloquent jamais la
+ * validation.
  */
 
 import type { BoardScene } from "./board-scene";
@@ -18,8 +20,16 @@ import { pieceIconSvg } from "./piece-icon";
 import { PlacementError, PreviewBoard } from "./preview-engine";
 import { BASE_PIECE_PALETTE, GemKind, type Piece, type PieceShape, type Position } from "./types";
 
-function paletteKey(shape: PieceShape, color: string): string {
-  return `${shape}:${color}`;
+interface PaletteEntry {
+  shape: PieceShape;
+  kind: GemKind;
+  color?: string;
+  label: string;
+  required: boolean;
+}
+
+function pieceKey(p: { shape: PieceShape; kind: GemKind; color?: string }): string {
+  return `${p.shape}:${p.kind}:${p.color ?? ""}`;
 }
 
 export interface PlacementControllerOptions {
@@ -30,18 +40,21 @@ export interface PlacementControllerOptions {
   validateButton: HTMLButtonElement;
   statusHost?: HTMLElement;
   pieces?: ReadonlyArray<{ shape: PieceShape; color: string; label: string }>;
+  /** Diamant / Corps noir : optionnels, ne comptent pas dans "X/N". */
+  extensionPieces?: ReadonlyArray<{ shape: PieceShape; kind: GemKind; label: string }>;
   /** Appelé après une pose locale réussie (ex : notifier le serveur). */
   onPlace?: (piece: Piece) => void;
   /** Appelé après un retrait local. */
   onRemove?: (piece: Piece) => void;
-  /** Appelé quand toutes les pièces sont posées et la validation cliquée. */
+  /** Appelé quand toutes les pièces requises sont posées et la validation cliquée. */
   onValidate: (pieces: Piece[]) => void;
 }
 
 export class PlacementController {
   readonly board: PreviewBoard;
   private scene: BoardScene;
-  private pieces: ReadonlyArray<{ shape: PieceShape; color: string; label: string }>;
+  private entries: PaletteEntry[];
+  private requiredCount: number;
   private swatchByKey = new Map<string, HTMLButtonElement>();
   private armed: Piece | null = null;
   private hoveredCorner: Position | null = null;
@@ -52,22 +65,25 @@ export class PlacementController {
   constructor(options: PlacementControllerOptions) {
     this.options = options;
     this.scene = options.scene;
-    this.pieces = options.pieces ?? BASE_PIECE_PALETTE;
+    const required = (options.pieces ?? BASE_PIECE_PALETTE).map((p) => ({ ...p, kind: GemKind.NORMAL, required: true }));
+    const extensions = (options.extensionPieces ?? []).map((p) => ({ ...p, color: undefined, required: false }));
+    this.entries = [...required, ...extensions];
+    this.requiredCount = required.length;
     this.board = new PreviewBoard(this.scene.dimensions);
 
-    for (const { shape, color, label } of this.pieces) {
-      const key = paletteKey(shape, color);
+    for (const entry of this.entries) {
+      const key = pieceKey(entry);
       const button = document.createElement("button");
       button.type = "button";
       button.className = "orapa-demo__swatch";
-      button.title = label;
-      button.innerHTML = pieceIconSvg(shape, color);
+      button.title = entry.label;
+      button.innerHTML = pieceIconSvg(entry.shape, entry.color, 44, entry.kind);
       button.addEventListener("click", () => {
         if (button.disabled) return;
         this.armed = {
-          shape,
-          kind: GemKind.NORMAL,
-          color: color as Piece["color"],
+          shape: entry.shape,
+          kind: entry.kind,
+          color: entry.color as Piece["color"],
           origin: this.hoveredCorner ?? [0, 0],
           rotationSteps: 0,
           mirrored: false,
@@ -90,7 +106,7 @@ export class PlacementController {
       this.refreshGhost();
     });
     options.validateButton.addEventListener("click", () => {
-      if (this.usedKeys.size < this.pieces.length || this.locked) return;
+      if (this.requiredUsedCount() < this.requiredCount || this.locked) return;
       this.locked = true;
       this.armed = null;
       this.updateSwatchSelection(null);
@@ -120,7 +136,7 @@ export class PlacementController {
   /** Annule une pose optimiste rejetée par le serveur. */
   rejectPlacement(piece: Piece): void {
     this.board.removePiece(piece);
-    this.usedKeys.delete(paletteKey(piece.shape, piece.color!));
+    this.usedKeys.delete(pieceKey(piece));
     this.scene.setPieces(this.board.pieces());
     this.updateAvailability();
   }
@@ -128,6 +144,10 @@ export class PlacementController {
   dispose(): void {
     this.scene.onCornerHover = null;
     this.scene.onCornerClick = null;
+  }
+
+  private requiredUsedCount(): number {
+    return this.entries.filter((e) => e.required && this.usedKeys.has(pieceKey(e))).length;
   }
 
   private handleCornerClick(corner: Position): void {
@@ -143,7 +163,7 @@ export class PlacementController {
     const positioned: Piece = { ...this.armed, origin: corner };
     try {
       this.board.placePiece(positioned);
-      this.usedKeys.add(paletteKey(positioned.shape, positioned.color!));
+      this.usedKeys.add(pieceKey(positioned));
       this.armed = null;
       this.updateSwatchSelection(null);
       this.scene.setPieces(this.board.pieces());
@@ -159,7 +179,7 @@ export class PlacementController {
   private handlePieceClick(piece: Piece): void {
     if (this.locked) return;
     this.board.removePiece(piece);
-    this.usedKeys.delete(paletteKey(piece.shape, piece.color!));
+    this.usedKeys.delete(pieceKey(piece));
     this.scene.setPieces(this.board.pieces());
     this.updateAvailability();
     this.setStatus("");
@@ -182,12 +202,14 @@ export class PlacementController {
   }
 
   private updateAvailability(): void {
-    for (const [key, button] of this.swatchByKey) {
-      button.disabled = this.locked || this.usedKeys.has(key);
+    for (const entry of this.entries) {
+      const button = this.swatchByKey.get(pieceKey(entry));
+      if (button) button.disabled = this.locked || this.usedKeys.has(pieceKey(entry));
     }
     const { rotateButton, mirrorButton, validateButton } = this.options;
-    validateButton.textContent = `Valider le placement (${this.usedKeys.size}/${this.pieces.length})`;
-    validateButton.disabled = this.locked || this.usedKeys.size < this.pieces.length;
+    const requiredUsed = this.requiredUsedCount();
+    validateButton.textContent = `Valider le placement (${requiredUsed}/${this.requiredCount})`;
+    validateButton.disabled = this.locked || requiredUsed < this.requiredCount;
     rotateButton.disabled = this.locked;
     mirrorButton.disabled = this.locked;
   }

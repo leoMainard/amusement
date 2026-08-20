@@ -31,11 +31,10 @@ const CANONICAL_VERTICES: Record<PieceShape, readonly Point[]> = {
     [2, 2],
     [0, 4],
   ],
-  [PieceShape.SQUARE]: [
-    [0, 0],
-    [1, 0],
-    [1, 1],
+  [PieceShape.TENT]: [
     [0, 1],
+    [2, 1],
+    [1, 0],
   ],
 };
 

@@ -39,11 +39,13 @@ export function resolveRayColorName(touched: ReadonlySet<Color>): string {
   const sorted = CANONICAL_ORDER.filter((c) => touched.has(c));
   if (sorted.length === 1) return SINGLE_NAME[sorted[0]];
   if (sorted.length === 4) return "gris";
+  if (sorted.length === 3 && sorted.join(",") === "RED,YELLOW,BLUE") return "noir";
 
   const key = sorted.join(",");
   if (sorted.length === 2 && key in PAIR_MIX) return PAIR_MIX[key];
   if (sorted.length === 3 && key in TRIPLE_WITH_WHITE_MIX) return TRIPLE_WITH_WHITE_MIX[key];
 
-  const names = sorted.map((c) => SINGLE_NAME[c]).join(", ");
-  return `mélange non documenté (${names})`;
+  // Les 15 combinaisons possibles sont couvertes ci-dessus (voir
+  // colors.py) : ce point ne devrait jamais être atteint.
+  throw new Error(`Combinaison de couleurs inattendue : ${sorted.join(", ")}`);
 }

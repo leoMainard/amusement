@@ -52,7 +52,11 @@ def piece_to_payload(piece: Piece) -> dict:
 
 
 def _piece_key(piece: Piece) -> tuple:
-    return (piece.shape, piece.color)
+    # `kind` doit faire partie de la clé : le Diamant et le Corps noir
+    # ont tous deux `shape=TENT` et `color=None`, donc (shape, color)
+    # seul les confondrait — poser l'un rendrait l'autre injustement
+    # "déjà posé".
+    return (piece.shape, piece.kind, piece.color)
 
 
 @dataclass

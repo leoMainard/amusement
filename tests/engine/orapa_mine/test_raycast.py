@@ -86,13 +86,18 @@ def test_black_body_absorbs_regardless_of_edge_type() -> None:
 
 
 def test_diamond_deflects_without_tinting() -> None:
+    # Le Diamant a la silhouette TENT (deux demi-cases pointe en haut) :
+    # un rayon entrant à mi-hauteur de la ligne 4 heurte son arête
+    # diagonale gauche, donc tourne de 90° (ici vers le haut) au lieu de
+    # rebondir — comme n'importe quelle pièce touchée sur une arête à
+    # 45°, mais sans teinter le rayon.
     board = make_board()
     board.place_piece(Piece.diamond(origin=(4, 4)))
 
     result = fire_ray(board, entry=(-1, 4), direction=Direction.RIGHT)
 
-    assert result.exit == (-1, 4)
-    assert result.exit_direction == Direction.LEFT
+    assert result.exit == (4, -1)
+    assert result.exit_direction == Direction.UP
     assert result.color == "transparent"
     assert not result.absorbed
 

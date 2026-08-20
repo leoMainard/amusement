@@ -195,13 +195,13 @@ Site de jeux en ligne entre amis. Premier jeu : **Orapa Mine**.
   propre des 36 points d'entrée en 18 numéros (bords haut/bas) + 18
   lettres (bords gauche/droit) = 18+18, conforme au livret — non
   confirmée visuellement avec certitude (voir « Points ouverts »).
-- **Mélange des couleurs** : au-delà des règles explicites du livret
-  (couleur+blanc → version claire, 4 couleurs → gris), le tableau inclut
-  des mélanges déduits des schémas (rouge+jaune=orange, jaune+bleu=vert,
-  rouge+bleu=violet, + versions claires avec blanc). Le mélange
-  rouge+jaune+bleu sans blanc n'est documenté nulle part dans le livret
-  disponible : le moteur renvoie une description explicite plutôt qu'un
-  nom inventé.
+- **Mélange des couleurs** : confirmé intégralement par le tableau de
+  mélanges du livret (photographié par l'utilisateur, voir
+  `regles/orapamine.jpg`) — couleur+blanc → version claire, deux couleurs
+  sans blanc → mélange peinture (rouge+jaune=orange, jaune+bleu=vert,
+  rouge+bleu=violet), deux couleurs+blanc → version claire du mélange,
+  rouge+jaune+bleu sans blanc → **noir**, les 4 couleurs → gris. Les 15
+  combinaisons possibles sont donc toutes couvertes sans cas par défaut.
 
 ## Révision Phase 1 (2026-08-19) : vraies silhouettes de pièces
 
@@ -218,10 +218,10 @@ l'artifact « Pièces d'Orapa Mine » (schémas de chaque pièce). Résumé :
   `LARGE_TRIANGLE` (blanc **ou** bleu — même silhouette, deux couleurs
   possibles, 2 carrés + 4 triangles). Correspond exactement à « 1 rouge,
   1 jaune, 1 bleue et 2 blanches » du livret (`generation.BASE_PIECE_SET`).
-- **Diamant / Corps noir** : décrits par leur profil 3D (une tente à deux
-  pans, pic vers le haut), pas par une silhouette au sol. Hypothèse
-  retenue : emprise 1×1 (`PieceShape.SQUARE`) — non confirmée, voir
-  « Points ouverts ».
+- **Diamant / Corps noir** : silhouette confirmée par l'utilisateur (2026-
+  08-20) — `PieceShape.TENT`, deux demi-cases accolées par leur
+  hypoténuse formant un triangle isocèle de 2 cases de large, pointe vers
+  le haut (et non 1×1 comme initialement supposé).
 - **Modèle géométrique** : chaque pièce est un polygone convexe à coins
   entiers (voir `pieces.py` pour les sommets canoniques), placée par
   rotation (pas de 90°) + miroir optionnel (nécessaire pour le
@@ -258,11 +258,6 @@ l'artifact « Pièces d'Orapa Mine » (schémas de chaque pièce). Résumé :
   cohérente mais pas confirmée visuellement. Le moteur de rayon
   (`raycast.fire_ray`) est indépendant de ce choix ; seul `borders.py`
   serait à corriger si besoin.
-- Emprise au sol du Diamant et du Corps noir : hypothèse 1×1
-  (`PieceShape.SQUARE`), non confirmée — leur description au livret ne
-  couvre que leur profil 3D (une tente), pas leur silhouette au sol.
-- Nom du mélange rouge+jaune+bleu (sans blanc) : non trouvé dans le
-  livret disponible.
 - Chronométrage en mode Fouille : affiché en direct ou seulement au
   résultat final.
 - Variante de base (5 gemmes) vs extensions (Diamant, Corps noir)

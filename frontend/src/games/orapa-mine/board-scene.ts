@@ -31,7 +31,7 @@ const GEM_HEIGHT = 0.5;
 const GHOST_OPACITY = 0.55;
 const RAY_HEIGHT = 0.32;
 
-const RAY_COLOR_HEX: Record<string, number> = {
+export const RAY_COLOR_HEX: Record<string, number> = {
   transparent: 0x9aa0a6,
   rouge: 0xd64545,
   jaune: 0xe0c23c,
@@ -47,6 +47,7 @@ const RAY_COLOR_HEX: Record<string, number> = {
   "orange clair": 0xf0c79a,
   "vert clair": 0xa8dcb6,
   "violet clair": 0xc6b0ec,
+  noir: 0x2f2f2f,
   absorbé: 0x1a1a1a,
 };
 
@@ -161,11 +162,15 @@ export class BoardScene {
     this.pieceGroup.add(this.ghostMesh);
   }
 
-  /** Trace le chemin d'un rayon (bord d'entrée -> étapes de `preview-engine.fireRayPreview`). */
-  animateRay(entry: Position, steps: RayStep[], colorName: string): void {
+  /** Trace le chemin d'un rayon. `entry` et les positions de `steps`
+   * doivent être des coordonnées déjà CONTINUES (voir
+   * `geometry.toContinuousCorner` pour convertir un point d'entrée/
+   * sortie discret — ceux de `preview-engine.fireRayPreview` le sont
+   * déjà). Mélanger discret et continu décale le tracé d'une demi-case. */
+  animateRay(entry: Point, steps: RayStep[], colorName: string): void {
     this.rayGroup.clear();
-    const points = [entry as Point, ...steps.map((s) => s.position)].map((p) => {
-      const c = this.cornerAverageWorld(p);
+    const points = [entry, ...steps.map((s) => s.position)].map((p) => {
+      const c = this.continuousToWorld(p);
       return new THREE.Vector3(c.x, RAY_HEIGHT, c.z);
     });
 
@@ -206,13 +211,23 @@ export class BoardScene {
     this.resizeObserver.observe(container);
   }
 
-  /** (col, row) de grille -> position monde sur le sol (y=0). Accepte
-   * aussi des coordonnées fractionnaires (points intermédiaires du
-   * tracé d'un rayon, ou centre d'une case pour les bornes d'entrée). */
+  /** (col, row) de case/bord DISCRÈTE -> centre de cette case, en
+   * position monde (y=0). Pour les bornes d'entrée et tout indice de
+   * case entier — pas pour le tracé d'un rayon, voir `continuousToWorld`. */
   private cornerAverageWorld([col, row]: Point): THREE.Vector3 {
     const x = col - this.dimensions.width / 2 + 0.5;
     const z = row - this.dimensions.height / 2 + 0.5;
     return new THREE.Vector3(x, 0, z);
+  }
+
+  /** Coordonnée déjà CONTINUE (potentiellement à mi-case, ex : un point
+   * de rebond d'un rayon) -> position monde. Contrairement à
+   * `cornerAverageWorld`, n'ajoute aucun centrage : l'appelant doit
+   * avoir converti toute position discrète au préalable (voir
+   * `geometry.toContinuousCorner`), sans quoi le tracé se décale d'une
+   * demi-case (bug corrigé une fois — voir docs/plan.md). */
+  private continuousToWorld([x, z]: Point): THREE.Vector3 {
+    return new THREE.Vector3(x - this.dimensions.width / 2, 0, z - this.dimensions.height / 2);
   }
 
   private buildGrid(): void {
@@ -261,25 +276,6 @@ export class BoardScene {
   }
 
   private buildPieceMesh(piece: Piece, isGhost: boolean): THREE.Object3D {
-    if (piece.kind === GemKind.BLACK_BODY || piece.kind === GemKind.DIAMOND) {
-      const isDiamond = piece.kind === GemKind.DIAMOND;
-      const color = isDiamond ? 0xbfe3f0 : 0x1a1a1a;
-      const mesh = new THREE.Mesh(
-        new THREE.ConeGeometry(0.42, GEM_HEIGHT, 4),
-        new THREE.MeshStandardMaterial({
-          color,
-          roughness: 0.4,
-          transparent: isGhost || isDiamond,
-          opacity: isGhost ? GHOST_OPACITY : isDiamond ? 0.45 : 1,
-        }),
-      );
-      mesh.rotation.y = Math.PI / 4;
-      const center = this.cornerAverageWorld(piece.origin);
-      mesh.position.set(center.x, GEM_HEIGHT / 2, center.z);
-      if (isGhost) this.tintGhost(mesh.material as THREE.MeshStandardMaterial);
-      return mesh;
-    }
-
     const verts = pieceVertices(piece);
     const shape = new THREE.Shape();
     verts.forEach(([col, row], i) => {
@@ -291,12 +287,15 @@ export class BoardScene {
     shape.closePath();
 
     const geometry = new THREE.ExtrudeGeometry(shape, { depth: GEM_HEIGHT, bevelEnabled: false });
-    const color = piece.color ? GEM_DISPLAY_COLOR[piece.color] : 0x999999;
+
+    const isDiamond = piece.kind === GemKind.DIAMOND;
+    const isBlackBody = piece.kind === GemKind.BLACK_BODY;
+    const color = isDiamond ? 0xbfe3f0 : isBlackBody ? 0x1a1a1a : piece.color ? GEM_DISPLAY_COLOR[piece.color] : 0x999999;
     const material = new THREE.MeshStandardMaterial({
       color,
-      roughness: 0.35,
-      transparent: isGhost,
-      opacity: isGhost ? GHOST_OPACITY : 1,
+      roughness: isDiamond ? 0.15 : isBlackBody ? 0.6 : 0.35,
+      transparent: isGhost || isDiamond,
+      opacity: isGhost ? GHOST_OPACITY : isDiamond ? 0.5 : 1,
     });
     if (isGhost) this.tintGhost(material);
     const mesh = new THREE.Mesh(geometry, material);

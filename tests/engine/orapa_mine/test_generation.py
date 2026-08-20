@@ -32,8 +32,8 @@ def test_random_board_is_deterministic_for_a_given_seed() -> None:
 def test_random_board_can_include_extensions() -> None:
     specs = (
         PieceSpec(PieceShape.MEDIUM_TRIANGLE, color=Color.RED),
-        PieceSpec(PieceShape.SQUARE, kind=GemKind.DIAMOND),
-        PieceSpec(PieceShape.SQUARE, kind=GemKind.BLACK_BODY),
+        PieceSpec(PieceShape.TENT, kind=GemKind.DIAMOND),
+        PieceSpec(PieceShape.TENT, kind=GemKind.BLACK_BODY),
     )
     board = random_board(BoardDimensions(width=9, height=9), specs, rng=random.Random(1))
     kinds = sorted(p.kind.name for p in board.pieces())

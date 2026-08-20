@@ -57,6 +57,19 @@ def test_place_piece_before_start_raises() -> None:
         session.place_piece(alice.id, Piece.normal(PieceShape.MEDIUM_TRIANGLE, Color.YELLOW, origin=(0, 0)))
 
 
+def test_diamond_and_black_body_are_tracked_separately() -> None:
+    # Bug corrigé : les deux ont shape=TENT et color=None, donc poser
+    # l'un ne doit pas rendre l'autre injustement "déjà posé".
+    room = Room(code="ABCDE", game="orapa_mine", mode=RoomMode.DUEL, max_players=2)
+    alice = room.add_player("Alice")
+    room.add_player("Bob")
+    session = OrapaMineSession(room)
+    session.start()
+    session.place_piece(alice.id, Piece.diamond(origin=(0, 0)))
+    session.place_piece(alice.id, Piece.black_body(origin=(2, 2)))  # ne doit pas lever RoomError
+    assert len(session.placements[alice.id].board.pieces()) == 2
+
+
 def test_cannot_validate_incomplete_placement() -> None:
     room = Room(code="ABCDE", game="orapa_mine", mode=RoomMode.DUEL, max_players=2)
     alice = room.add_player("Alice")

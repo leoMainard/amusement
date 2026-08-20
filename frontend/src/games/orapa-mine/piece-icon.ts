@@ -3,7 +3,7 @@
  * palette de placement, la démo et la notice. */
 
 import { placeShape } from "./piece-shapes";
-import type { PieceShape } from "./types";
+import { GemKind, type PieceShape } from "./types";
 
 const FILL_BY_COLOR: Record<string, string> = {
   RED: "#d64545",
@@ -12,7 +12,14 @@ const FILL_BY_COLOR: Record<string, string> = {
   WHITE: "#ffffff",
 };
 
-export function pieceIconSvg(shape: PieceShape, color: string, size: number = 44): string {
+// Le Diamant et le Corps noir n'ont pas de `color` (voir types.ts) :
+// leur icône se distingue par nature plutôt que par couleur.
+const FILL_BY_KIND: Partial<Record<GemKind, string>> = {
+  [GemKind.DIAMOND]: "#bfe3f0",
+  [GemKind.BLACK_BODY]: "#1a1a1a",
+};
+
+export function pieceIconSvg(shape: PieceShape, color: string | undefined, size: number = 44, kind: GemKind = GemKind.NORMAL): string {
   const verts = placeShape(shape, [0, 0]);
   const xs = verts.map(([x]) => x);
   const ys = verts.map(([, y]) => y);
@@ -26,8 +33,9 @@ export function pieceIconSvg(shape: PieceShape, color: string, size: number = 44
   const viewW = w + pad * 2;
   const viewH = h + pad * 2;
   const points = verts.map(([x, y]) => `${x - minX + pad},${y - minY + pad}`).join(" ");
-  const fill = FILL_BY_COLOR[color] ?? "#999";
+  const fill = FILL_BY_KIND[kind] ?? (color ? (FILL_BY_COLOR[color] ?? "#999") : "#999");
+  const dash = kind === GemKind.DIAMOND ? ' stroke-dasharray="0.08 0.08"' : "";
   return `<svg viewBox="0 0 ${viewW} ${viewH}" width="${size}" height="${size}" role="img" aria-hidden="true">
-    <polygon points="${points}" fill="${fill}" stroke="#3b3a35" stroke-width="0.06" />
+    <polygon points="${points}" fill="${fill}" stroke="#3b3a35" stroke-width="0.06"${dash} />
   </svg>`;
 }

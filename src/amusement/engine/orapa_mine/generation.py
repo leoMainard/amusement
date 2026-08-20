@@ -15,7 +15,7 @@ class PieceSpec:
     """Une pièce à placer lors de la génération.
 
     `color` est requis pour `GemKind.NORMAL` et doit être `None` sinon ;
-    `shape` doit être `SQUARE` pour DIAMOND/BLACK_BODY, et l'une des 4
+    `shape` doit être `TENT` pour DIAMOND/BLACK_BODY, et l'une des 4
     silhouettes réelles sinon.
     """
 

@@ -7,20 +7,16 @@ Le livret officiel confirme explicitement :
 - les 4 couleurs de base -> gris ;
 - chaque couleur ne compte qu'une fois, même touchée plusieurs fois.
 
-Les schémas du livret (résultats "orange", "vert", "violet" sur les
-exemples d'extension Corps noir) indiquent en plus un mélange classique
-type peinture pour les paires sans blanc (rouge+jaune=orange,
-jaune+bleu=vert, rouge+bleu=violet), et un exemple de dialogue confirme
-qu'ajouter du blanc à un mélange de deux couleurs donne sa version
-"claire" (rouge+bleu+blanc -> violet clair ; jaune+bleu+blanc -> vert
-clair, vu dans deux schémas). Par cohérence, rouge+jaune+blanc est donc
-supposé donner "orange clair" (non confirmé littéralement dans le texte
-disponible, mais suit le même motif).
-
-Le mélange des 3 couleurs de base sans blanc (rouge+jaune+bleu) n'est
-mentionné nulle part dans le livret : plutôt que d'inventer un nom, on
-retombe sur une description explicite. À corriger si le nom officiel est
-retrouvé (voir docs/plan.md).
+Le tableau de mélanges du livret (photographié, voir regles/orapamine.jpg
+— confirmé par l'utilisateur) donne tous les cas à partir de 2 couleurs :
+- une paire sans blanc suit un mélange classique type peinture
+  (rouge+jaune=orange, jaune+bleu=vert, rouge+bleu=violet) ;
+- une paire avec blanc donne une version "claire" (rose, jaune clair,
+  bleu clair) ;
+- un triplet de 2 couleurs + blanc donne la version claire du mélange
+  correspondant (violet clair, vert clair, orange clair) ;
+- rouge+jaune+bleu SANS blanc -> noir ;
+- les 4 couleurs (rouge+jaune+bleu+blanc) -> gris.
 """
 
 from __future__ import annotations
@@ -59,6 +55,7 @@ _TRIPLE_WITH_WHITE_MIX: dict[frozenset[Color], str] = {
 }
 
 _ALL_FOUR = frozenset({Color.RED, Color.YELLOW, Color.BLUE, Color.WHITE})
+_TRIPLE_NO_WHITE = frozenset({Color.RED, Color.YELLOW, Color.BLUE})
 
 
 def resolve_ray_color(touched: frozenset[Color]) -> str:
@@ -81,13 +78,10 @@ def resolve_ray_color(touched: frozenset[Color]) -> str:
         }[only]
     if touched == _ALL_FOUR:
         return "gris"
+    if touched == _TRIPLE_NO_WHITE:
+        return "noir"
     if len(touched) == 2 and touched in _PAIR_MIX:
         return _PAIR_MIX[touched]
     if len(touched) == 3 and touched in _TRIPLE_WITH_WHITE_MIX:
         return _TRIPLE_WITH_WHITE_MIX[touched]
-    # Rouge+jaune+bleu sans blanc : non défini par le livret disponible.
-    names = ", ".join(
-        {Color.RED: "rouge", Color.YELLOW: "jaune", Color.BLUE: "bleu", Color.WHITE: "blanc"}[c]
-        for c in sorted(touched, key=lambda c: c.name)
-    )
-    return f"mélange non documenté ({names})"
+    raise AssertionError(f"Combinaison de couleurs inattendue : {touched}")  # les 15 cas sont couverts ci-dessus
