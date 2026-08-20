@@ -10,6 +10,7 @@
  */
 
 import { BoardScene } from "./board-scene";
+import { colorBadgeHtml } from "./color-swatch";
 import { labelForExit } from "./entry-labels";
 import { toContinuousCorner } from "./geometry";
 import { PlacementController } from "./placement-controller";
@@ -23,10 +24,12 @@ export function mountOrapaMineDemo(root: HTMLElement): () => void {
       <aside class="orapa-demo__panel">
         <h3>Aperçu 3D hors ligne</h3>
         <p class="orapa-demo__hint">
-          Choisis une pièce, oriente-la, puis clique une case pour la poser (reclique une pièce
-          posée pour la retirer). Chaque pièce ne peut être posée qu'une fois. Une fois les 5
-          gemmes de base posées, valide le placement, puis clique une borne du pourtour pour
-          tirer un rayon. Le Diamant et le Corps noir (extensions) sont optionnels.
+          Choisis une pièce, oriente-la (touches <kbd>R</kbd> pivoter / <kbd>F</kbd> retourner,
+          en plus des boutons), puis clique une case pour la poser (reclique une pièce posée —
+          elle se teinte en rouge au survol — pour la retirer). Chaque pièce ne peut être posée
+          qu'une fois. Une fois les 5 gemmes de base posées, valide le placement, puis clique une
+          borne du pourtour pour tirer un rayon. Le Diamant et le Corps noir (extensions) sont
+          optionnels.
         </p>
         <div class="orapa-demo__palette"></div>
         <div class="orapa-demo__transform">
@@ -113,5 +116,5 @@ function describeResult(entryLabel: string, result: RayResult): string {
     return `<strong>Rayon depuis ${entryLabel}</strong> : signal absorbé.`;
   }
   const exitLabel = labelForExit(result.exit!, result.exitDirection!);
-  return `<strong>Rayon depuis ${entryLabel}</strong> : sort en ${exitLabel} — couleur <em>${result.colorName}</em>.`;
+  return `<strong>Rayon depuis ${entryLabel}</strong> : sort en ${exitLabel} — couleur ${colorBadgeHtml(result.colorName)}.`;
 }

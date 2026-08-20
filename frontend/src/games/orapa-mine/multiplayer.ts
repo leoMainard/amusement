@@ -15,6 +15,7 @@
  */
 
 import { BoardScene } from "./board-scene";
+import { colorBadgeHtml } from "./color-swatch";
 import { labelForExit } from "./entry-labels";
 import { toContinuousCorner } from "./geometry";
 import { PlacementController } from "./placement-controller";
@@ -191,6 +192,10 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
           <div class="orapa-mp__phase"></div>
           <div class="orapa-mp__game-controls"></div>
           <div class="orapa-demo__result orapa-mp__log" aria-live="polite"></div>
+          <details class="orapa-mp__notepad-block">
+            <summary>Bloc-notes (personnel, non partagé)</summary>
+            <textarea class="orapa-mp__notepad" placeholder="Note ce que tu veux ici — déductions, cases à retenir..."></textarea>
+          </details>
         </aside>
       </div>
     `;
@@ -207,6 +212,7 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
     const controlsHost = host.querySelector<HTMLDivElement>(".orapa-mp__game-controls")!;
     const logHost = host.querySelector<HTMLDivElement>(".orapa-mp__log")!;
     logHost.innerHTML = log.map((line) => `<div>${line}</div>`).join("");
+    setUpNotepad(host.querySelector<HTMLTextAreaElement>(".orapa-mp__notepad")!);
 
     if (room.status === "PLACING") {
       renderPlacing(phaseHost, controlsHost);
@@ -218,9 +224,29 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
     }
   }
 
+  // --- Bloc-notes personnel -------------------------------------------------
+  // Purement local (localStorage, par salon) : jamais transmis au serveur
+  // ni à l'adversaire — sert juste à noter librement pendant la partie.
+
+  function notepadStorageKey(): string {
+    return `orapa-mine-notes-${room?.code ?? ""}`;
+  }
+
+  function setUpNotepad(textarea: HTMLTextAreaElement): void {
+    textarea.value = localStorage.getItem(notepadStorageKey()) ?? "";
+    textarea.addEventListener("input", () => {
+      localStorage.setItem(notepadStorageKey(), textarea.value);
+    });
+  }
+
   function renderPlacing(phaseHost: HTMLElement, controlsHost: HTMLElement): void {
     phaseHost.innerHTML = `<p>Place tes 5 gemmes sur <strong>ton</strong> plateau, à l'abri des regards.</p>`;
     controlsHost.innerHTML = `
+      <p class="orapa-demo__hint">
+        Choisis une pièce, oriente-la (touches <kbd>R</kbd> pivoter / <kbd>F</kbd> retourner, en
+        plus des boutons), puis clique une case pour la poser. Reclique une pièce déjà posée —
+        elle se teinte en rouge au survol — pour la retirer.
+      </p>
       <div class="orapa-demo__palette"></div>
       <div class="orapa-demo__transform">
         <button type="button" class="orapa-demo__rotate">⟳ Pivoter</button>
@@ -249,6 +275,15 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
     });
   }
 
+  function isMyTurn(): boolean {
+    if (!room) return false;
+    if (room.mode === "FOUILLE_PARALLEL") return true; // pas de notion de tour
+    const state = lastGameState;
+    if (!state) return false;
+    const turnPlayer = room.mode === "DUEL" ? state.current_prospector : state.current_turn_player;
+    return turnPlayer === playerId;
+  }
+
   function renderPlaying(phaseHost: HTMLElement, controlsHost: HTMLElement): void {
     phaseHost.innerHTML = `<p class="orapa-mp__turn"></p>`;
     controlsHost.innerHTML = `
@@ -258,6 +293,11 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
       </div>
       <div class="orapa-mp__ask-panel">
         <p class="orapa-demo__hint">Clique une borne du pourtour pour tirer un rayon, ou une case pour demander ce qu'elle contient.</p>
+        <button type="button" class="orapa-mp__mark-toggle">✕ Marquer des cases</button>
+        <p class="orapa-demo__hint orapa-mp__mark-hint" hidden>
+          Clique une case pour y poser (ou enlever) une croix — usage personnel, jamais transmis
+          à l'adversaire. Reclique ce bouton pour arrêter de marquer.
+        </p>
       </div>
       <div class="orapa-mp__guess-panel" hidden>
         <div class="orapa-demo__palette"></div>
@@ -274,6 +314,15 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
     const guessBtn = controlsHost.querySelector<HTMLButtonElement>(".orapa-mp__guess-btn")!;
     const askPanel = controlsHost.querySelector<HTMLDivElement>(".orapa-mp__ask-panel")!;
     const guessPanel = controlsHost.querySelector<HTMLDivElement>(".orapa-mp__guess-panel")!;
+    const markToggle = controlsHost.querySelector<HTMLButtonElement>(".orapa-mp__mark-toggle")!;
+    const markHint = controlsHost.querySelector<HTMLParagraphElement>(".orapa-mp__mark-hint")!;
+    let markMode = false;
+
+    markToggle.addEventListener("click", () => {
+      markMode = !markMode;
+      markToggle.classList.toggle("is-selected", markMode);
+      markHint.hidden = !markMode;
+    });
 
     const setMode = (next: "ask" | "guess") => {
       mode = next;
@@ -286,7 +335,19 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
         guessController?.dispose();
         scene.setPieces([]);
         scene.setGhost(null);
-        scene.onCornerClick = ({ corner }) => sendAskPeek(socket!, corner);
+        scene.onCornerClick = ({ corner }) => {
+          // Marquer une case ne dépend jamais du tour : outil personnel,
+          // pas une question posée à l'adversaire (voir board-scene.ts).
+          if (markMode) {
+            scene!.toggleMark(corner);
+            return;
+          }
+          if (!isMyTurn()) {
+            pushLog("⚠️ Ce n'est pas ton tour.");
+            return;
+          }
+          sendAskPeek(socket!, corner);
+        };
         scene.onCornerHover = null;
       } else if (!guessController) {
         guessController = new PlacementController({
@@ -311,8 +372,27 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
     guessBtn.addEventListener("click", () => setMode("guess"));
     setMode(mode);
 
-    scene!.onEntryClick = ({ label }) => sendAskRay(socket!, label);
+    scene!.onEntryClick = ({ label }) => {
+      if (!isMyTurn()) {
+        pushLog("⚠️ Ce n'est pas ton tour.");
+        return;
+      }
+      sendAskRay(socket!, label);
+    };
     updateTurnIndicator(phaseHost);
+    applyTurnGating(controlsHost);
+  }
+
+  // Cache : "poser une question" / "proposer une solution" ne sont
+  // cliquables/visibles que si c'est le tour du joueur (retour
+  // utilisateur direct) — sans notion de tour en Fouille parallèle.
+  function applyTurnGating(controlsHost: HTMLElement): void {
+    const askBtn = controlsHost.querySelector<HTMLButtonElement>(".orapa-mp__ask-btn");
+    const guessBtn = controlsHost.querySelector<HTMLButtonElement>(".orapa-mp__guess-btn");
+    if (!askBtn || !guessBtn) return; // pas la phase PLAYING
+    const myTurn = isMyTurn();
+    askBtn.hidden = !myTurn;
+    guessBtn.hidden = !myTurn;
   }
 
   function renderFinished(phaseHost: HTMLElement): void {
@@ -371,6 +451,8 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
         if (room?.status === "FINISHED") renderFinished(phaseHost);
         else updateTurnIndicator(phaseHost);
       }
+      const controlsHost = root.querySelector<HTMLDivElement>(".orapa-mp__game-controls");
+      if (controlsHost) applyTurnGating(controlsHost);
     });
     ws.on("placement_ack", () => {
       /* la pose optimiste locale a déjà mis à jour l'affichage */
@@ -401,7 +483,7 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
     });
     ws.on("peek_result", (msg) => {
       const position = msg.position as Position;
-      pushLog(`Qu'y a-t-il en (${position[0]}, ${position[1]}) ? ${msg.result as string}`);
+      pushLog(`Qu'y a-t-il en (${position[0]}, ${position[1]}) ? ${colorizePeekResult(msg.result as string)}`);
     });
     ws.on("error", (msg) => {
       // ⚠️ Limite connue (voir docs/plan.md) : une pose optimiste que le
@@ -426,7 +508,27 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
 function describeRay(label: string, result: RayResultPayload): string {
   if (result.absorbed) return `Rayon depuis ${label} : signal absorbé.`;
   const exitLabel = labelForExit(result.exit!, result.exit_direction!);
-  return `Rayon depuis ${label} : sort en ${exitLabel} — couleur ${result.color}.`;
+  return `Rayon depuis ${label} : sort en ${exitLabel} — couleur ${colorBadgeHtml(result.color)}.`;
+}
+
+// `peek()` (backend) répond par une phrase complète ("Une gemme rouge"),
+// pas juste un nom de couleur — les adjectifs français (accord au
+// féminin pour bleue/blanche) ne correspondent pas tous littéralement
+// aux clés de `RAY_COLOR_HEX` ("bleu", "blanc").
+const PEEK_COLOR_WORDS: Record<string, string> = {
+  rouge: "rouge",
+  jaune: "jaune",
+  bleue: "bleu",
+  blanche: "blanc",
+};
+
+function colorizePeekResult(text: string): string {
+  for (const [word, canonical] of Object.entries(PEEK_COLOR_WORDS)) {
+    if (text.endsWith(word)) {
+      return `${text.slice(0, text.length - word.length)}${colorBadgeHtml(canonical)}`;
+    }
+  }
+  return text;
 }
 
 function escapeHtml(text: string): string {

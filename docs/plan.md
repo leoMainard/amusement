@@ -202,6 +202,44 @@ Site de jeux en ligne entre amis. Premier jeu : **Orapa Mine**.
    entre les 4 écrans, création de salon puis résolution correcte du
    lien `?room=CODE` vers l'écran multijoueur, aucune erreur console.
 
+## Révision (2026-08-20 bis) : confort de jeu multijoueur
+
+Lot de retours utilisateur, tous frontend (aucun changement backend) :
+
+- **Bloc-notes personnel** (`multiplayer.ts`) : `<textarea>` repliable
+  dans le panneau de partie, persistée en `localStorage` par salon
+  (`orapa-mine-notes-<code>`) — jamais transmise au serveur.
+- **Croix personnelles sur le plateau** (`board-scene.ts:toggleMark`) :
+  bouton « ✕ Marquer des cases » en mode question, indépendant du tour
+  (ce n'est pas une question posée à l'adversaire) — overlay 3D local
+  (`markGroup`), jamais envoyé au serveur.
+- **« Poser une question » / « Proposer une solution » cachés hors de
+  son tour** (`isMyTurn()` / `applyTurnGating()`) : pas de notion de
+  tour en Fouille parallèle (toujours visibles) ; recalculé à chaque
+  message `game_state`, pas seulement au montage de l'écran. Le serveur
+  validait déjà le tour (`DuelError`/`FouilleError`) — ce n'est qu'une
+  amélioration d'UX, pas un correctif de sécurité.
+- **Couleurs de résultat identiques à la notice** : nouveau module
+  partagé `color-swatch.ts` (extrait de la notice) — pastille colorée
+  réutilisée pour le résultat d'un tir de rayon (démo, guide,
+  multijoueur) et d'un « qu'y a-t-il en [case] ? » (multijoueur,
+  `colorizePeekResult` fait correspondre les adjectifs français de
+  `peek()` aux couleurs canoniques).
+- **Retirer une pièce déjà posée** : comportement déjà existant
+  (recliquer une pièce la retire) mais peu visible — ajout d'une
+  surbrillance rouge au survol (`BoardScene.setRemoveHighlight`) et
+  d'un texte explicite dans le guide et l'écran de placement
+  multijoueur (qui n'avait auparavant aucune aide contextuelle).
+- **Raccourcis clavier optionnels** pour pivoter/retourner une pièce
+  armée (R / F, `placement-controller.ts`), en plus des boutons —
+  ignorés si le focus est dans un champ texte (ex : le bloc-notes).
+
+Vérifié avec un vrai test à deux joueurs (deux contextes de navigateur) :
+placement, validation, tour exclusif à un seul joueur à la fois,
+marquage utilisable hors tour sans requête réseau, pastille de couleur
+sur un résultat de rayon, bloc-notes persistant en localStorage, aucune
+erreur console.
+
 ## Décisions prises en Phase 1 (moteur de règles)
 
 - **Dimensions du plateau** : 9x9 par défaut (`BoardDimensions`,

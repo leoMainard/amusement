@@ -8,6 +8,7 @@
  */
 
 import { BoardScene } from "../../games/orapa-mine/board-scene";
+import { colorBadgeHtml } from "../../games/orapa-mine/color-swatch";
 import { mountOrapaMineDemo } from "../../games/orapa-mine/demo";
 import { labelForExit } from "../../games/orapa-mine/entry-labels";
 import { toContinuousCorner } from "../../games/orapa-mine/geometry";
@@ -67,7 +68,7 @@ const STEPS: StepDef[] = [
     fire: {
       entry: [4, 9],
       direction: "UP",
-      explain: (r) => `Le rayon entre par le bas, dévie sur la diagonale, et ressort en ${labelForExit(r.exit!, r.exitDirection!)} — couleur ${r.colorName}.`,
+      explain: (r) => `Le rayon entre par le bas, dévie sur la diagonale, et ressort en ${labelForExit(r.exit!, r.exitDirection!)} — couleur ${colorBadgeHtml(r.colorName)}.`,
     },
   },
   {
@@ -84,7 +85,7 @@ const STEPS: StepDef[] = [
       direction: "RIGHT",
       explain: (r) =>
         r.exit
-          ? `Le rayon ressort en ${labelForExit(r.exit, r.exitDirection!)} — exactement son point d'entrée. Couleur ${r.colorName}.`
+          ? `Le rayon ressort en ${labelForExit(r.exit, r.exitDirection!)} — exactement son point d'entrée. Couleur ${colorBadgeHtml(r.colorName)}.`
           : "Absorbé.",
     },
   },
@@ -98,12 +99,18 @@ const STEPS: StepDef[] = [
     fire: {
       entry: [4, 9],
       direction: "UP",
-      explain: (r) => `Le rayon touche le jaune puis le blanc, et ressort en ${labelForExit(r.exit!, r.exitDirection!)} — couleur ${r.colorName}.`,
+      explain: (r) => `Le rayon touche le jaune puis le blanc, et ressort en ${labelForExit(r.exit!, r.exitDirection!)} — couleur ${colorBadgeHtml(r.colorName)}.`,
     },
   },
   {
     title: "6. À toi de jouer",
-    body: `<p>Pose tes propres gemmes et tire des rayons librement ci-dessous.</p>`,
+    body: `
+      <p>Pose tes propres gemmes et tire des rayons librement ci-dessous.</p>
+      <p>Choisis une pièce dans la palette, oriente-la (pivoter/retourner — aussi possible
+      au clavier, touches R et F), puis clique une case pour la poser. <strong>Recliquer une
+      pièce déjà posée la retire</strong> : elle se teinte en rouge au survol pour te le
+      rappeler.</p>
+    `,
     pieces: [],
   },
 ];
@@ -163,7 +170,7 @@ export function mountOrapaMineGuide(root: HTMLElement): () => void {
       root.querySelector<HTMLButtonElement>(".guide__fire")!.addEventListener("click", () => {
         const result = fireRayPreview(board, entry, direction);
         scene!.animateRay(toContinuousCorner(entry), result.path, result.colorName);
-        resultHost.textContent = explain(result);
+        resultHost.innerHTML = explain(result);
       });
     }
   }

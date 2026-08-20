@@ -79,6 +79,15 @@ export class BoardScene {
   private ghostMesh: THREE.Object3D | null = null;
   private ghostValid = true;
   private rayGroup = new THREE.Group();
+  // Croix personnelles posées par le joueur pour s'aider (voir
+  // `toggleMark`) : purement visuel, jamais transmis au serveur ni à
+  // l'adversaire — indépendant de tout état de jeu.
+  private markGroup = new THREE.Group();
+  private marks = new Map<string, THREE.Object3D>();
+  // Survol d'une pièce déjà posée : teinte temporairement son maillage
+  // pour signaler qu'un clic la retirerait (voir `setRemoveHighlight`).
+  private removeHighlightMesh: THREE.Object3D | null = null;
+  private removeHighlightOriginalColor: number | null = null;
   // Plan mathématique y=0 pour le survol/clic de case : plus robuste que
   // de rayonner contre le maillage des pièces ou du sol (déjà utilisés
   // pour le rendu), qui peut produire des intersections ambiguës en
@@ -126,6 +135,7 @@ export class BoardScene {
     this.buildEntryMarkers();
     this.scene.add(this.pieceGroup);
     this.scene.add(this.rayGroup);
+    this.scene.add(this.markGroup);
 
     this.renderer.domElement.addEventListener("click", this.handleClick);
     this.renderer.domElement.addEventListener("pointermove", this.handlePointerMove);
@@ -140,6 +150,10 @@ export class BoardScene {
   setPieces(pieces: Piece[]): void {
     for (const mesh of this.pieceMeshes.values()) this.pieceGroup.remove(mesh);
     this.pieceMeshes.clear();
+    // Les maillages ci-dessus disparaissent : toute référence à l'un
+    // d'eux pour la surbrillance "retirer" serait périmée.
+    this.removeHighlightMesh = null;
+    this.removeHighlightOriginalColor = null;
 
     for (const piece of pieces) {
       const mesh = this.buildPieceMesh(piece, false);
@@ -188,6 +202,49 @@ export class BoardScene {
 
   clearRay(): void {
     this.rayGroup.clear();
+  }
+
+  /** Pose ou retire une croix personnelle sur `corner` (case du plateau,
+   * pas un bord) — purement local, voir la docstring du champ `marks`.
+   * Renvoie `true` si la case est désormais marquée. */
+  toggleMark(corner: Position): boolean {
+    const key = `${corner[0]},${corner[1]}`;
+    const existing = this.marks.get(key);
+    if (existing) {
+      this.markGroup.remove(existing);
+      this.marks.delete(key);
+      return false;
+    }
+    const mark = buildCrossMark();
+    const center = this.cornerAverageWorld(corner);
+    mark.position.set(center.x, 0.03, center.z);
+    this.markGroup.add(mark);
+    this.marks.set(key, mark);
+    return true;
+  }
+
+  clearMarks(): void {
+    this.markGroup.clear();
+    this.marks.clear();
+  }
+
+  /** Teinte le maillage de `piece` pour signaler qu'un clic dessus la
+   * retirerait (voir `placement-controller.ts`) ; `null` efface la
+   * surbrillance en cours. Un seul maillage à la fois. */
+  setRemoveHighlight(piece: Piece | null): void {
+    if (this.removeHighlightMesh && this.removeHighlightOriginalColor !== null) {
+      const material = (this.removeHighlightMesh as THREE.Mesh).material as THREE.MeshStandardMaterial;
+      material.color.setHex(this.removeHighlightOriginalColor);
+    }
+    this.removeHighlightMesh = null;
+    this.removeHighlightOriginalColor = null;
+    if (!piece) return;
+    const mesh = this.pieceMeshes.get(piece);
+    if (!mesh) return;
+    const material = (mesh as THREE.Mesh).material as THREE.MeshStandardMaterial;
+    this.removeHighlightOriginalColor = material.color.getHex();
+    material.color.lerp(new THREE.Color(0xe74c3c), 0.55);
+    this.removeHighlightMesh = mesh;
   }
 
   dispose(): void {
@@ -369,6 +426,23 @@ export class BoardScene {
     this.renderer.render(this.scene, this.camera);
     this.animationHandle = requestAnimationFrame(this.tick);
   };
+}
+
+function buildCrossMark(): THREE.Object3D {
+  const group = new THREE.Group();
+  const material = new THREE.LineBasicMaterial({ color: 0xe74c3c });
+  const half = 0.3;
+  const diagonal1 = new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(-half, 0, -half),
+    new THREE.Vector3(half, 0, half),
+  ]);
+  const diagonal2 = new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(-half, 0, half),
+    new THREE.Vector3(half, 0, -half),
+  ]);
+  group.add(new THREE.Line(diagonal1, material));
+  group.add(new THREE.Line(diagonal2, material));
+  return group;
 }
 
 function makeTextSprite(text: string): THREE.Sprite {

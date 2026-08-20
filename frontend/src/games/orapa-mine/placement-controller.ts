@@ -95,16 +95,9 @@ export class PlacementController {
       this.swatchByKey.set(key, button);
     }
 
-    options.rotateButton.addEventListener("click", () => {
-      if (!this.armed) return;
-      this.armed = { ...this.armed, rotationSteps: (this.armed.rotationSteps + 1) % 4 };
-      this.refreshGhost();
-    });
-    options.mirrorButton.addEventListener("click", () => {
-      if (!this.armed) return;
-      this.armed = { ...this.armed, mirrored: !this.armed.mirrored };
-      this.refreshGhost();
-    });
+    options.rotateButton.addEventListener("click", () => this.rotateArmed());
+    options.mirrorButton.addEventListener("click", () => this.mirrorArmed());
+    document.addEventListener("keydown", this.handleKeyDown);
     options.validateButton.addEventListener("click", () => {
       if (this.requiredUsedCount() < this.requiredCount || this.locked) return;
       this.locked = true;
@@ -127,6 +120,11 @@ export class PlacementController {
     this.scene.onCornerHover = (corner) => {
       this.hoveredCorner = corner;
       this.refreshGhost();
+      // Survoler une pièce déjà posée la teinte en rouge : signale
+      // qu'un clic la retirerait (retour utilisateur direct — ce
+      // comportement existait déjà mais n'était pas visible).
+      const existing = corner ? this.board.pieceAtCell(corner) : undefined;
+      this.scene.setRemoveHighlight(this.locked ? null : (existing ?? null));
     };
     this.scene.onCornerClick = ({ corner }) => this.handleCornerClick(corner);
     this.scene.setPieces(this.board.pieces());
@@ -144,7 +142,32 @@ export class PlacementController {
   dispose(): void {
     this.scene.onCornerHover = null;
     this.scene.onCornerClick = null;
+    this.scene.setRemoveHighlight(null);
+    document.removeEventListener("keydown", this.handleKeyDown);
   }
+
+  private rotateArmed(): void {
+    if (!this.armed || this.locked) return;
+    this.armed = { ...this.armed, rotationSteps: (this.armed.rotationSteps + 1) % 4 };
+    this.refreshGhost();
+  }
+
+  private mirrorArmed(): void {
+    if (!this.armed || this.locked) return;
+    this.armed = { ...this.armed, mirrored: !this.armed.mirrored };
+    this.refreshGhost();
+  }
+
+  // Raccourcis clavier optionnels (R = pivoter, F = retourner), en plus
+  // des boutons — plus rapide pour ajuster une pièce avant de la poser.
+  // Ignorés si le focus est dans un champ texte (ex : le bloc-notes) ou
+  // si aucune pièce n'est armée.
+  private handleKeyDown = (event: KeyboardEvent): void => {
+    const target = event.target as HTMLElement | null;
+    if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) return;
+    if (event.key === "r" || event.key === "R") this.rotateArmed();
+    else if (event.key === "f" || event.key === "F") this.mirrorArmed();
+  };
 
   private requiredUsedCount(): number {
     return this.entries.filter((e) => e.required && this.usedKeys.has(pieceKey(e))).length;

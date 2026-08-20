@@ -8,7 +8,7 @@
 import { BASE_PIECE_PALETTE, Color, EXTENSION_PIECE_PALETTE, PieceShape } from "../../games/orapa-mine/types";
 import { pieceIconSvg } from "../../games/orapa-mine/piece-icon";
 import { resolveRayColorName } from "../../games/orapa-mine/colors";
-import { RAY_COLOR_HEX } from "../../games/orapa-mine/board-scene";
+import { rayColorStyle } from "../../games/orapa-mine/color-swatch";
 
 export function mountOrapaMineNotice(root: HTMLElement): () => void {
   const pieceGallery = BASE_PIECE_PALETTE.map(
@@ -174,20 +174,6 @@ const COMBO_SHAPE_BY_COLOR: Record<Color, PieceShape> = {
 
 const ALL_COLORS: readonly Color[] = [Color.RED, Color.YELLOW, Color.BLUE, Color.WHITE];
 
-function hexColor(n: number): string {
-  return `#${n.toString(16).padStart(6, "0")}`;
-}
-
-// Texte clair sur les teintes sombres/saturées (bleu, rouge, violet...),
-// texte sombre sur les teintes claires — luminance relative approximée.
-function contrastingTextColor(n: number): string {
-  const r = (n >> 16) & 0xff;
-  const g = (n >> 8) & 0xff;
-  const b = n & 0xff;
-  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-  return luminance > 0.6 ? "#1a1a1a" : "#f5f5f0";
-}
-
 /** Toutes les combinaisons non vides des 4 couleurs (2^4 - 1 = 15),
  * regroupées par nombre de couleurs touchées — soit littéralement
  * « toutes les combinaisons » de mélange possibles au jeu. */
@@ -204,7 +190,6 @@ function colorComboGallery(): string {
 
 function colorComboCard(combo: readonly Color[]): string {
   const resultName = resolveRayColorName(new Set(combo));
-  const resultHex = RAY_COLOR_HEX[resultName] ?? 0x999999;
   const icons = combo.map((color) => pieceIconSvg(COMBO_SHAPE_BY_COLOR[color], color, 34)).join("");
   // Les gemmes touchées sont déjà visibles via leurs icônes : pas besoin
   // de les répéter en toutes lettres dans la pastille (qui n'a la place
@@ -216,7 +201,7 @@ function colorComboCard(combo: readonly Color[]): string {
         <div class="notice__combo-pieces">${icons}</div>
         <span class="notice__combo-arrow">→</span>
       </div>
-      <span class="notice__combo-result" style="background:${hexColor(resultHex)};color:${contrastingTextColor(resultHex)}">${displayName}</span>
+      <span class="notice__combo-result" style="${rayColorStyle(resultName)}">${displayName}</span>
     </li>`;
 }
 
