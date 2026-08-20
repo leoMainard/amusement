@@ -42,3 +42,70 @@ npm run dev
 
 > Node.js 20.19+ ou 22.12+ recommandé (Vite 8). Une version plus ancienne
 > fonctionne mais affiche un avertissement.
+
+Backend et frontend doivent tourner **en même temps**, dans deux
+terminaux séparés, pour que le site fonctionne (sinon : `Failed to
+fetch` côté frontend).
+
+## Tester en multijoueur
+
+### Solo, ou à deux sur la même machine
+
+Ouvre `http://localhost:5173` dans deux onglets/fenêtres : l'un crée la
+partie, l'autre rejoint avec le code affiché.
+
+### Avec un ami sur le même Wi-Fi (téléphone, autre PC...)
+
+1. Lance le backend en écoutant sur le réseau, pas juste `localhost` :
+   ```sh
+   uv run uvicorn amusement.api.main:app --host 0.0.0.0
+   ```
+2. `npm run dev` (le frontend écoute déjà sur le réseau par défaut,
+   voir `frontend/vite.config.ts`) — la sortie affiche une ligne
+   `Network:` avec l'IP de la machine (ex : `192.168.1.79`).
+3. **Les deux appareils doivent utiliser la même adresse** :
+   `http://<IP-de-la-machine>:5173` des deux côtés. Ne mélange pas
+   `localhost` (PC) et l'IP réseau (téléphone) pour une même partie —
+   ce sont deux façons d'atteindre le même serveur, mais autant rester
+   cohérent. Le frontend déduit automatiquement l'adresse du backend à
+   partir de celle utilisée pour charger la page (voir
+   `frontend/src/lib/config.ts`).
+
+⚠️ Ne fais jamais tourner deux instances du backend en même temps (par
+exemple une lancée avec `--reload` restée active en fond, plus une
+nouvelle) : chacune a sa propre mémoire de salons, donc un salon créé
+sur l'une est invisible depuis l'autre — symptôme observé : impossible
+de rejoindre une partie pourtant bien créée. Si ça arrive, vérifie qui
+écoute sur le port 8000 avant de relancer :
+```powershell
+Get-NetTCPConnection -LocalPort 8000 -State Listen
+```
+
+### Avec quelqu'un hors de ton réseau (tunnel temporaire)
+
+Sans déploiement réel, la solution rapide est un tunnel
+[Cloudflare](https://github.com/cloudflare/cloudflared) (gratuit, pas
+de compte requis pour un tunnel "quick") :
+
+```sh
+cloudflared tunnel --url http://localhost:8000   # backend -> URL A
+cloudflared tunnel --url http://localhost:5173   # frontend -> URL B
+```
+
+Chaque commande affiche une URL `https://....trycloudflare.com`
+différente. Comme frontend et backend se retrouvent alors sur deux
+adresses différentes, indique l'URL du backend (URL A) au frontend via
+`frontend/.env.local` (non versionné) :
+
+```
+VITE_API_BASE_URL=https://<URL-A>
+VITE_WS_BASE_URL=wss://<URL-A>
+```
+
+Redémarre `npm run dev` (Vite ne recharge pas `.env.local` à chaud),
+puis partage l'URL du **frontend** (URL B) à ton ami.
+
+Ces tunnels "quick" sont éphémères et sans garantie de disponibilité —
+pratiques pour un test ponctuel, pas pour un usage régulier. Une fois
+le test terminé, arrête les tunnels (Ctrl+C) et supprime ou vide
+`frontend/.env.local` pour repasser en mode LAN/localhost normal.
