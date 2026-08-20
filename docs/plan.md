@@ -185,8 +185,22 @@ Site de jeux en ligne entre amis. Premier jeu : **Orapa Mine**.
    Vérifié visuellement (Playwright) : les 3 tirs guidés (étapes 3 à 5)
    produisent exactement les résultats attendus — mêmes chiffres que les
    tests backend — et la démo finale s'intègre sans erreur console.
-6. **Portail multi-jeux** — accueil listant les jeux, création/jonction de
-   salon générique, réutilisable pour de futurs jeux.
+6. **Portail multi-jeux** — *(fait)*. `frontend/src/games/registry.ts` :
+   chaque jeu déclare son identité (`id`, aligné sur `Room.game` côté
+   backend) et ses 4 écrans standard (notice, guide, démo, jeu en ligne).
+   `main.ts` ne connaît plus aucun jeu par son nom : la page d'accueil,
+   les boutons (délégation d'événements sur `data-game`/`data-view`) et
+   la navigation entre écrans sont entièrement pilotés par `GAMES` —
+   ajouter un futur jeu n'implique donc de toucher que ce registre (plus
+   ses propres modules). Un lien de salon partagé (`?room=CODE`) ne dit
+   rien du jeu concerné : nouvelle route `GET /api/rooms/{code}`
+   (`rooms_api.py`) pour le résoudre côté serveur avant d'ouvrir le bon
+   écran (repli sur le premier jeu du registre si la requête échoue).
+   Un seul jeu (Orapa Mine) est enregistré pour l'instant — la
+   généricité n'a donc pas encore été éprouvée par un second jeu réel.
+   Vérifié (Playwright) : accueil généré depuis le registre, navigation
+   entre les 4 écrans, création de salon puis résolution correcte du
+   lien `?room=CODE` vers l'écran multijoueur, aucune erreur console.
 
 ## Décisions prises en Phase 1 (moteur de règles)
 

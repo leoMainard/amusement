@@ -49,6 +49,23 @@ def test_create_room_rejects_unknown_mode() -> None:
     assert response.status_code == 422
 
 
+def test_get_room_returns_its_info() -> None:
+    code = create_room(mode="fouille_parallel", max_players=3, extensions_enabled=True)
+    response = client.get(f"/api/rooms/{code}")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["code"] == code
+    assert body["game"] == "orapa_mine"
+    assert body["mode"] == "FOUILLE_PARALLEL"
+    assert body["max_players"] == 3
+    assert body["extensions_enabled"] is True
+
+
+def test_get_unknown_room_returns_404() -> None:
+    response = client.get("/api/rooms/ZZZZZ")
+    assert response.status_code == 404
+
+
 def test_create_room_extensions_enabled_flag_round_trips() -> None:
     response = client.post(
         "/api/rooms",

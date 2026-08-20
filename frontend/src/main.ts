@@ -1,60 +1,89 @@
 import "./style.css";
-import { mountOrapaMineDemo } from "./games/orapa-mine/demo";
-import { mountOrapaMineMultiplayer } from "./games/orapa-mine/multiplayer";
-import { mountOrapaMineNotice } from "./pages/notice/orapa-mine";
-import { mountOrapaMineGuide } from "./pages/guide/orapa-mine";
+import { GAMES, type GameDescriptor, type MountView } from "./games/registry";
+import { fetchRoomInfo } from "./lib/rooms";
 
-// Page d'accueil provisoire du portail multi-jeux (Phase 6 du plan).
-// Liste, pour l'instant, uniquement Orapa Mine.
+// Portail multi-jeux (Phase 6 du plan) : la page d'accueil se construit
+// entièrement à partir de `GAMES` (voir games/registry.ts) — ajouter un
+// jeu n'implique aucun changement ici.
 const app = document.querySelector<HTMLDivElement>("#app");
 if (!app) throw new Error("#app introuvable");
+
+type ViewKind = "notice" | "guide" | "try" | "play";
+const VIEW_LABELS: Record<ViewKind, string> = {
+  notice: "Notice (règles)",
+  guide: "Guide de jeu",
+  try: "Essayer le plateau 3D (démo hors ligne)",
+  play: "Jouer en ligne (créer/rejoindre un salon)",
+};
+
+function gameCardHtml(game: GameDescriptor): string {
+  const buttons = (Object.keys(VIEW_LABELS) as ViewKind[])
+    .map((view) => `<button type="button" data-game="${game.id}" data-view="${view}">${VIEW_LABELS[view]}</button>`)
+    .join("\n    ");
+  return `
+    <div class="game-card" data-game-card="${game.id}">
+      <h2>${game.title}</h2>
+      <p>${game.description}</p>
+      ${buttons}
+    </div>`;
+}
 
 app.innerHTML = `
   <h1>Amusement</h1>
   <p>Jeux en ligne entre amis.</p>
-  <div class="game-card">
-    <h2>Orapa Mine</h2>
-    <p>Plateau 3D, mode Duel et mode Fouille.</p>
-    <button type="button" id="notice-orapa-mine">Notice (règles)</button>
-    <button type="button" id="guide-orapa-mine">Guide de jeu</button>
-    <button type="button" id="try-orapa-mine">Essayer le plateau 3D (démo hors ligne)</button>
-    <button type="button" id="play-orapa-mine">Jouer en ligne (créer/rejoindre un salon)</button>
-  </div>
-  <div id="orapa-mine-root"></div>
+  ${GAMES.map(gameCardHtml).join("\n")}
+  <div id="view-root"></div>
 `;
 
-const entryButtons = {
-  notice: app.querySelector<HTMLButtonElement>("#notice-orapa-mine"),
-  guide: app.querySelector<HTMLButtonElement>("#guide-orapa-mine"),
-  try: app.querySelector<HTMLButtonElement>("#try-orapa-mine"),
-  play: app.querySelector<HTMLButtonElement>("#play-orapa-mine"),
-};
-const gameRoot = app.querySelector<HTMLDivElement>("#orapa-mine-root");
+const viewRoot = app.querySelector<HTMLDivElement>("#view-root");
 
-// Une seule vue à la fois dans `gameRoot` : basculer d'un bouton à
+// Une seule vue à la fois dans `viewRoot` : basculer d'un bouton à
 // l'autre referme proprement la précédente (ferme la connexion
 // WebSocket si "Jouer en ligne" était actif, dispose la scène 3D...)
 // plutôt que de bloquer les autres boutons — chacun reste cliquable en
-// permanence pour pouvoir naviguer librement entre les sections.
+// permanence pour pouvoir naviguer librement entre les sections, y
+// compris entre deux jeux différents.
 let disposeCurrentView: (() => void) | null = null;
 
-function showView(active: keyof typeof entryButtons, mount: (root: HTMLElement) => () => void): void {
-  if (!gameRoot) return;
-  disposeCurrentView?.();
-  gameRoot.innerHTML = "";
-  disposeCurrentView = mount(gameRoot);
-  for (const [key, button] of Object.entries(entryButtons)) {
-    button?.classList.toggle("is-selected", key === active);
+function mountFor(game: GameDescriptor, view: ViewKind): MountView {
+  switch (view) {
+    case "notice":
+      return game.mountNotice;
+    case "guide":
+      return game.mountGuide;
+    case "try":
+      return game.mountDemo;
+    case "play":
+      return game.mountMultiplayer;
   }
 }
 
-entryButtons.notice?.addEventListener("click", () => showView("notice", mountOrapaMineNotice));
-entryButtons.guide?.addEventListener("click", () => showView("guide", mountOrapaMineGuide));
-entryButtons.try?.addEventListener("click", () => showView("try", mountOrapaMineDemo));
-entryButtons.play?.addEventListener("click", () => showView("play", mountOrapaMineMultiplayer));
+function showView(gameId: string, view: ViewKind): void {
+  const game = GAMES.find((g) => g.id === gameId);
+  if (!game || !viewRoot) return;
+  disposeCurrentView?.();
+  viewRoot.innerHTML = "";
+  disposeCurrentView = mountFor(game, view)(viewRoot);
+  for (const button of app!.querySelectorAll<HTMLButtonElement>("[data-game][data-view]")) {
+    const isActive = button.dataset.game === gameId && button.dataset.view === view;
+    button.classList.toggle("is-selected", isActive);
+  }
+}
+
+app.addEventListener("click", (event) => {
+  const button = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-game][data-view]");
+  if (!button) return;
+  showView(button.dataset.game!, button.dataset.view as ViewKind);
+});
 
 // Un lien de salon partagé (?room=CODE) ouvre directement l'écran
-// multijoueur, code pré-rempli sur l'onglet "Rejoindre".
-if (new URLSearchParams(location.search).has("room")) {
-  showView("play", mountOrapaMineMultiplayer);
+// multijoueur du bon jeu (résolu via l'API — le code seul ne dit rien
+// du jeu concerné), code pré-rempli sur l'onglet "Rejoindre" (géré par
+// l'écran multijoueur lui-même, qui relit `location.search`).
+const sharedRoomCode = new URLSearchParams(location.search).get("room");
+if (sharedRoomCode) {
+  fetchRoomInfo(sharedRoomCode).then((info) => {
+    const gameId = info?.game ?? GAMES[0]?.id;
+    if (gameId) showView(gameId, "play");
+  });
 }

@@ -7,7 +7,7 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
-from amusement.rooms.room import RoomError, RoomMode
+from amusement.rooms.room import Room, RoomError, RoomMode
 
 router = APIRouter(prefix="/api/rooms", tags=["rooms"])
 
@@ -44,6 +44,23 @@ def create_room(payload: CreateRoomRequest, request: Request) -> RoomResponse:
     except RoomError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from None
 
+    return _room_response(room)
+
+
+@router.get("/{code}", response_model=RoomResponse)
+def get_room(code: str, request: Request) -> RoomResponse:
+    # Portail multi-jeux (Phase 6) : un lien de salon partagé (?room=CODE)
+    # ne dit pas de lui-même à quel jeu il appartient — le frontend
+    # interroge cette route pour le savoir avant d'ouvrir le bon écran.
+    manager = request.app.state.room_manager
+    try:
+        room = manager.get(code)
+    except RoomError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from None
+    return _room_response(room)
+
+
+def _room_response(room: Room) -> RoomResponse:
     return RoomResponse(
         code=room.code,
         game=room.game,
