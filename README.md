@@ -152,3 +152,10 @@ VITE_WS_BASE_URL=wss://<URL-A>
 ```
 
 Partage l'URL B (frontend, terminal 4) à ton ami.
+
+**Tout arrêter** (avant de relancer proprement, ou si un port refuse de
+se libérer — voir l'avertissement plus haut sur les instances dupliquées) :
+
+```powershell
+Get-Process node, python, cloudflared -ErrorAction SilentlyContinue | Stop-Process -Force
+```
