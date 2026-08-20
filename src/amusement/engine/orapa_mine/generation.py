@@ -36,6 +36,14 @@ BASE_PIECE_SET: tuple[PieceSpec, ...] = (
     PieceSpec(PieceShape.LARGE_TRIANGLE, color=Color.WHITE),
 )
 
+# Les deux pièces d'extension (voir Room.extensions_enabled) : à ajouter
+# à `BASE_PIECE_SET` pour un plateau généré (mode Fouille) quand le
+# salon les a activées.
+EXTENSION_PIECE_SET: tuple[PieceSpec, ...] = (
+    PieceSpec(PieceShape.TENT, kind=GemKind.DIAMOND),
+    PieceSpec(PieceShape.TENT, kind=GemKind.BLACK_BODY),
+)
+
 
 def random_board(
     dimensions: BoardDimensions | None = None,

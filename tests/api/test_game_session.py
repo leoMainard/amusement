@@ -1,7 +1,7 @@
 import pytest
 
 from amusement.api.game_session import OrapaMineSession, piece_from_payload, piece_to_payload
-from amusement.engine.orapa_mine import BoardDimensions, Piece
+from amusement.engine.orapa_mine import BoardDimensions, GemKind, Piece
 from amusement.engine.orapa_mine.colors import Color
 from amusement.engine.orapa_mine.fouille import FouilleError
 from amusement.engine.orapa_mine.pieces import PieceShape
@@ -60,7 +60,7 @@ def test_place_piece_before_start_raises() -> None:
 def test_diamond_and_black_body_are_tracked_separately() -> None:
     # Bug corrigé : les deux ont shape=TENT et color=None, donc poser
     # l'un ne doit pas rendre l'autre injustement "déjà posé".
-    room = Room(code="ABCDE", game="orapa_mine", mode=RoomMode.DUEL, max_players=2)
+    room = Room(code="ABCDE", game="orapa_mine", mode=RoomMode.DUEL, max_players=2, extensions_enabled=True)
     alice = room.add_player("Alice")
     room.add_player("Bob")
     session = OrapaMineSession(room)
@@ -68,6 +68,52 @@ def test_diamond_and_black_body_are_tracked_separately() -> None:
     session.place_piece(alice.id, Piece.diamond(origin=(0, 0)))
     session.place_piece(alice.id, Piece.black_body(origin=(2, 2)))  # ne doit pas lever RoomError
     assert len(session.placements[alice.id].board.pieces()) == 2
+
+
+def test_extension_pieces_rejected_when_room_has_them_disabled() -> None:
+    # Le point soulevé par l'utilisateur : sans ce garde-fou, un joueur
+    # pourrait poser le Diamant/Corps noir pendant que l'autre s'en tient
+    # aux 5 gemmes de base — les deux joueurs doivent être sur la même
+    # longueur d'onde, fixée une fois pour tout le salon.
+    room = Room(code="ABCDE", game="orapa_mine", mode=RoomMode.DUEL, max_players=2, extensions_enabled=False)
+    alice = room.add_player("Alice")
+    room.add_player("Bob")
+    session = OrapaMineSession(room)
+    session.start()
+    with pytest.raises(RoomError):
+        session.place_piece(alice.id, Piece.diamond(origin=(0, 0)))
+
+
+def test_extension_pieces_allowed_when_room_has_them_enabled() -> None:
+    room = Room(code="ABCDE", game="orapa_mine", mode=RoomMode.DUEL, max_players=2, extensions_enabled=True)
+    alice = room.add_player("Alice")
+    room.add_player("Bob")
+    session = OrapaMineSession(room)
+    session.start()
+    session.place_piece(alice.id, Piece.diamond(origin=(0, 0)))  # ne doit pas lever
+    assert len(session.placements[alice.id].board.pieces()) == 1
+
+
+def test_fouille_board_includes_extensions_when_room_has_them_enabled() -> None:
+    room = Room(code="ABCDE", game="orapa_mine", mode=RoomMode.FOUILLE_PARALLEL, max_players=2, extensions_enabled=True)
+    room.add_player("Alice")
+    room.add_player("Bob")
+    session = OrapaMineSession(room, BoardDimensions(width=9, height=9))
+    session.start()
+    kinds = {p.kind for p in session.fouille.board.pieces()}
+    assert GemKind.DIAMOND in kinds
+    assert GemKind.BLACK_BODY in kinds
+
+
+def test_fouille_board_excludes_extensions_when_room_has_them_disabled() -> None:
+    room = Room(code="ABCDE", game="orapa_mine", mode=RoomMode.FOUILLE_PARALLEL, max_players=2, extensions_enabled=False)
+    room.add_player("Alice")
+    room.add_player("Bob")
+    session = OrapaMineSession(room, BoardDimensions(width=9, height=9))
+    session.start()
+    kinds = {p.kind for p in session.fouille.board.pieces()}
+    assert GemKind.DIAMOND not in kinds
+    assert GemKind.BLACK_BODY not in kinds
 
 
 def test_cannot_validate_incomplete_placement() -> None:

@@ -16,8 +16,11 @@ from amusement.engine.orapa_mine.pieces import PieceShape
 client = TestClient(app)
 
 
-def create_room(mode: str = "duel", max_players: int = 2) -> str:
-    response = client.post("/api/rooms", json={"game": "orapa_mine", "mode": mode, "max_players": max_players})
+def create_room(mode: str = "duel", max_players: int = 2, extensions_enabled: bool = False) -> str:
+    response = client.post(
+        "/api/rooms",
+        json={"game": "orapa_mine", "mode": mode, "max_players": max_players, "extensions_enabled": extensions_enabled},
+    )
     assert response.status_code == 200, response.text
     return response.json()["code"]
 
@@ -44,6 +47,35 @@ def test_create_room_returns_a_code() -> None:
 def test_create_room_rejects_unknown_mode() -> None:
     response = client.post("/api/rooms", json={"game": "orapa_mine", "mode": "n_importe_quoi", "max_players": 2})
     assert response.status_code == 422
+
+
+def test_create_room_extensions_enabled_flag_round_trips() -> None:
+    response = client.post(
+        "/api/rooms",
+        json={"game": "orapa_mine", "mode": "duel", "max_players": 2, "extensions_enabled": True},
+    )
+    assert response.status_code == 200
+    assert response.json()["extensions_enabled"] is True
+
+    response = client.post("/api/rooms", json={"game": "orapa_mine", "mode": "duel", "max_players": 2})
+    assert response.json()["extensions_enabled"] is False
+
+
+def test_extension_piece_rejected_over_websocket_when_room_disallows_it() -> None:
+    code = create_room(mode="duel", max_players=2, extensions_enabled=False)
+    diamond = piece_to_payload(Piece.diamond(origin=(0, 0)))
+
+    with client.websocket_connect(f"/ws/rooms/{code}?name=Alice") as alice_ws:
+        alice_ws.receive_json()  # joined
+        with client.websocket_connect(f"/ws/rooms/{code}?name=Bob") as bob_ws:
+            bob_ws.receive_json()  # joined
+            alice_ws.receive_json()  # room_update: bob a rejoint
+            alice_ws.receive_json()  # room_update: PLACING
+            bob_ws.receive_json()  # room_update: PLACING
+
+            alice_ws.send_json({"type": "place_piece", "piece": diamond})
+            response = alice_ws.receive_json()
+            assert response["type"] == "error"
 
 
 def test_join_unknown_room_is_refused() -> None:

@@ -10,6 +10,18 @@ def test_create_room_returns_a_findable_room() -> None:
     assert manager.get(room.code) is room
 
 
+def test_create_room_extensions_disabled_by_default() -> None:
+    manager = RoomManager()
+    room = manager.create_room("orapa_mine", RoomMode.DUEL, max_players=2)
+    assert room.extensions_enabled is False
+
+
+def test_create_room_extensions_enabled_is_passed_through() -> None:
+    manager = RoomManager()
+    room = manager.create_room("orapa_mine", RoomMode.DUEL, max_players=2, extensions_enabled=True)
+    assert room.extensions_enabled is True
+
+
 def test_get_is_case_insensitive() -> None:
     manager = RoomManager()
     room = manager.create_room("orapa_mine", RoomMode.DUEL, max_players=2)

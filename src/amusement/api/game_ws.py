@@ -33,6 +33,7 @@ def room_payload(room: Room) -> dict:
         "mode": room.mode.name,
         "max_players": room.max_players,
         "status": room.status.name,
+        "extensions_enabled": room.extensions_enabled,
         "players": [{"id": p.id, "name": p.name} for p in room.players],
     }
 

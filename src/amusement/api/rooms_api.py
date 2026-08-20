@@ -16,6 +16,10 @@ class CreateRoomRequest(BaseModel):
     game: str = "orapa_mine"
     mode: str  # "duel" | "fouille_parallel" | "fouille_turn_based"
     max_players: int = Field(default=2, ge=2, le=8)
+    # Fixé une fois pour tout le salon (voir Room.extensions_enabled) :
+    # évite qu'un joueur pose le Diamant/Corps noir pendant qu'un autre
+    # s'en tient aux 5 gemmes de base.
+    extensions_enabled: bool = False
 
 
 class RoomResponse(BaseModel):
@@ -24,6 +28,7 @@ class RoomResponse(BaseModel):
     mode: str
     max_players: int
     status: str
+    extensions_enabled: bool
 
 
 @router.post("", response_model=RoomResponse)
@@ -35,7 +40,7 @@ def create_room(payload: CreateRoomRequest, request: Request) -> RoomResponse:
         raise HTTPException(status_code=422, detail=f"Mode inconnu : {payload.mode!r}") from None
 
     try:
-        room = manager.create_room(payload.game, mode, payload.max_players)
+        room = manager.create_room(payload.game, mode, payload.max_players, payload.extensions_enabled)
     except RoomError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from None
 
@@ -45,4 +50,5 @@ def create_room(payload: CreateRoomRequest, request: Request) -> RoomResponse:
         mode=room.mode.name,
         max_players=room.max_players,
         status=room.status.name,
+        extensions_enabled=room.extensions_enabled,
     )

@@ -51,6 +51,11 @@ class Room:
     game: str  # "orapa_mine" pour l'instant — voir docs/plan.md (portail multi-jeux)
     mode: RoomMode
     max_players: int
+    # Fixé à la création du salon, pour que tous les joueurs jouent avec
+    # les mêmes pièces disponibles (sinon un joueur pourrait poser le
+    # Diamant/Corps noir en Duel pendant que l'autre s'en tient aux 5 de
+    # base — retour utilisateur direct sur ce point).
+    extensions_enabled: bool = False
     players: list[Player] = field(default_factory=list)
     status: RoomStatus = RoomStatus.LOBBY
 

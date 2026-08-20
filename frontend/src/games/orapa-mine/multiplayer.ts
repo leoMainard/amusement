@@ -85,6 +85,13 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
           <label class="orapa-mp__max-players">Nombre de joueurs
             <input type="number" class="orapa-mp__max-players-input" min="2" max="8" value="2" disabled />
           </label>
+          <label class="orapa-mp__extensions">
+            <input type="checkbox" class="orapa-mp__extensions-input" />
+            Autoriser les pièces d'extension (Diamant, Corps noir)
+          </label>
+          <p class="orapa-mp__extensions-hint">
+            Fixé pour tout le salon : les deux joueurs auront (ou non) accès à ces pièces en plus des 5 de base.
+          </p>
           <button type="button" class="orapa-mp__create-btn">Créer et rejoindre</button>
         </section>
         <section class="orapa-mp__panel">
@@ -107,13 +114,15 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
 
     const errorHost = host.querySelector<HTMLParagraphElement>(".orapa-mp__error")!;
 
+    const extensionsInput = host.querySelector<HTMLInputElement>(".orapa-mp__extensions-input")!;
+
     host.querySelector<HTMLButtonElement>(".orapa-mp__create-btn")!.addEventListener("click", async () => {
       errorHost.textContent = "";
       const name = host.querySelector<HTMLInputElement>(".orapa-mp__create-name")!.value.trim() || "Joueur";
       const roomMode = modeSelect.value as RoomMode;
       const maxPlayers = Number(maxPlayersInput.value) || 2;
       try {
-        const created = await createRoom(roomMode, maxPlayers);
+        const created = await createRoom(roomMode, maxPlayers, extensionsInput.checked);
         await connect(created.code, name);
       } catch (error) {
         errorHost.textContent = error instanceof Error ? error.message : String(error);
@@ -152,6 +161,9 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
       <div class="orapa-mp__lobby">
         <h3>Salon ${room.code}</h3>
         <p class="orapa-mp__mode-label">${MODE_LABELS[room.mode]}</p>
+        <p class="orapa-mp__extensions-label">
+          ${room.extensions_enabled ? "Extensions activées (Diamant, Corps noir)" : "Extensions désactivées (5 gemmes de base uniquement)"}
+        </p>
         <div class="orapa-mp__share">
           <input type="text" readonly class="orapa-mp__link" value="${link}" />
           <button type="button" class="orapa-mp__copy">Copier le lien</button>
@@ -227,7 +239,7 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
       mirrorButton: controlsHost.querySelector(".orapa-demo__mirror")!,
       validateButton: controlsHost.querySelector(".orapa-demo__validate")!,
       statusHost: controlsHost.querySelector(".orapa-mp__placement-status")!,
-      extensionPieces: EXTENSION_PIECE_PALETTE,
+      extensionPieces: room!.extensions_enabled ? EXTENSION_PIECE_PALETTE : undefined,
       onPlace: (piece) => sendPlacePiece(socket!, piece),
       onRemove: (piece) => sendRemovePiece(socket!, piece.origin),
       onValidate: () => {
@@ -284,7 +296,7 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
           mirrorButton: guessPanel.querySelector(".orapa-demo__mirror")!,
           validateButton: guessPanel.querySelector(".orapa-demo__validate")!,
           statusHost: guessPanel.querySelector(".orapa-mp__guess-status")!,
-          extensionPieces: EXTENSION_PIECE_PALETTE,
+          extensionPieces: room!.extensions_enabled ? EXTENSION_PIECE_PALETTE : undefined,
           onValidate: (pieces) => sendSubmitSolution(socket!, pieces),
         });
       } else {

@@ -21,6 +21,7 @@ export interface RoomPayload {
   mode: RoomMode;
   max_players: number;
   status: RoomStatus;
+  extensions_enabled: boolean;
   players: RoomPlayer[];
 }
 
@@ -45,11 +46,11 @@ export interface RayResultPayload {
   absorbed: boolean;
 }
 
-export async function createRoom(mode: RoomMode, maxPlayers: number): Promise<RoomPayload> {
+export async function createRoom(mode: RoomMode, maxPlayers: number, extensionsEnabled: boolean = false): Promise<RoomPayload> {
   const response = await fetch(`${API_BASE_URL}/api/rooms`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ game: "orapa_mine", mode, max_players: maxPlayers }),
+    body: JSON.stringify({ game: "orapa_mine", mode, max_players: maxPlayers, extensions_enabled: extensionsEnabled }),
   });
   if (!response.ok) {
     const body = await response.json().catch(() => null);

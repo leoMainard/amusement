@@ -15,11 +15,17 @@ class RoomManager:
     def __init__(self) -> None:
         self._rooms: dict[str, Room] = {}
 
-    def create_room(self, game: str, mode: RoomMode, max_players: int) -> Room:
+    def create_room(self, game: str, mode: RoomMode, max_players: int, extensions_enabled: bool = False) -> Room:
         for _ in range(50):
             code = generate_code()
             if code not in self._rooms:
-                room = Room(code=code, game=game, mode=mode, max_players=max_players)
+                room = Room(
+                    code=code,
+                    game=game,
+                    mode=mode,
+                    max_players=max_players,
+                    extensions_enabled=extensions_enabled,
+                )
                 self._rooms[code] = room
                 return room
         raise RuntimeError("Impossible de générer un code de salon unique.")

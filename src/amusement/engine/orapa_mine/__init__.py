@@ -24,7 +24,7 @@ from .borders import Entry, LabelScheme
 from .colors import Color, resolve_ray_color
 from .duel import DuelError, DuelGame, LogEntry
 from .fouille import FouilleError, FouilleGame, FouilleMode
-from .generation import BASE_PIECE_SET, PieceSpec, random_board
+from .generation import BASE_PIECE_SET, EXTENSION_PIECE_SET, PieceSpec, random_board
 from .geometry import Quadrant
 from .pieces import PieceShape
 from .raycast import Direction, RayResult, fire_ray, peek
@@ -48,6 +48,7 @@ __all__ = [
     "fire_ray",
     "peek",
     "BASE_PIECE_SET",
+    "EXTENSION_PIECE_SET",
     "PieceSpec",
     "random_board",
     "check_solution",

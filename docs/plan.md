@@ -251,6 +251,24 @@ l'artifact « Pièces d'Orapa Mine » (schémas de chaque pièce). Résumé :
 - Le frontend (Phase 3) utilise encore l'ancien modèle à une case : à
   refaire.
 
+## Révision (2026-08-20) : corrections rayon/notice + extensions activables par salon
+
+- Bug de rendu corrigé : `BoardScene.animateRay` mélangeait positions
+  discrètes et continues (voir `geometry.toContinuousCorner` /
+  `board-scene.continuousToWorld`), décalant le tracé du rayon d'une
+  demi-case sur les 3 surfaces (démo, guide, multijoueur).
+- Diamant / Corps noir : silhouette corrigée (`PieceShape.TENT`, 2
+  demi-cases en triangle pointe en haut, au lieu d'1 case carrée).
+- Mélange de couleurs confirmé intégralement via le tableau du livret
+  (`regles/orapamine.jpg`) : rouge+jaune+bleu sans blanc -> noir.
+- **Extensions activables par salon** : `Room.extensions_enabled` (fixé
+  à la création, non modifiable ensuite) — évite qu'un joueur pose le
+  Diamant/Corps noir en Duel pendant que l'autre s'en tient aux 5 gemmes
+  de base (retour utilisateur direct). `OrapaMineSession.place_piece`
+  rejette toute pièce d'extension si le salon ne les autorise pas ; en
+  Fouille, le plateau généré inclut `EXTENSION_PIECE_SET` uniquement si
+  activé. Case à cocher côté création de salon (`multiplayer.ts`).
+
 ## Points ouverts / à valider
 
 - Dimensions exactes de la grille et répartition précise des points
@@ -260,8 +278,6 @@ l'artifact « Pièces d'Orapa Mine » (schémas de chaque pièce). Résumé :
   serait à corriger si besoin.
 - Chronométrage en mode Fouille : affiché en direct ou seulement au
   résultat final.
-- Variante de base (5 gemmes) vs extensions (Diamant, Corps noir)
-  configurables à la création du salon.
 
 ## Notes d'environnement
 

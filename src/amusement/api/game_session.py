@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 
 from amusement.engine.orapa_mine import (
     BASE_PIECE_SET,
+    EXTENSION_PIECE_SET,
     Board,
     BoardDimensions,
     Color,
@@ -89,7 +90,8 @@ class OrapaMineSession:
             self.room.status = RoomStatus.PLACING
         else:
             fouille_mode = FouilleMode.TURN_BASED if self.room.mode == RoomMode.FOUILLE_TURN_BASED else FouilleMode.PARALLEL_PRIVATE
-            board = random_board(self.dimensions)
+            pieces = BASE_PIECE_SET + EXTENSION_PIECE_SET if self.room.extensions_enabled else BASE_PIECE_SET
+            board = random_board(self.dimensions, pieces)
             players = tuple(p.id for p in self.room.players)
             self.fouille = FouilleGame(board=board, players=players, mode=fouille_mode, label_scheme=self.label_scheme)
             self.room.status = RoomStatus.PLAYING
@@ -98,6 +100,8 @@ class OrapaMineSession:
 
     def place_piece(self, player_id: str, piece: Piece) -> None:
         pending = self._pending_for(player_id)
+        if piece.kind != GemKind.NORMAL and not self.room.extensions_enabled:
+            raise RoomError("Les pièces d'extension (Diamant, Corps noir) ne sont pas activées pour ce salon.")
         key = _piece_key(piece)
         if key in pending.used:
             raise RoomError("Cette pièce a déjà été posée.")
