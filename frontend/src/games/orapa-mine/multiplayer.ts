@@ -188,8 +188,16 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
         <p>${room.players.length}/${room.max_players} joueurs — en attente...</p>
       </div>
     `;
-    host.querySelector<HTMLButtonElement>(".orapa-mp__copy")!.addEventListener("click", async () => {
-      await navigator.clipboard.writeText(link);
+    const copyButton = host.querySelector<HTMLButtonElement>(".orapa-mp__copy")!;
+    const linkInput = host.querySelector<HTMLInputElement>(".orapa-mp__link")!;
+    const originalCopyLabel = copyButton.textContent ?? "Copier le lien";
+
+    copyButton.addEventListener("click", async () => {
+      const copied = await copyToClipboard(link, linkInput);
+      copyButton.textContent = copied ? "Copié !" : "Sélectionné — Ctrl+C pour copier";
+      setTimeout(() => {
+        copyButton.textContent = originalCopyLabel;
+      }, 2000);
     });
   }
 
@@ -598,6 +606,33 @@ function colorizePeekResult(text: string): string {
     }
   }
   return text;
+}
+
+/** `navigator.clipboard` n'existe que dans un contexte sécurisé (HTTPS
+ * ou `localhost`) — absent (ou qui lève) sur une IP locale en HTTP
+ * (test sur le même Wi-Fi, voir README) ou un tunnel sans TLS, d'où le
+ * bouton "Copier le lien" silencieusement inopérant rapporté par
+ * l'utilisateur. Repli sur `execCommand("copy")` (déprécié mais encore
+ * largement supporté, exactement pour ce cas) ; si les deux échouent,
+ * sélectionne au moins le texte dans `fallbackInput` pour un Ctrl+C
+ * manuel. Renvoie `true` seulement si une vraie copie a eu lieu. */
+async function copyToClipboard(text: string, fallbackInput: HTMLInputElement): Promise<boolean> {
+  if (navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      // repli ci-dessous
+    }
+  }
+  fallbackInput.focus();
+  fallbackInput.select();
+  try {
+    if (document.execCommand("copy")) return true;
+  } catch {
+    // repli ci-dessous
+  }
+  return false;
 }
 
 function escapeHtml(text: string): string {

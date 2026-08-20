@@ -286,6 +286,8 @@ kbd {
   border: 1px solid light-dark(#999, #666);
   background: light-dark(#f5f5f5, #2a2a2a);
   cursor: pointer;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .orapa-mp__players {
