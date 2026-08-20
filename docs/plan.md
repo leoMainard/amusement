@@ -240,6 +240,34 @@ marquage utilisable hors tour sans requête réseau, pastille de couleur
 sur un résultat de rayon, bloc-notes persistant en localStorage, aucune
 erreur console.
 
+## Révision (2026-08-20 ter) : bornes colorées au lieu du tracé de rayon
+
+Retour utilisateur : le tracé ligne-à-ligne d'un résultat de rayon
+(`animateRay`) disparaissait au tir suivant (`rayGroup.clear()`),
+compliquant la résolution en multijoueur — impossible de garder une
+vue d'ensemble des questions déjà posées.
+
+Remplacé par `BoardScene.colorEntryMarker(label, colorName)` : teinte
+durablement la borne (entrée ou sortie) selon la couleur obtenue, sans
+jamais l'effacer (contrairement à `animateRay`/`clearRay`, plus utilisés
+en multijoueur — restent en service pour la démo et le guide, où un
+seul tir à la fois suffit). Justifié par le fait qu'un plateau est fixe
+une fois la partie lancée : une borne donnée ne peut donc produire
+qu'une seule couleur, la colorer durablement construit une vraie carte
+des questions posées plutôt que de perdre l'information au tir suivant.
+S'applique aux deux bornes (entrée et sortie, y compris quand elles
+coïncident — rebond à 180°) ; absorbé colore l'entrée avec la couleur
+"absorbé".
+
+Vérifié (Playwright, mode Fouille parallèle pour tirer plusieurs fois de
+suite sans contrainte de tour) : 3 tirs consécutifs, les bornes des tirs
+précédents restent colorées après chaque nouveau tir (accumulation, pas
+remplacement), couleurs correctes y compris pour un tir "transparent"
+(aucune pièce touchée), journal avec les 3 résultats et leurs pastilles
+colorées, aucune erreur console. Re-confirmé au passage que le
+verrouillage par tour (révision précédente) rejette bien un second tir
+hors tour en mode Duel.
+
 ## Décisions prises en Phase 1 (moteur de règles)
 
 - **Dimensions du plateau** : 9x9 par défaut (`BoardDimensions`,

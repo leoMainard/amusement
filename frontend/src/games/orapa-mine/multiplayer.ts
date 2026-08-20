@@ -6,18 +6,22 @@
  *
  * ⚠️ Contrairement à la démo hors ligne (`demo.ts`), ce module ne
  * contient AUCUNE logique de jeu : chaque action passe par le serveur
- * (`protocol.ts`), qui reste seul juge de ce qui est valide. Le rayon
- * n'est tracé qu'en ligne droite entrée→sortie (pas de rebonds
- * intermédiaires affichés) : contrairement à la démo locale, le serveur
- * ne renvoie que l'entrée et la sortie — exposer les points de rebond
- * donnerait plus d'information que le jeu physique n'en donne jamais à
- * un vrai prospecteur.
+ * (`protocol.ts`), qui reste seul juge de ce qui est valide. Le serveur
+ * ne renvoie que l'entrée et la sortie d'un rayon (pas les rebonds
+ * intermédiaires) : exposer ces points donnerait plus d'information que
+ * le jeu physique n'en donne jamais à un vrai prospecteur.
+ *
+ * Un résultat de rayon ne trace pas de ligne (elle disparaîtrait au tir
+ * suivant, compliquant la résolution — retour utilisateur direct) : les
+ * bornes d'entrée et de sortie sont plutôt colorées durablement selon la
+ * couleur obtenue (`BoardScene.colorEntryMarker`). Pour un plateau fixe,
+ * une borne donnée ne peut produire qu'une seule couleur, donc ça
+ * construit naturellement une carte de toutes les questions posées.
  */
 
 import { BoardScene } from "./board-scene";
 import { colorBadgeHtml } from "./color-swatch";
 import { labelForExit } from "./entry-labels";
-import { toContinuousCorner } from "./geometry";
 import { PlacementController } from "./placement-controller";
 import {
   type GameStatePayload,
@@ -292,7 +296,11 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
         <button type="button" class="orapa-mp__guess-btn">Proposer une solution</button>
       </div>
       <div class="orapa-mp__ask-panel">
-        <p class="orapa-demo__hint">Clique une borne du pourtour pour tirer un rayon, ou une case pour demander ce qu'elle contient.</p>
+        <p class="orapa-demo__hint">
+          Clique une borne du pourtour pour tirer un rayon, ou une case pour demander ce qu'elle
+          contient. Les bornes d'entrée et de sortie se colorent durablement selon le résultat —
+          une carte de tes questions posées s'accumule au fil de la partie.
+        </p>
         <button type="button" class="orapa-mp__mark-toggle">✕ Marquer des cases</button>
         <p class="orapa-demo__hint orapa-mp__mark-hint" hidden>
           Clique une case pour y poser (ou enlever) une croix — usage personnel, jamais transmis
@@ -467,17 +475,17 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
       const label = msg.entry_label as string;
       pushLog(describeRay(label, result));
       if (scene && mode === "ask") {
-        if (result.absorbed || !result.exit) {
-          scene.clearRay();
-        } else {
-          // Ligne droite entrée -> sortie uniquement (voir docstring du
-          // module : pas de rebonds intermédiaires affichés, le serveur
-          // ne les renvoie pas non plus). `entry`/`exit` sont des
-          // positions DISCRÈTES (le serveur parle la même convention que
-          // borders.ts) : il faut les convertir en continu avant de les
-          // passer à animateRay, sans quoi le tracé se décale d'une
-          // demi-case.
-          scene.animateRay(toContinuousCorner(result.entry), [{ position: toContinuousCorner(result.exit), direction: result.exit_direction! }], result.color);
+        // Colore durablement les bornes d'entrée/sortie plutôt que de
+        // tracer une ligne éphémère (voir `BoardScene.colorEntryMarker`) :
+        // un tracé disparaissait au tir suivant, ce qui compliquait la
+        // résolution — retour utilisateur direct. Pour un plateau fixe,
+        // une borne ne peut produire qu'une seule couleur, donc les
+        // colorer une à une construit une vraie carte des questions
+        // déjà posées.
+        scene.colorEntryMarker(label, result.absorbed ? "absorbé" : result.color);
+        if (!result.absorbed && result.exit) {
+          const exitLabel = labelForExit(result.exit, result.exit_direction!);
+          scene.colorEntryMarker(exitLabel, result.color);
         }
       }
     });

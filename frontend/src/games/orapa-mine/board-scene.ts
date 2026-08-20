@@ -30,6 +30,7 @@ import { vertices as pieceVertices } from "./piece-render";
 const GEM_HEIGHT = 0.5;
 const GHOST_OPACITY = 0.55;
 const RAY_HEIGHT = 0.32;
+const ENTRY_MARKER_DEFAULT_COLOR = 0x6b7280;
 
 export const RAY_COLOR_HEX: Record<string, number> = {
   transparent: 0x9aa0a6,
@@ -228,6 +229,31 @@ export class BoardScene {
     this.marks.clear();
   }
 
+  /** Teinte durablement la borne `label` (entrée ou sortie d'un rayon)
+   * selon `colorName` — reste coloré tant que la scène existe (jusqu'à
+   * `clearMarkerColors()`), plutôt qu'un tracé qui disparaîtrait au tir
+   * suivant : pour un plateau fixe, une borne donnée ne peut produire
+   * qu'une seule couleur, donc la teinter durablement construit
+   * naturellement une carte des questions déjà posées (voir
+   * `multiplayer.ts`, remplace l'ancien tracé ligne par ligne — retour
+   * utilisateur direct, l'ancien tracé masquait le précédent à chaque
+   * nouveau tir). Ne fait rien si `label` ne correspond à aucune borne. */
+  colorEntryMarker(label: string, colorName: string): void {
+    const marker = this.entryTargets.find((m) => m.userData.label === label);
+    if (!marker) return;
+    const material = (marker as THREE.Mesh).material as THREE.MeshStandardMaterial;
+    material.color.setHex(RAY_COLOR_HEX[colorName] ?? ENTRY_MARKER_DEFAULT_COLOR);
+  }
+
+  /** Remet toutes les bornes à leur couleur neutre (ex : au début d'une
+   * nouvelle partie sur la même scène). */
+  clearMarkerColors(): void {
+    for (const marker of this.entryTargets) {
+      const material = (marker as THREE.Mesh).material as THREE.MeshStandardMaterial;
+      material.color.setHex(ENTRY_MARKER_DEFAULT_COLOR);
+    }
+  }
+
   /** Teinte le maillage de `piece` pour signaler qu'un clic dessus la
    * retirerait (voir `placement-controller.ts`) ; `null` efface la
    * surbrillance en cours. Un seul maillage à la fois. */
@@ -318,7 +344,7 @@ export class BoardScene {
 
       const marker = new THREE.Mesh(
         new THREE.CylinderGeometry(0.16, 0.16, 0.12, 12),
-        new THREE.MeshStandardMaterial({ color: 0x6b7280 }),
+        new THREE.MeshStandardMaterial({ color: ENTRY_MARKER_DEFAULT_COLOR }),
       );
       marker.position.set(center.x, 0.06, center.z);
       marker.userData.label = label;
