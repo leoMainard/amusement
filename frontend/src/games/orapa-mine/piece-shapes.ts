@@ -36,6 +36,19 @@ const CANONICAL_VERTICES: Record<PieceShape, readonly Point[]> = {
     [2, 1],
     [1, 0],
   ],
+  // Repères de réflexion (frontend uniquement, voir types.ts) : une
+  // case entière, ou une demi-case (triangle rectangle isocèle).
+  [PieceShape.UNIT_SQUARE]: [
+    [0, 0],
+    [1, 0],
+    [1, 1],
+    [0, 1],
+  ],
+  [PieceShape.UNIT_TRIANGLE]: [
+    [0, 0],
+    [1, 0],
+    [0, 1],
+  ],
 };
 
 function rotate90([x, y]: Point): Point {

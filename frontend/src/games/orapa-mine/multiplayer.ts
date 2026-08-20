@@ -23,6 +23,7 @@ import { BoardScene } from "./board-scene";
 import { colorBadgeHtml } from "./color-swatch";
 import { labelForExit } from "./entry-labels";
 import { PlacementController } from "./placement-controller";
+import { ReflectionController, type ReflectionPaletteEntry } from "./reflection-controller";
 import {
   type GameStatePayload,
   type RayResultPayload,
@@ -38,7 +39,7 @@ import {
 } from "./protocol";
 import { WS_BASE_URL } from "../../lib/config";
 import { RoomSocket } from "../../lib/room-socket";
-import { DEFAULT_DIMENSIONS, EXTENSION_PIECE_PALETTE, type Position } from "./types";
+import { BASE_PIECE_PALETTE, DEFAULT_DIMENSIONS, EXTENSION_PIECE_PALETTE, REFLECTION_UNIT_PALETTE, type Position } from "./types";
 
 const MODE_LABELS: Record<RoomMode, string> = {
   DUEL: "Duel (1 contre 1, règles officielles)",
@@ -46,11 +47,19 @@ const MODE_LABELS: Record<RoomMode, string> = {
   FOUILLE_TURN_BASED: "Fouille — plateau commun, tour par tour",
 };
 
+/** Palette du panneau de réflexion : les 5 pièces complètes, les
+ * extensions si le salon les autorise, et les repères élémentaires
+ * (case/demi-case colorée) — voir `reflection-controller.ts`. */
+function reflectionEntries(extensionsEnabled: boolean): ReflectionPaletteEntry[] {
+  return [...BASE_PIECE_PALETTE, ...(extensionsEnabled ? EXTENSION_PIECE_PALETTE : []), ...REFLECTION_UNIT_PALETTE];
+}
+
 export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
   let socket: RoomSocket | null = null;
   let scene: BoardScene | null = null;
   let placementController: PlacementController | null = null;
   let guessController: PlacementController | null = null;
+  let reflectionController: ReflectionController | null = null;
   let playerId = "";
   let room: RoomPayload | null = null;
   let mode: "ask" | "guess" = "ask";
@@ -301,11 +310,29 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
           contient. Les bornes d'entrée et de sortie se colorent durablement selon le résultat —
           une carte de tes questions posées s'accumule au fil de la partie.
         </p>
-        <button type="button" class="orapa-mp__mark-toggle">✕ Marquer des cases</button>
+        <div class="orapa-mp__ask-tools">
+          <button type="button" class="orapa-mp__mark-toggle">✕ Marquer des cases</button>
+          <button type="button" class="orapa-mp__reflect-toggle">🧩 Placer des repères</button>
+        </div>
         <p class="orapa-demo__hint orapa-mp__mark-hint" hidden>
           Clique une case pour y poser (ou enlever) une croix — usage personnel, jamais transmis
           à l'adversaire. Reclique ce bouton pour arrêter de marquer.
         </p>
+        <div class="orapa-mp__reflect-panel" hidden>
+          <p class="orapa-demo__hint">
+            Pose une gemme entière ou juste un repère (case ou demi-case colorée) comme hypothèse
+            personnelle — visible pendant que tu poses des questions, jamais transmis à
+            l'adversaire. Reclique une pièce posée (elle se teinte en rouge au survol) pour la
+            retirer.
+          </p>
+          <div class="orapa-demo__palette orapa-mp__reflect-palette"></div>
+          <div class="orapa-demo__transform">
+            <button type="button" class="orapa-demo__rotate">⟳ Pivoter</button>
+            <button type="button" class="orapa-demo__mirror">⇋ Retourner</button>
+          </div>
+          <button type="button" class="orapa-mp__reflect-clear">Vider mes repères</button>
+          <p class="orapa-demo__result orapa-mp__reflect-status" aria-live="polite"></p>
+        </div>
       </div>
       <div class="orapa-mp__guess-panel" hidden>
         <div class="orapa-demo__palette"></div>
@@ -324,13 +351,56 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
     const guessPanel = controlsHost.querySelector<HTMLDivElement>(".orapa-mp__guess-panel")!;
     const markToggle = controlsHost.querySelector<HTMLButtonElement>(".orapa-mp__mark-toggle")!;
     const markHint = controlsHost.querySelector<HTMLParagraphElement>(".orapa-mp__mark-hint")!;
-    let markMode = false;
+    const reflectToggle = controlsHost.querySelector<HTMLButtonElement>(".orapa-mp__reflect-toggle")!;
+    const reflectPanel = controlsHost.querySelector<HTMLDivElement>(".orapa-mp__reflect-panel")!;
+    let askSubMode: "question" | "mark" | "reflect" = "question";
 
-    markToggle.addEventListener("click", () => {
-      markMode = !markMode;
-      markToggle.classList.toggle("is-selected", markMode);
-      markHint.hidden = !markMode;
-    });
+    const setAskSubMode = (next: "question" | "mark" | "reflect") => {
+      askSubMode = next;
+      markToggle.classList.toggle("is-selected", next === "mark");
+      reflectToggle.classList.toggle("is-selected", next === "reflect");
+      markHint.hidden = next !== "mark";
+      reflectPanel.hidden = next !== "reflect";
+      if (!scene) return;
+      if (next === "reflect") {
+        if (!reflectionController) {
+          reflectionController = new ReflectionController({
+            scene,
+            paletteHost: reflectPanel.querySelector(".orapa-mp__reflect-palette")!,
+            rotateButton: reflectPanel.querySelector(".orapa-demo__rotate")!,
+            mirrorButton: reflectPanel.querySelector(".orapa-demo__mirror")!,
+            clearButton: reflectPanel.querySelector(".orapa-mp__reflect-clear")!,
+            statusHost: reflectPanel.querySelector(".orapa-mp__reflect-status")!,
+            entries: reflectionEntries(room?.extensions_enabled ?? false),
+          });
+        } else {
+          reflectionController.activate();
+        }
+      } else {
+        // Ne fait que rendre la main sur les callbacks de la scène : les
+        // repères déjà posés restent affichés (groupe séparé, voir
+        // board-scene.ts), seul le contrôleur "lâche" la souris.
+        reflectionController?.dispose();
+        scene.setGhost(null);
+        scene.onCornerClick = ({ corner }) => {
+          // Marquer une case ne dépend jamais du tour : outil personnel,
+          // pas une question posée à l'adversaire (voir board-scene.ts).
+          if (askSubMode === "mark") {
+            scene!.toggleMark(corner);
+            return;
+          }
+          if (!isMyTurn()) {
+            pushLog("⚠️ Ce n'est pas ton tour.");
+            return;
+          }
+          sendAskPeek(socket!, corner);
+        };
+        scene.onCornerHover = null;
+      }
+    };
+
+    markToggle.addEventListener("click", () => setAskSubMode(askSubMode === "mark" ? "question" : "mark"));
+    reflectToggle.addEventListener("click", () => setAskSubMode(askSubMode === "reflect" ? "question" : "reflect"));
 
     const setMode = (next: "ask" | "guess") => {
       mode = next;
@@ -342,21 +412,11 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
       if (next === "ask") {
         guessController?.dispose();
         scene.setPieces([]);
-        scene.setGhost(null);
-        scene.onCornerClick = ({ corner }) => {
-          // Marquer une case ne dépend jamais du tour : outil personnel,
-          // pas une question posée à l'adversaire (voir board-scene.ts).
-          if (markMode) {
-            scene!.toggleMark(corner);
-            return;
-          }
-          if (!isMyTurn()) {
-            pushLog("⚠️ Ce n'est pas ton tour.");
-            return;
-          }
-          sendAskPeek(socket!, corner);
-        };
-        scene.onCornerHover = null;
+        // Réapplique le sous-mode courant (question/marquage/réflexion) :
+        // ré-attache les callbacks de la scène, que le mode "proposition"
+        // avait pris (les repères de réflexion déjà posés restent
+        // affichés — groupe séparé, voir board-scene.ts).
+        setAskSubMode(askSubMode);
       } else if (!guessController) {
         guessController = new PlacementController({
           scene,
@@ -510,6 +570,7 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
     scene?.dispose();
     placementController?.dispose();
     guessController?.dispose();
+    reflectionController?.dispose();
   };
 }
 

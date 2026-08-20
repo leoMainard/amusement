@@ -10,6 +10,12 @@
  * vit ailleurs — voir `preview-engine.ts` pour la démo hors ligne, et
  * docs/plan.md pour le rappel qu'en multijoueur cette logique doit
  * rester côté serveur.
+ *
+ * Trois groupes de pièces coexistent, indépendants : `pieceGroup`
+ * (état RÉEL du plateau, via `setPieces`), `reflectionGroup` (repères
+ * personnels du joueur, via `addReflectionPiece` — jamais effacés par
+ * `setPieces`), et le fantôme de placement (`setGhost`, un seul à la
+ * fois, dans `pieceGroup`).
  */
 
 import * as THREE from "three";
@@ -29,8 +35,11 @@ import { vertices as pieceVertices } from "./piece-render";
 
 const GEM_HEIGHT = 0.5;
 const GHOST_OPACITY = 0.55;
+const REFLECTION_OPACITY = 0.7;
 const RAY_HEIGHT = 0.32;
 const ENTRY_MARKER_DEFAULT_COLOR = 0x6b7280;
+
+type PieceMeshStyle = "solid" | "ghost" | "reflection";
 
 export const RAY_COLOR_HEX: Record<string, number> = {
   transparent: 0x9aa0a6,
@@ -85,8 +94,15 @@ export class BoardScene {
   // l'adversaire — indépendant de tout état de jeu.
   private markGroup = new THREE.Group();
   private marks = new Map<string, THREE.Object3D>();
-  // Survol d'une pièce déjà posée : teinte temporairement son maillage
-  // pour signaler qu'un clic la retirerait (voir `setRemoveHighlight`).
+  // Pièces de réflexion (voir `reflection-controller.ts`) : des repères
+  // personnels, groupe séparé de `pieceGroup` pour ne jamais être
+  // effacées par `setPieces` (qui affiche l'état RÉEL du plateau — vide
+  // en mode question, alors que ces repères doivent y rester visibles).
+  private reflectionGroup = new THREE.Group();
+  private reflectionMeshes = new Map<Piece, THREE.Object3D>();
+  // Survol d'une pièce déjà posée (réelle ou de réflexion) : teinte
+  // temporairement son maillage pour signaler qu'un clic la retirerait
+  // (voir `setRemoveHighlight`).
   private removeHighlightMesh: THREE.Object3D | null = null;
   private removeHighlightOriginalColor: number | null = null;
   // Plan mathématique y=0 pour le survol/clic de case : plus robuste que
@@ -137,6 +153,7 @@ export class BoardScene {
     this.scene.add(this.pieceGroup);
     this.scene.add(this.rayGroup);
     this.scene.add(this.markGroup);
+    this.scene.add(this.reflectionGroup);
 
     this.renderer.domElement.addEventListener("click", this.handleClick);
     this.renderer.domElement.addEventListener("pointermove", this.handlePointerMove);
@@ -157,7 +174,7 @@ export class BoardScene {
     this.removeHighlightOriginalColor = null;
 
     for (const piece of pieces) {
-      const mesh = this.buildPieceMesh(piece, false);
+      const mesh = this.buildPieceMesh(piece, "solid");
       mesh.userData.piece = piece;
       this.pieceGroup.add(mesh);
       this.pieceMeshes.set(piece, mesh);
@@ -173,8 +190,36 @@ export class BoardScene {
     }
     if (!piece) return;
     this.ghostValid = valid;
-    this.ghostMesh = this.buildPieceMesh(piece, true);
+    this.ghostMesh = this.buildPieceMesh(piece, "ghost");
     this.pieceGroup.add(this.ghostMesh);
+  }
+
+  /** Ajoute une pièce de réflexion (voir `reflection-controller.ts`) —
+   * groupe séparé de `setPieces`, jamais effacé par lui. Légèrement
+   * transparente pour se distinguer d'une vraie pièce posée. */
+  addReflectionPiece(piece: Piece): void {
+    const mesh = this.buildPieceMesh(piece, "reflection");
+    mesh.userData.piece = piece;
+    this.reflectionGroup.add(mesh);
+    this.reflectionMeshes.set(piece, mesh);
+  }
+
+  removeReflectionPiece(piece: Piece): void {
+    const mesh = this.reflectionMeshes.get(piece);
+    if (!mesh) return;
+    this.reflectionGroup.remove(mesh);
+    this.reflectionMeshes.delete(piece);
+    if (this.removeHighlightMesh === mesh) {
+      this.removeHighlightMesh = null;
+      this.removeHighlightOriginalColor = null;
+    }
+  }
+
+  clearReflectionPieces(): void {
+    this.reflectionGroup.clear();
+    this.reflectionMeshes.clear();
+    this.removeHighlightMesh = null;
+    this.removeHighlightOriginalColor = null;
   }
 
   /** Trace le chemin d'un rayon. `entry` et les positions de `steps`
@@ -207,8 +252,11 @@ export class BoardScene {
 
   /** Pose ou retire une croix personnelle sur `corner` (case du plateau,
    * pas un bord) — purement local, voir la docstring du champ `marks`.
-   * Renvoie `true` si la case est désormais marquée. */
+   * Ne fait rien si `corner` tombe hors du plateau (retour utilisateur
+   * direct : on pouvait marquer des cases inexistantes). Renvoie `true`
+   * si la case est désormais marquée. */
   toggleMark(corner: Position): boolean {
+    if (!this.containsCell(corner)) return false;
     const key = `${corner[0]},${corner[1]}`;
     const existing = this.marks.get(key);
     if (existing) {
@@ -222,6 +270,10 @@ export class BoardScene {
     this.markGroup.add(mark);
     this.marks.set(key, mark);
     return true;
+  }
+
+  private containsCell([col, row]: Position): boolean {
+    return col >= 0 && col < this.dimensions.width && row >= 0 && row < this.dimensions.height;
   }
 
   clearMarks(): void {
@@ -254,9 +306,10 @@ export class BoardScene {
     }
   }
 
-  /** Teinte le maillage de `piece` pour signaler qu'un clic dessus la
-   * retirerait (voir `placement-controller.ts`) ; `null` efface la
-   * surbrillance en cours. Un seul maillage à la fois. */
+  /** Teinte le maillage de `piece` (pièce réelle ou de réflexion) pour
+   * signaler qu'un clic dessus la retirerait (voir
+   * `placement-controller.ts` / `reflection-controller.ts`) ; `null`
+   * efface la surbrillance en cours. Un seul maillage à la fois. */
   setRemoveHighlight(piece: Piece | null): void {
     if (this.removeHighlightMesh && this.removeHighlightOriginalColor !== null) {
       const material = (this.removeHighlightMesh as THREE.Mesh).material as THREE.MeshStandardMaterial;
@@ -265,7 +318,7 @@ export class BoardScene {
     this.removeHighlightMesh = null;
     this.removeHighlightOriginalColor = null;
     if (!piece) return;
-    const mesh = this.pieceMeshes.get(piece);
+    const mesh = this.pieceMeshes.get(piece) ?? this.reflectionMeshes.get(piece);
     if (!mesh) return;
     const material = (mesh as THREE.Mesh).material as THREE.MeshStandardMaterial;
     this.removeHighlightOriginalColor = material.color.getHex();
@@ -358,7 +411,9 @@ export class BoardScene {
     }
   }
 
-  private buildPieceMesh(piece: Piece, isGhost: boolean): THREE.Object3D {
+  private buildPieceMesh(piece: Piece, style: PieceMeshStyle): THREE.Object3D {
+    const isGhost = style === "ghost";
+    const isReflection = style === "reflection";
     const verts = pieceVertices(piece);
     const shape = new THREE.Shape();
     verts.forEach(([col, row], i) => {
@@ -374,11 +429,13 @@ export class BoardScene {
     const isDiamond = piece.kind === GemKind.DIAMOND;
     const isBlackBody = piece.kind === GemKind.BLACK_BODY;
     const color = isDiamond ? 0xbfe3f0 : isBlackBody ? 0x1a1a1a : piece.color ? GEM_DISPLAY_COLOR[piece.color] : 0x999999;
+    const transparent = isGhost || isReflection || isDiamond;
+    const opacity = isGhost ? GHOST_OPACITY : isReflection ? REFLECTION_OPACITY : isDiamond ? 0.5 : 1;
     const material = new THREE.MeshStandardMaterial({
       color,
       roughness: isDiamond ? 0.15 : isBlackBody ? 0.6 : 0.35,
-      transparent: isGhost || isDiamond,
-      opacity: isGhost ? GHOST_OPACITY : isDiamond ? 0.5 : 1,
+      transparent,
+      opacity,
     });
     if (isGhost) this.tintGhost(material);
     const mesh = new THREE.Mesh(geometry, material);
@@ -386,7 +443,7 @@ export class BoardScene {
     // sol clair du plateau (retour utilisateur direct sur ce point).
     const edges = new THREE.LineSegments(
       new THREE.EdgesGeometry(geometry, 20),
-      new THREE.LineBasicMaterial({ color: 0x3a3a38, transparent: isGhost, opacity: isGhost ? GHOST_OPACITY : 1 }),
+      new THREE.LineBasicMaterial({ color: 0x3a3a38, transparent, opacity }),
     );
     mesh.add(edges);
     mesh.rotation.x = -Math.PI / 2;
@@ -423,13 +480,26 @@ export class BoardScene {
 
   /** Case du plateau sous le curseur, via l'intersection avec le plan
    * mathématique y=0 (voir `groundMathPlane`) plutôt que le maillage du
-   * sol — insensible à l'ordre/l'état des autres objets de la scène. */
+   * sol — insensible à l'ordre/l'état des autres objets de la scène.
+   *
+   * `Math.floor`, pas `Math.round` : une case (col, row) occupe le
+   * carré [col, col+1)×[row, row+1) au sol, donc c'est l'indice dont ce
+   * carré contient le point cliqué qu'il faut renvoyer. `Math.round`
+   * arrondissait plutôt au SOMMET de grille le plus proche — invisible
+   * pour poser une pièce (le fantôme au survol montre déjà exactement
+   * le résultat, donc toujours cohérent avec lui-même), mais un vrai bug
+   * pour une croix ou une question posée sur une case : cliquer near le
+   * centre visuel d'une case pouvait arrondir vers la case voisine
+   * (`Math.round` arrondit .5 vers le haut), d'où le décalage rapporté
+   * par l'utilisateur — d'autant plus visible que l'angle de caméra est
+   * oblique (même écart en coordonnées monde, mais plus grand à l'écran
+   * sous une perspective rasante). */
   private cornerUnderPointer(): Position | null {
     const point = new THREE.Vector3();
     const hit = this.raycaster.ray.intersectPlane(this.groundMathPlane, point);
     if (!hit) return null;
-    const col = Math.round(point.x + this.dimensions.width / 2);
-    const row = Math.round(point.z + this.dimensions.height / 2);
+    const col = Math.floor(point.x + this.dimensions.width / 2);
+    const row = Math.floor(point.z + this.dimensions.height / 2);
     return [col, row];
   }
 

@@ -62,9 +62,36 @@ export class PreviewBoard {
     for (const key of quadrants) this.occupancy.set(key, piece);
   }
 
+  /** Pose `piece` sans vérifier le chevauchement/contact du livret —
+   * seulement qu'elle reste sur le plateau. Pour les pièces de
+   * réflexion (voir `reflection-controller.ts`) : de simples repères
+   * personnels, pas de vraies gemmes, donc pas soumis aux mêmes règles
+   * (peuvent se chevaucher librement). */
+  placePieceUnchecked(piece: Piece): void {
+    const quadrants = this.quadrants(piece);
+    if (quadrants.size === 0) {
+      throw new PlacementError("La pièce ne couvre aucune case.");
+    }
+    for (const key of quadrants) {
+      const [colStr, rowStr] = key.split(",");
+      if (!this.contains([Number(colStr), Number(rowStr)])) {
+        throw new PlacementError(`${key} est hors du plateau.`);
+      }
+    }
+    this.placedPieces.push(piece);
+    for (const key of quadrants) this.occupancy.set(key, piece);
+  }
+
   removePiece(piece: Piece): void {
     const quadrants = this.quadrants(piece);
-    for (const key of quadrants) this.occupancy.delete(key);
+    // N'efface une entrée d'occupation que si elle pointe encore vers
+    // `piece` : avec des pièces qui se chevauchent (voir
+    // `placePieceUnchecked`), une case peut avoir été reprise par une
+    // pièce plus récente — la retirer sans cette vérification effacerait
+    // à tort l'occupation de cette pièce plus récente.
+    for (const key of quadrants) {
+      if (this.occupancy.get(key) === piece) this.occupancy.delete(key);
+    }
     this.placedPieces = this.placedPieces.filter((p) => p !== piece);
   }
 

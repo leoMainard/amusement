@@ -268,6 +268,62 @@ colorées, aucune erreur console. Re-confirmé au passage que le
 verrouillage par tour (révision précédente) rejette bien un second tir
 hors tour en mode Duel.
 
+## Révision (2026-08-20 quater) : bug clic/case + pièces de réflexion
+
+**Deux bugs corrigés dans `BoardScene`** :
+- `toggleMark` acceptait des cases hors plateau (croix "fantômes")
+  — ajout d'un garde-fou `containsCell`.
+- `cornerUnderPointer` utilisait `Math.round` (arrondit au SOMMET de
+  grille le plus proche) au lieu de `Math.floor` (case dont le carré
+  contient réellement le point cliqué). Sans incidence visible pour
+  poser une pièce (le fantôme au survol est généré à partir de la même
+  valeur, donc toujours cohérent avec lui-même), mais un vrai décalage
+  pour une croix ou un "qu'y a-t-il en [case] ?" — rien ne matérialise
+  la case AVANT le clic, donc rien ne masque l'erreur. Cliquer près du
+  centre visuel d'une case pouvait arrondir vers la case voisine
+  (`Math.round` arrondit .5 vers le haut) — d'autant plus visible que
+  l'angle de caméra est oblique (même écart en coordonnées monde, plus
+  grand à l'écran sous une perspective rasante), d'où le rapport
+  utilisateur "ça bug selon l'angle". Un seul correctif (`Math.floor`)
+  résout les deux à la fois ; le placement réel a été re-testé pour
+  confirmer l'absence de régression.
+
+**Pièces de réflexion** (`reflection-controller.ts`, nouveau) : un
+panneau « 🧩 Placer des repères », disponible dans les 3 modes de jeu
+pendant la phase de question (avant même de proposer une solution).
+Reprend l'interaction de `placement-controller.ts` (palette, fantôme au
+survol, pivoter/retourner, clic pour poser/retirer, raccourcis R/F),
+mais :
+- jamais envoyé au serveur — purement local, comme les croix ;
+- pas de règles de contact du livret (`PreviewBoard.placePieceUnchecked`,
+  seule la limite du plateau est vérifiée) — ce sont des repères, pas de
+  vraies gemmes ;
+- palette étendue : les 5 gemmes complètes, les extensions si le salon
+  les autorise, et 8 repères élémentaires — une case ou une demi-case,
+  dans chacune des 4 couleurs (`types.ts:REFLECTION_UNIT_PALETTE`,
+  nouvelles formes frontend-only `UNIT_SQUARE`/`UNIT_TRIANGLE`, sans
+  équivalent côté moteur Python puisque jamais transmises) ;
+- affichées dans un groupe Three.js séparé (`BoardScene.reflectionGroup`)
+  de l'état RÉEL du plateau (`pieceGroup`), pour ne jamais être effacées
+  par `setPieces([])` (le mode question affiche un plateau vide — les
+  repères doivent y rester visibles) ; légèrement transparentes pour se
+  distinguer d'une vraie pièce.
+- `PreviewBoard.removePiece` durci au passage : ne supprime une entrée
+  d'occupation que si elle pointe encore vers la pièce retirée (des
+  pièces de réflexion peuvent partager une case, contrairement aux
+  vraies gemmes — l'ancien code aurait pu effacer à tort l'occupation
+  d'une pièce plus récente sur la même case).
+
+Vérifié (Playwright) : les deux bugs (croix hors plateau, décalage
+clic/case) confirmés corrigés ; pose d'une pièce complète et d'un repère
+élémentaire, ces repères survivent au passage question↔proposition et
+au tir d'un rayon (qui ne les affecte pas), retrait par reclic, "vider
+mes repères" efface tout, aucune erreur console. Piège méthodologique
+rencontré et documenté : calculer la position de clic AVANT d'ouvrir un
+panneau qui change la mise en page (donc la taille/position réelle du
+canvas) produit des clics décalés — toujours recalculer juste avant
+chaque clic, pas une fois en début de script.
+
 ## Décisions prises en Phase 1 (moteur de règles)
 
 - **Dimensions du plateau** : 9x9 par défaut (`BoardDimensions`,

@@ -4,6 +4,11 @@
  * Tenus volontairement en phase avec `board.py` / `pieces.py` /
  * `raycast.py` / `colors.py` pour que le rendu 3D et l'aperçu local
  * (Phase 3) parlent le même vocabulaire que le backend (Phase 4).
+ *
+ * Exception : `UNIT_SQUARE` / `UNIT_TRIANGLE` n'existent que côté
+ * frontend, pour les pièces de réflexion (voir `reflection.ts`) —
+ * des repères personnels posés en mode question, jamais envoyés au
+ * serveur, donc sans équivalent côté moteur Python.
  */
 
 export type Position = readonly [col: number, row: number];
@@ -22,6 +27,8 @@ export const PieceShape = {
   RHOMBUS: "RHOMBUS", // blanc : 4 triangles
   LARGE_TRIANGLE: "LARGE_TRIANGLE", // blanc ou bleu : 2 carrés + 4 triangles
   TENT: "TENT", // emprise du Diamant / Corps noir : 2 demi-cases, pointe vers le haut
+  UNIT_SQUARE: "UNIT_SQUARE", // frontend uniquement — voir la docstring du module
+  UNIT_TRIANGLE: "UNIT_TRIANGLE", // frontend uniquement — voir la docstring du module
 } as const;
 export type PieceShape = (typeof PieceShape)[keyof typeof PieceShape];
 
@@ -84,3 +91,22 @@ export const EXTENSION_PIECE_PALETTE: ReadonlyArray<{ shape: PieceShape; kind: G
   { shape: PieceShape.TENT, kind: GemKind.DIAMOND, label: "Diamant" },
   { shape: PieceShape.TENT, kind: GemKind.BLACK_BODY, label: "Corps noir" },
 ];
+
+const COLOR_LABEL: Record<Color, string> = {
+  RED: "rouge",
+  YELLOW: "jaune",
+  BLUE: "bleu",
+  WHITE: "blanc",
+};
+
+/** Repères de réflexion (voir `reflection.ts`) : une case entière ou une
+ * demi-case, dans chacune des 4 couleurs — de quoi esquisser « je pense
+ * qu'il y a du rouge par ici » sans devoir choisir une silhouette
+ * complète (parallélogramme, triangle...). Purement local, jamais
+ * envoyé au serveur. */
+export const REFLECTION_UNIT_PALETTE: ReadonlyArray<{ shape: PieceShape; color: Color; label: string }> = (
+  [Color.RED, Color.YELLOW, Color.BLUE, Color.WHITE] as const
+).flatMap((color) => [
+  { shape: PieceShape.UNIT_SQUARE, color, label: `Case ${COLOR_LABEL[color]}` },
+  { shape: PieceShape.UNIT_TRIANGLE, color, label: `Demi-case ${COLOR_LABEL[color]}` },
+]);
