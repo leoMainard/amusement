@@ -127,10 +127,46 @@ Site de jeux en ligne entre amis. Premier jeu : **Orapa Mine**.
    puis un test de fumée avec un vrai serveur uvicorn lancé et deux
    connexions WebSocket réseau réelles, pour écarter tout écart entre le
    transport de test et un vrai réseau.
-   Reste à faire : câbler le frontend (`demo.ts`) sur ce WebSocket à la
-   place du moteur local `preview-engine.ts`, écrans de salon (créer/
-   rejoindre par lien, lobby, écran de placement Duel avec paravent réel
-   = côté serveur, affichage de qui a la main), reconnexion après coupure.
+   **Câblage frontend fait et vérifié.** Voir `frontend/src/lib/`
+   (`room-socket.ts` : client WebSocket générique, dispatch par
+   `type` ; `config.ts` : adresse du backend, à externaliser en variable
+   d'env avant déploiement) et `frontend/src/games/orapa-mine/` :
+   - `protocol.ts` : traduction des messages, miroir à la main de
+     `game_ws.py`/`game_session.py` (pas de schéma partagé généré — à
+     surveiller si les deux dérivent).
+   - `placement-controller.ts` : contrôleur de placement extrait de
+     `demo.ts` pour être réutilisé à la fois pour poser son propre
+     plateau (Duel) et pour construire une proposition de solution —
+     pose optimiste en local puis notifie le serveur, qui reste seul
+     juge (voir avertissement en tête du fichier `multiplayer.ts`).
+   - `multiplayer.ts` : écrans créer/rejoindre (avec lien `?room=CODE`
+     partageable), lobby, placement (Duel), prospection (questions +
+     bascule vers un mode "proposer une solution" réutilisant le même
+     contrôleur de placement sur un plateau de proposition séparé),
+     écran de fin de partie. Le rayon n'est tracé qu'en ligne droite
+     entrée→sortie (le serveur ne renvoie pas les rebonds
+     intermédiaires) : contrairement à la démo hors ligne, exposer le
+     chemin donnerait plus d'information qu'un vrai prospecteur n'en a
+     jamais dans le jeu physique.
+   Vérifié avec un vrai test à deux joueurs (deux contextes de
+   navigateur, backend + frontend réellement lancés) : création de
+   salon, jonction, placement complet des deux côtés, tour par tour,
+   question, proposition de solution gagnante, écran de victoire/défaite
+   corrects des deux côtés, aucune erreur console.
+   **Bug trouvé et corrigé en cours de route** : le clic pour poser une
+   pièce pouvait, près d'une grande pièce déjà posée, être intercepté de
+   façon ambiguë par le rayon-tracé contre le maillage 3D de cette pièce
+   au lieu du sol. Corrigé en unifiant la détection de case cliquée
+   autour d'une intersection mathématique avec le plan y=0 (plus robuste
+   qu'un rayon-tracé contre des maillages), et en laissant l'appelant
+   (pas `BoardScene`) décider si une case cliquée contient une pièce à
+   retirer — supprime une source d'ambiguïté entre "clic sur une pièce"
+   et "clic sur le sol".
+   Reste à faire : reconnexion après coupure réseau, rollback ciblé d'une
+   pose optimiste rejetée par le serveur (actuellement juste loggée —
+   voir le commentaire dans `multiplayer.ts`), affichage du plateau
+   généré aléatoirement pour la relecture après une partie Fouille
+   terminée.
 5. **Notice & Guide de jeu** — page de règles reformulées + tutoriel
    interactif jouable.
 6. **Portail multi-jeux** — accueil listant les jeux, création/jonction de

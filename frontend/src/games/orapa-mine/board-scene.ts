@@ -54,10 +54,6 @@ export interface CornerClickEvent {
   corner: Position;
 }
 
-export interface PieceClickEvent {
-  piece: Piece;
-}
-
 export interface EntryClickEvent {
   label: string;
   entry: Entry;
@@ -67,7 +63,6 @@ export class BoardScene {
   readonly dimensions: BoardDimensions;
 
   onCornerClick: ((event: CornerClickEvent) => void) | null = null;
-  onPieceClick: ((event: PieceClickEvent) => void) | null = null;
   onEntryClick: ((event: EntryClickEvent) => void) | null = null;
   onCornerHover: ((corner: Position | null) => void) | null = null;
 
@@ -83,7 +78,12 @@ export class BoardScene {
   private ghostMesh: THREE.Object3D | null = null;
   private ghostValid = true;
   private rayGroup = new THREE.Group();
-  private groundPlane: THREE.Mesh;
+  // Plan mathématique y=0 pour le survol/clic de case : plus robuste que
+  // de rayonner contre le maillage des pièces ou du sol (déjà utilisés
+  // pour le rendu), qui peut produire des intersections ambiguës en
+  // rasant le bord d'une grande pièce — a causé un vrai bug de clics
+  // manqués près de pièces volumineuses (voir docs/plan.md).
+  private groundMathPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
 
   private entryTargets: THREE.Object3D[] = [];
   private raycaster = new THREE.Raycaster();
@@ -121,7 +121,7 @@ export class BoardScene {
     sun.position.set(4, 8, 3);
     this.scene.add(sun);
 
-    this.groundPlane = this.buildGrid();
+    this.buildGrid();
     this.buildEntryMarkers();
     this.scene.add(this.pieceGroup);
     this.scene.add(this.rayGroup);
@@ -194,6 +194,18 @@ export class BoardScene {
     this.container.removeChild(this.renderer.domElement);
   }
 
+  /** Ré-attache le `<canvas>` existant à un nouveau conteneur — utile
+   * quand l'écran qui l'héberge est reconstruit dans le DOM (voir
+   * `multiplayer.ts`) sans vouloir recréer toute la scène 3D. */
+  attachTo(container: HTMLElement): void {
+    this.container = container;
+    container.appendChild(this.renderer.domElement);
+    this.handleResize();
+    this.resizeObserver.disconnect();
+    this.resizeObserver = new ResizeObserver(() => this.handleResize());
+    this.resizeObserver.observe(container);
+  }
+
   /** (col, row) de grille -> position monde sur le sol (y=0). Accepte
    * aussi des coordonnées fractionnaires (points intermédiaires du
    * tracé d'un rayon, ou centre d'une case pour les bornes d'entrée). */
@@ -203,7 +215,7 @@ export class BoardScene {
     return new THREE.Vector3(x, 0, z);
   }
 
-  private buildGrid(): THREE.Mesh {
+  private buildGrid(): void {
     const { width, height } = this.dimensions;
     const halfW = width / 2;
     const halfH = height / 2;
@@ -213,7 +225,6 @@ export class BoardScene {
       new THREE.MeshStandardMaterial({ color: 0xe4e4e8, roughness: 0.9 }),
     );
     base.rotation.x = -Math.PI / 2;
-    base.userData.isGround = true;
     this.scene.add(base);
 
     const linePositions: number[] = [];
@@ -227,8 +238,6 @@ export class BoardScene {
     lineGeometry.setAttribute("position", new THREE.Float32BufferAttribute(linePositions, 3));
     const lines = new THREE.LineSegments(lineGeometry, new THREE.LineBasicMaterial({ color: 0xb5b5bd }));
     this.scene.add(lines);
-
-    return base;
   }
 
   private buildEntryMarkers(): void {
@@ -317,31 +326,26 @@ export class BoardScene {
       return;
     }
 
-    const pieceHit = this.raycaster.intersectObjects([...this.pieceMeshes.values()], false)[0];
-    if (pieceHit) {
-      const piece = pieceHit.object.userData.piece as Piece;
-      this.onPieceClick?.({ piece });
-      return;
-    }
-
-    const groundHit = this.raycaster.intersectObject(this.groundPlane, false)[0];
-    if (groundHit) {
-      this.onCornerClick?.({ corner: this.nearestCorner(groundHit.point) });
-    }
+    // Une seule notion de "case cliquée", que ce soit pour poser ou pour
+    // retirer une pièce : à l'appelant (voir `placement-controller.ts`)
+    // de regarder ce qu'il y a à cette case et de décider quoi faire.
+    const corner = this.cornerUnderPointer();
+    if (corner) this.onCornerClick?.({ corner });
   };
 
   private handlePointerMove = (event: MouseEvent): void => {
     this.updatePointer(event);
     this.raycaster.setFromCamera(this.pointer, this.camera);
-    const hit = this.raycaster.intersectObject(this.groundPlane, false)[0];
-    if (hit) {
-      this.onCornerHover?.(this.nearestCorner(hit.point));
-    } else {
-      this.onCornerHover?.(null);
-    }
+    this.onCornerHover?.(this.cornerUnderPointer());
   };
 
-  private nearestCorner(point: THREE.Vector3): Position {
+  /** Case du plateau sous le curseur, via l'intersection avec le plan
+   * mathématique y=0 (voir `groundMathPlane`) plutôt que le maillage du
+   * sol — insensible à l'ordre/l'état des autres objets de la scène. */
+  private cornerUnderPointer(): Position | null {
+    const point = new THREE.Vector3();
+    const hit = this.raycaster.ray.intersectPlane(this.groundMathPlane, point);
+    if (!hit) return null;
     const col = Math.round(point.x + this.dimensions.width / 2);
     const row = Math.round(point.z + this.dimensions.height / 2);
     return [col, row];

@@ -135,7 +135,19 @@ export function mountOrapaMineDemo(root: HTMLElement): () => void {
   };
 
   scene.onCornerClick = ({ corner }) => {
-    if (!armed || validated) return;
+    if (validated) return;
+    // Cliquer une case déjà occupée retire la pièce qui s'y trouve, que
+    // l'on ait ou non une pièce armée en attente de pose.
+    const existing = board.pieceAtCell(corner);
+    if (existing) {
+      board.removePiece(existing);
+      usedKeys.delete(paletteKey(existing.shape, existing.color!));
+      refreshPieces();
+      updatePaletteAvailability();
+      resultHost.textContent = "";
+      return;
+    }
+    if (!armed) return;
     const positioned: Piece = { ...armed, origin: corner };
     try {
       board.placePiece(positioned);
@@ -149,15 +161,6 @@ export function mountOrapaMineDemo(root: HTMLElement): () => void {
     } catch (error) {
       resultHost.textContent = error instanceof PlacementError ? error.message : String(error);
     }
-  };
-
-  scene.onPieceClick = ({ piece }) => {
-    if (validated) return;
-    board.removePiece(piece);
-    usedKeys.delete(paletteKey(piece.shape, piece.color!));
-    refreshPieces();
-    updatePaletteAvailability();
-    resultHost.textContent = "";
   };
 
   scene.onEntryClick = ({ label, entry }) => {

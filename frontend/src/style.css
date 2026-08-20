@@ -154,3 +154,146 @@ body {
     grid-template-columns: 1fr;
   }
 }
+
+/* Multijoueur Orapa Mine (Phase 4) */
+.orapa-mp__setup {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+
+.orapa-mp__panel {
+  border: 1px solid light-dark(#ccc, #444);
+  border-radius: 0.5rem;
+  padding: 1rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.orapa-mp__panel label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.9rem;
+}
+
+.orapa-mp__panel input,
+.orapa-mp__panel select {
+  padding: 0.4rem;
+  border-radius: 0.35rem;
+  border: 1px solid light-dark(#999, #666);
+  background: light-dark(#fff, #1c1c1c);
+  color: inherit;
+}
+
+.orapa-mp__create-btn,
+.orapa-mp__join-btn {
+  margin-top: 0.5rem;
+  padding: 0.5rem;
+  border-radius: 0.4rem;
+  border: 1px solid light-dark(#999, #666);
+  background: light-dark(#f5f5f5, #2a2a2a);
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.orapa-mp__error {
+  grid-column: 1 / -1;
+  color: #c0392b;
+  min-height: 1.2em;
+}
+
+.orapa-mp__lobby {
+  margin-top: 1.5rem;
+  border: 1px solid light-dark(#ccc, #444);
+  border-radius: 0.5rem;
+  padding: 1.25rem;
+  max-width: 480px;
+}
+
+.orapa-mp__mode-label {
+  font-size: 0.85rem;
+  opacity: 0.75;
+}
+
+.orapa-mp__share {
+  display: flex;
+  gap: 0.5rem;
+  margin: 0.75rem 0;
+}
+
+.orapa-mp__link {
+  flex: 1;
+  padding: 0.4rem;
+  border-radius: 0.35rem;
+  border: 1px solid light-dark(#999, #666);
+  background: light-dark(#fff, #1c1c1c);
+  color: inherit;
+}
+
+.orapa-mp__copy {
+  padding: 0.4rem 0.8rem;
+  border-radius: 0.35rem;
+  border: 1px solid light-dark(#999, #666);
+  background: light-dark(#f5f5f5, #2a2a2a);
+  cursor: pointer;
+}
+
+.orapa-mp__players {
+  list-style: none;
+  padding: 0;
+  margin: 0.5rem 0;
+}
+
+.orapa-mp__players li {
+  padding: 0.3rem 0;
+  border-bottom: 1px solid light-dark(#eee, #333);
+}
+
+.orapa-mp__phase {
+  font-size: 0.9rem;
+}
+
+.orapa-mp__turn {
+  font-weight: 600;
+}
+
+.orapa-mp__result-banner {
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.orapa-mp__wait {
+  font-size: 0.85rem;
+  opacity: 0.75;
+}
+
+.orapa-mp__mode-toggle {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.orapa-mp__mode-toggle button {
+  flex: 1;
+  padding: 0.4rem;
+  border-radius: 0.4rem;
+  border: 1px solid light-dark(#999, #666);
+  background: light-dark(#f5f5f5, #2a2a2a);
+  cursor: pointer;
+}
+
+.orapa-mp__mode-toggle button.is-selected {
+  border-color: #2ecc71;
+  border-width: 2px;
+}
+
+.orapa-mp__log {
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 0.2rem;
+  max-height: 220px;
+  overflow-y: auto;
+}
