@@ -180,10 +180,13 @@ function mountFor(game: GameDescriptor, view: ViewKind): MountView {
 
 // Notice et Guide partagent une fiche (carte "JOUER" + formes
 // décoratives à gauche, contenu à onglets à droite — 2 onglets
-// seulement, comme la maquette). Essayer/Jouer n'en font pas partie :
-// on y accède depuis le bouton "Jouer" (ou le lien secondaire "Essayer
-// le plateau", ajout hors maquette pour ne pas perdre cette fonction),
-// et ces deux écrans s'affichent seuls, en pleine largeur.
+// seulement, comme la maquette). "Essayer le plateau hors ligne" n'a
+// plus de bouton d'entrée dédié (retour utilisateur direct — le dernier
+// pas du Guide de jeu couvre déjà ce besoin, via le même
+// `mountOrapaMineDemo`) ; "try" reste dans `ViewKind`/le registre pour
+// ne pas retirer la capacité elle-même, seulement son accès direct.
+// Jouer n'en fait pas partie non plus : on y accède depuis le bouton
+// "Jouer", et cet écran s'affiche seul, en pleine largeur.
 const INFO_VIEWS: ReadonlySet<ViewKind> = new Set(["notice", "guide"]);
 
 function showView(gameId: string, view: ViewKind): void {
@@ -217,7 +220,6 @@ function showView(gameId: string, view: ViewKind): void {
             <span class="game-card__icon-shape game-card__icon-shape--para"></span>
           </div>
           <button type="button" class="om-shell__play-btn" data-view="play">Jouer</button>
-          <button type="button" class="om-shell__try-link" data-view="try">Essayer le plateau hors ligne →</button>
           <div class="om-shell__info-tags">
             <span>2 joueurs et +</span>
             <span>~30 min</span>

@@ -895,23 +895,6 @@ body:has(#app.om-shell) {
   background: var(--om-gold-hover);
 }
 
-.om-shell__try-link {
-  margin: 10px 16px 0;
-  align-self: flex-start;
-  background: none;
-  border: none;
-  padding: 0;
-  color: var(--om-text-4);
-  font-size: 12px;
-  cursor: pointer;
-  text-decoration: underline;
-  text-underline-offset: 2px;
-}
-
-.om-shell__try-link:hover {
-  color: var(--om-gold);
-}
-
 .om-shell__info-tags {
   display: flex;
   gap: 8px;
@@ -1989,6 +1972,28 @@ kbd {
   gap: 5px;
 }
 
+/* En-tête du groupe "Repères simples" : le libellé, et désormais
+   "✕ Marquer des cases" à côté (retour utilisateur direct — les deux
+   sont de simples annotations personnelles, regroupées plutôt que
+   "Marquer" isolé sous le plateau ; voir `reflection-controller.ts`,
+   qui repositionne lui-même ce bouton ici). */
+.orapa-mp__reflect-unit-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.orapa-mp__reflect-unit-head .om-eyebrow {
+  margin-bottom: 0;
+}
+
+.orapa-mp__reflect-unit-head .orapa-mp__mark-toggle {
+  flex: none;
+  padding: 4px 10px;
+  font-size: 11px;
+}
+
 .orapa-demo__swatch--unit {
   padding: 4px;
 }
@@ -2333,12 +2338,31 @@ kbd {
   box-sizing: border-box;
 }
 
+/* Petit bandeau : nom du mode + tour à gauche, chronos/aide à droite
+   (retour utilisateur direct). */
 .orapa-play__topbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
   padding: 0 0 12px;
+}
+
+.orapa-play__topbar-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.orapa-play__topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.orapa-play__topbar-hint {
+  font-size: 12.5px;
+  color: var(--om-text-5);
 }
 
 .orapa-play__mode {
@@ -2361,13 +2385,23 @@ kbd {
 .orapa-play__timers {
   display: flex;
   align-items: center;
-  gap: 18px;
+  gap: 10px;
 }
 
+/* Pastille arrondie, avec un contour neutre au repos — devient dorée
+   (soi) ou bleue (adversaire) quand c'est VRAIMENT son tour (retour
+   utilisateur direct : "bordure jaune arrondie quand c'est à moi de
+   jouer, bordure bleue arrondie quand c'est à l'adversaire") — pas la
+   même couleur que le point, qui reste une identité fixe ("qui"), la
+   bordure indique "à qui le tour" séparément. */
 .orapa-play__timer {
   display: flex;
   align-items: center;
   gap: 7px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--om-border);
+  background: var(--om-panel-soft);
   font-family: "Chakra Petch", sans-serif;
   font-size: 12.5px;
   letter-spacing: 0.04em;
@@ -2394,20 +2428,26 @@ kbd {
   color: var(--om-text-2);
 }
 
-/* Le joueur dont c'est VRAIMENT le tour ressort en or, le compte à
-   rebours défile réellement pour lui seul (voir `renderTimers`) — les
-   autres affichent juste "4:00" en attente, sans donner l'impression
-   qu'un chrono tourne aussi pour eux. */
+/* Le joueur dont c'est VRAIMENT le tour ressort en or/bleu selon son
+   rôle, le compte à rebours défile réellement pour lui seul (voir
+   `renderTimers`) — les autres affichent juste "4:00" en attente, sans
+   donner l'impression qu'un chrono tourne aussi pour eux. */
 .orapa-play__timer.is-active {
   color: var(--om-text);
 }
 
 .orapa-play__timer.is-active .orapa-play__timer-time {
-  color: var(--om-gold);
+  color: inherit;
 }
 
-.orapa-play__timer.is-active .orapa-play__timer-dot {
-  box-shadow: 0 0 0 3px rgba(242, 194, 75, 0.2);
+.orapa-play__timer--you.is-active {
+  border-color: var(--om-gold);
+  background: rgba(242, 194, 75, 0.12);
+}
+
+.orapa-play__timer--opponent.is-active {
+  border-color: var(--om-blue);
+  background: rgba(47, 111, 208, 0.14);
 }
 
 /* `--orapa-play-row-h` borne les trois colonnes à la même hauteur, et
@@ -2637,7 +2677,7 @@ kbd {
   color: var(--om-text-2);
 }
 
-/* `.orapa-play__side`/`__tools`/`__toggles` déclarent tous un
+/* `.orapa-play__side`/`__tools`/`__tool--end-turn` déclarent tous un
    `display: flex` explicite, ce qui — sans cette règle — l'emporterait
    sur le `display: none` par défaut de l'attribut `hidden` (les styles
    auteur passent devant la feuille de styles du navigateur, à
@@ -2646,22 +2686,22 @@ kbd {
    disposition" en jeu. */
 .orapa-play__side[hidden],
 .orapa-play__tools[hidden],
-.orapa-play__toggles[hidden],
 .orapa-play__timers[hidden],
-.orapa-play__end-turn-btn[hidden] {
+.orapa-play__tool--end-turn[hidden] {
   display: none;
-}
-
-.orapa-play__toggles {
-  display: flex;
-  flex: none;
-  gap: 8px;
 }
 
 /* Moins large que la colonne entière (retour utilisateur direct) :
  * centré plutôt qu'étiré sur toute la largeur du plateau —
  * `align-self: center` annule le `stretch` par défaut hérité de
- * `.orapa-play__center` (flex column) pour ce seul enfant. */
+ * `.orapa-play__center` (flex column) pour ce seul enfant.
+ * `flex-wrap` + `min-width` sur `.orapa-play__tool` (voir plus bas) :
+ * depuis que "Terminer mon tour" rejoint ce bandeau (3 colonnes au lieu
+ * de 2), un plafond trop serré faisait chevaucher le bouton "Envoyer"
+ * et le libellé de case de la colonne suivante (largeurs négatives en
+ * pratique) — un vrai bug de mise en page trouvé en testant. La colonne
+ * "Terminer mon tour" retombe à la ligne plutôt que de continuer à
+ * comprimer les deux autres si la fenêtre est vraiment étroite. */
 .orapa-play__tools {
   border-radius: 18px;
   background: var(--om-panel);
@@ -2669,52 +2709,69 @@ kbd {
   padding: 12px 22px;
   display: flex;
   flex: none;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 22px;
+  justify-content: center;
+  gap: 18px 22px;
   align-self: center;
   /* Un pourcentage plutôt qu'un simple plafond en pixels : reste
      visiblement plus étroit que la colonne centrale à n'importe quelle
      largeur d'écran (un `max-width` seul ne "mordait" pas encore à la
      largeur de colonne courante — retour utilisateur direct). */
-  width: 82%;
-  max-width: 560px;
+  width: 92%;
+  max-width: 720px;
 }
 
 .orapa-play__tool {
-  flex: 1;
-  min-width: 0;
+  flex: 1 1 190px;
+  min-width: 190px;
 }
 
-/* Bouton "Terminer mon tour" (retour utilisateur direct — visible
-   seulement à plusieurs, voir `renderPlaying`/`.orapa-play__timers`) :
-   même largeur/alignement que `.orapa-play__tools` juste au-dessus, en
-   plein bandeau doré pour rester une action volontaire assumée, pas un
-   simple lien discret. */
+/* "Terminer mon tour" rejoint désormais `.orapa-play__tools` (retour
+   utilisateur direct), à droite du rayon/de l'interrogation plutôt
+   qu'en bandeau séparé — colonne étroite plutôt que `flex: 1` comme les
+   deux autres outils, avec le rappel "4 min par tour" dessous. */
+.orapa-play__tool--end-turn {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Bleu plutôt que doré (retour utilisateur direct) : se distingue des
+   actions "question" (dorées, `.orapa-play__fire-btn`/`.orapa-play__ask-btn`)
+   comme une action de nature différente — passer la main plutôt que
+   jouer. */
 .orapa-play__end-turn-btn {
-  align-self: center;
-  width: 82%;
-  max-width: 560px;
-  padding: 12px;
-  border-radius: 12px;
+  padding: 11px 18px;
+  border-radius: 10px;
   border: none;
-  background: var(--om-gold);
-  color: var(--om-surface);
+  background: var(--om-blue);
+  color: var(--om-text);
   font-family: "Chakra Petch", sans-serif;
   font-weight: 700;
-  font-size: 12.5px;
-  letter-spacing: 0.1em;
+  font-size: 12px;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   cursor: pointer;
 }
 
 .orapa-play__end-turn-btn:hover:not(:disabled) {
-  background: var(--om-gold-hover);
+  background: #3f82e8;
 }
 
 .orapa-play__end-turn-btn:disabled {
   background: var(--om-panel-soft);
   color: var(--om-text-5);
   cursor: default;
+}
+
+.orapa-play__end-turn-caption {
+  margin: 0;
+  font-size: 11px;
+  color: var(--om-text-5);
+  text-align: center;
 }
 
 .orapa-play__tool p {

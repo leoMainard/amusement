@@ -386,14 +386,14 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
       host.innerHTML = `
         <div class="orapa-play">
           <div class="orapa-play__topbar">
-            <div style="display: flex; align-items: center; gap: 14px;">
+            <div class="orapa-play__topbar-left">
               <div class="orapa-play__mode">${MODE_NAMES[room.mode]}</div>
               <p class="orapa-mp__turn"></p>
             </div>
-            <div class="orapa-play__timers" hidden></div>
-            <div style="display: flex; align-items: center; gap: 14px;">
+            <div class="orapa-play__topbar-right">
+              <div class="orapa-play__timers" hidden></div>
               <button type="button" class="om-help-btn orapa-play__help-btn">❔ Aide</button>
-              <div style="font-size: 12.5px; color: var(--om-text-5);">Glisse pour tourner la vue · molette pour zoomer</div>
+              <div class="orapa-play__topbar-hint">Glisse pour tourner la vue · molette pour zoomer</div>
             </div>
           </div>
           <div class="orapa-play__layout">
@@ -413,10 +413,6 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
             <div class="orapa-play__center">
               <div class="orapa-play__canvas"></div>
 
-              <div class="orapa-play__toggles">
-                <button type="button" class="orapa-mp__mark-toggle">✕ Marquer des cases</button>
-              </div>
-
               <div class="orapa-play__tools">
                 <div class="orapa-play__tool">
                   <span class="om-eyebrow">Tirer un rayon</span>
@@ -435,9 +431,12 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
                     <button type="button" class="orapa-play__ask-btn" disabled>Demander</button>
                   </div>
                 </div>
+                <div class="orapa-play__tool-divider orapa-play__tool-divider--end-turn" hidden></div>
+                <div class="orapa-play__tool orapa-play__tool--end-turn" hidden>
+                  <button type="button" class="orapa-play__end-turn-btn">Terminer mon tour</button>
+                  <p class="orapa-play__end-turn-caption">4 min par tour</p>
+                </div>
               </div>
-
-              <button type="button" class="orapa-play__end-turn-btn" hidden>Terminer mon tour</button>
             </div>
 
             <div class="orapa-play__side orapa-play__side--ask">
@@ -631,7 +630,6 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
   // --- Écran "partie en cours" : plateau plein cadre + panneaux flottants --
 
   function renderPlaying(host: HTMLElement): void {
-    const markToggle = host.querySelector<HTMLButtonElement>(".orapa-mp__mark-toggle")!;
     const reflectPanel = host.querySelector<HTMLDivElement>(".orapa-mp__reflect-panel")!;
     const entryInput = host.querySelector<HTMLInputElement>(".orapa-play__entry-input")!;
     const fireBtn = host.querySelector<HTMLButtonElement>(".orapa-play__fire-btn")!;
@@ -640,10 +638,14 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
     const proposeBtn = host.querySelector<HTMLButtonElement>(".orapa-play__propose")!;
     const proposeStatus = host.querySelector<HTMLParagraphElement>(".orapa-play__propose-status")!;
     const endTurnBtn = host.querySelector<HTMLButtonElement>(".orapa-play__end-turn-btn")!;
+    const endTurnTool = host.querySelector<HTMLDivElement>(".orapa-play__tool--end-turn")!;
+    const endTurnDivider = host.querySelector<HTMLDivElement>(".orapa-play__tool-divider--end-turn")!;
     // Chrono/bouton "Terminer mon tour" seulement à plusieurs (voir
     // `renderTimers` — même condition que le chrono côté serveur,
     // `OrapaMineSession.turn_deadline`) : personne à presser tout seul.
-    endTurnBtn.hidden = (room?.players.length ?? 0) <= 1;
+    const showEndTurn = (room?.players.length ?? 0) > 1;
+    endTurnTool.hidden = !showEndTurn;
+    endTurnDivider.hidden = !showEndTurn;
 
     // "Placer des repères" reste affiché en permanence désormais (plus
     // de bouton pour l'activer, retour utilisateur direct) : un simple
@@ -657,11 +659,12 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
     let markMode = false;
     let askTarget: Position | null = null;
 
-    // Tirer un rayon / interroger une case / proposer une disposition
-    // ne sont plus seulement refusés après coup (message d'avertissement) :
-    // ils sont directement désactivés hors de son tour (retour
-    // utilisateur direct). "Marquer"/"Placer des repères" restent
-    // toujours actifs : outils personnels, jamais envoyés à l'adversaire.
+    // Tirer un rayon/interroger une case ne consomment plus le tour côté
+    // serveur (retour utilisateur direct — "je peux avoir besoin de
+    // temps pour réfléchir, positionner mes pièces" : voir duel.py/
+    // fouille.py) : seuls "Terminer mon tour" ou l'expiration du chrono
+    // le font. Ces boutons restent donc gérés par le seul tour en cours
+    // (`isMyTurn`), pas par un compteur d'actions.
     const refreshGating = () => {
       const myTurn = isMyTurn();
       fireBtn.disabled = !myTurn;
@@ -677,6 +680,19 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
       sendEndTurn(socket!);
     });
 
+    // Regroupé avec "Repères simples" plutôt que posé à part sous le
+    // plateau (retour utilisateur direct) — voir
+    // `ReflectionController`/`markToggleButton`, qui le repositionne
+    // lui-même dans le panneau de repères.
+    const markToggle = document.createElement("button");
+    markToggle.type = "button";
+    markToggle.className = "orapa-mp__mark-toggle";
+    markToggle.textContent = "✕ Marquer des cases";
+    markToggle.addEventListener("click", () => {
+      markMode = !markMode;
+      markToggle.classList.toggle("is-selected", markMode);
+    });
+
     if (scene) {
       reflectionController?.dispose();
       reflectionController = new ReflectionController({
@@ -688,6 +704,7 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
         clearButton: reflectPanel.querySelector(".orapa-mp__reflect-clear")!,
         statusHost: reflectPanel.querySelector(".orapa-mp__reflect-status")!,
         entries: reflectionEntries(room?.extensions_enabled ?? false),
+        markToggleButton: markToggle,
       });
       scene.onCornerClick = ({ corner }) => {
         if (markMode) {
@@ -702,11 +719,6 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
         refreshGating();
       };
     }
-
-    markToggle.addEventListener("click", () => {
-      markMode = !markMode;
-      markToggle.classList.toggle("is-selected", markMode);
-    });
 
     // "Proposer la disposition" ne rouvre plus un plateau à repositionner
     // de zéro : elle reprend directement les repères (gemmes complètes,
@@ -833,7 +845,7 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
   function timerRowHtml(name: string, kind: "you" | "opponent", active: boolean, remaining: number): string {
     const time = formatCountdown(active ? remaining : TURN_DURATION_SECONDS);
     return `
-      <span class="orapa-play__timer${active ? " is-active" : ""}">
+      <span class="orapa-play__timer orapa-play__timer--${kind}${active ? " is-active" : ""}">
         <span class="orapa-play__timer-dot orapa-play__timer-dot--${kind}"></span>
         ${escapeHtml(name)} <span class="orapa-play__timer-time">${time}</span>
       </span>

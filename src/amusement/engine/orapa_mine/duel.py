@@ -1,8 +1,14 @@
 """Déroulement d'une partie en mode Duel (2 joueurs, règles officielles).
 
 Chaque joueur a son propre plateau secret ; les rôles maître du jeu /
-prospecteur s'inversent à chaque tour. Règles de fin de partie reprises
-du livret :
+prospecteur s'inversent à chaque tour. Un « tour » est une fenêtre de
+temps (voir `amusement.api.game_session.DEFAULT_TURN_DURATION_SECONDS`),
+pas une action unique : `ask_ray`/`ask_peek` peuvent être appelées
+plusieurs fois de suite par le même prospecteur (retour utilisateur
+direct — il peut avoir besoin de réfléchir entre deux questions) ; seule
+`pass_turn` fait effectivement passer la main (bouton "Terminer mon
+tour" côté client, ou expiration du chrono côté serveur). Règles de fin
+de partie reprises du livret :
 
 - une proposition erronée fait perdre immédiatement son auteur ;
 - une proposition correcte du joueur qui N'A PAS débuté la partie le
@@ -13,11 +19,11 @@ du livret :
   ci-dessous), la victoire du premier joueur est confirmée. S'il devine
   juste, la partie se termine sur une égalité.
 
-Interprétation retenue pour « il a encore un tour » : si l'adversaire
-utilise ce tour pour poser une question normale plutôt que de proposer
-une solution, son unique chance est consommée et la victoire du premier
-joueur est immédiatement confirmée (lecture stricte, à assouplir si elle
-s'avère trop punitive à l'usage — voir docs/plan.md).
+Interprétation retenue pour « il a encore un tour » : ce tour se termine
+comme n'importe quel autre (`pass_turn`, volontaire ou par expiration du
+chrono) — poser des questions pendant ce tour ne le consomme plus (voir
+ci-dessus), mais s'il se termine sans proposition correcte, la victoire
+du premier joueur est confirmée.
 
 Demander confirmation d'une réponse déjà donnée ne consomme pas de tour
 (`replay`), conformément au livret.
@@ -78,22 +84,23 @@ class DuelGame:
             raise DuelError(f"Ce n'est pas le tour de {player}.")
 
     def ask_ray(self, player: str, entry_label: str) -> RayResult:
-        """Tire un rayon sur le plateau adverse ; consomme le tour."""
+        """Tire un rayon sur le plateau adverse. Ne consomme PAS le tour
+        (voir docstring du module) : le prospecteur peut tirer plusieurs
+        rayons/interroger plusieurs cases de suite pendant le même tour."""
         self._require_current_prospector(player)
         opponent_board = self.boards[self._opponent(player)]
         entry = self.label_scheme.entry_for_label(entry_label)
         result = fire_ray(opponent_board, entry.position, entry.direction)
         self.log.append(LogEntry(player, "ray", entry_label, result))
-        self._consume_turn(player)
         return result
 
     def ask_peek(self, player: str, position: Position) -> str:
-        """Demande « qu'y a-t-il en [position] ? » ; consomme le tour."""
+        """Demande « qu'y a-t-il en [position] ? ». Ne consomme pas le
+        tour non plus (même raison que `ask_ray`)."""
         self._require_current_prospector(player)
         opponent_board = self.boards[self._opponent(player)]
         result = peek(opponent_board, position)
         self.log.append(LogEntry(player, "peek", position, result))
-        self._consume_turn(player)
         return result
 
     def replay(self, index: int) -> RayResult | str:

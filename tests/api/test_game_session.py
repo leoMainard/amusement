@@ -220,7 +220,23 @@ def test_turn_deadline_starts_when_duel_placement_completes() -> None:
     assert session.turn_deadline is not None
 
 
-def test_turn_deadline_resets_after_each_action() -> None:
+def test_asking_a_question_does_not_reset_the_turn_timer() -> None:
+    # Un tour reste une fenêtre de temps FIXE : poser une question ne la
+    # prolonge pas (retour utilisateur direct — sinon enchaîner les
+    # questions permettrait de ne jamais voir son tour expirer).
+    room = Room(code="ABCDE", game="orapa_mine", mode=RoomMode.FOUILLE, max_players=2)
+    alice = room.add_player("Alice")
+    room.add_player("Bob")
+    session = OrapaMineSession(room, BoardDimensions(width=9, height=9), turn_duration_seconds=240.0)
+    session.start()
+    session.turn_deadline = time.time() + 1  # simule un tour presque écoulé
+    almost_expired = session.turn_deadline
+    session.ask_peek(alice.id, (0, 0))
+    session.ask_ray(alice.id, "1")
+    assert session.turn_deadline == almost_expired
+
+
+def test_end_turn_resets_the_turn_timer() -> None:
     room = Room(code="ABCDE", game="orapa_mine", mode=RoomMode.FOUILLE, max_players=2)
     alice = room.add_player("Alice")
     room.add_player("Bob")
@@ -228,8 +244,9 @@ def test_turn_deadline_resets_after_each_action() -> None:
     session.start()
     first_deadline = session.turn_deadline
     session.turn_deadline = time.time() + 1  # simule un tour presque écoulé
-    session.ask_peek(alice.id, (0, 0))
-    # Une vraie action relance le chrono complet, pas seulement +1s.
+    session.end_turn(alice.id)
+    # `end_turn` (bouton "Terminer mon tour"/expiration du chrono), lui,
+    # relance bien le chrono complet pour le tour suivant.
     assert session.turn_deadline > first_deadline - 1
 
 

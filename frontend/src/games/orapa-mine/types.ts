@@ -67,14 +67,14 @@ export type Direction = (typeof Direction)[keyof typeof Direction];
  * proches de la maquette Claude Design (`claude_design/orapa-board.js`,
  * table `PIECES`), rouge et bleu un peu plus saturés qu'elle (retour
  * utilisateur direct : les gemmes se distinguaient mal du plateau
- * sombre). Le blanc est un vrai crème (`#f7f4ee`), pas blanc pur : reste
- * lisible sur le fond bleu nuit du plateau sans avoir besoin d'être
- * éclatant. */
+ * sombre). Le blanc est blanc pur (`#ffffff`) — un crème plus doux avait
+ * été essayé, mais jugé pas assez blanc à l'usage (retour utilisateur
+ * direct). */
 export const GEM_DISPLAY_COLOR: Record<Color, number> = {
   RED: 0xe83c30,
   YELLOW: 0xf2c24b,
   BLUE: 0x2f7ff0,
-  WHITE: 0xf7f4ee,
+  WHITE: 0xffffff,
 };
 
 /** Les 5 silhouettes de la variante de base, avec leur couleur/nature —

@@ -15,7 +15,7 @@ const FILL_BY_COLOR: Record<string, string> = {
   RED: "#e83c30",
   YELLOW: "#f2c24b",
   BLUE: "#2f7ff0",
-  WHITE: "#f7f4ee",
+  WHITE: "#ffffff",
 };
 
 // Le Diamant et le Corps noir n'ont pas de `color` (voir types.ts) :

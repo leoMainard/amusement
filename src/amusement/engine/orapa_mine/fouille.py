@@ -3,7 +3,12 @@
 Un plateau généré une fois (voir `generation.random_board`), inconnu de
 tous, exploré tour par tour — reprend la variante 3+ joueurs officielle
 du livret. Jouable seul (un seul joueur : c'est alors toujours son
-tour) tout comme à plusieurs.
+tour) tout comme à plusieurs. Comme en Duel, un « tour » est une fenêtre
+de temps (voir `amusement.api.game_session.DEFAULT_TURN_DURATION_SECONDS`),
+pas une action unique : `ask_ray`/`ask_peek` ne la font plus avancer
+(retour utilisateur direct — poser une question ne doit pas coûter son
+tour) ; seule `pass_turn` (bouton "Terminer mon tour", ou expiration du
+chrono côté serveur) ou une proposition de solution la font avancer.
 
 Le premier joueur à soumettre une solution complète et correcte gagne
 immédiatement. Une proposition erronée n'élimine pas son auteur tout de
@@ -65,17 +70,15 @@ class FouilleGame:
         self._turn_index += 1
 
     def ask_ray(self, player: str, entry_label: str) -> RayResult:
+        # Ne fait plus avancer le tour (voir docstring du module) :
+        # plusieurs questions peuvent être posées pendant le même tour.
         self._require_can_play(player)
         entry = self.label_scheme.entry_for_label(entry_label)
-        result = fire_ray(self.board, entry.position, entry.direction)
-        self._advance_turn()
-        return result
+        return fire_ray(self.board, entry.position, entry.direction)
 
     def ask_peek(self, player: str, position: Position) -> str:
         self._require_can_play(player)
-        result = peek(self.board, position)
-        self._advance_turn()
-        return result
+        return peek(self.board, position)
 
     def pass_turn(self, player: str) -> None:
         """Termine volontairement le tour de `player` sans poser de

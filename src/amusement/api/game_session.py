@@ -175,14 +175,14 @@ class OrapaMineSession:
         return game
 
     def ask_ray(self, player_id: str, entry_label: str):
-        result = self._active_game.ask_ray(player_id, entry_label)
-        self._after_turn_action()
-        return result
+        # Ne touche plus au chrono (voir duel.py/fouille.py) : poser une
+        # question ne consomme plus le tour, donc ne le relance pas non
+        # plus — un tour reste une fenêtre de temps fixe, pas prolongée
+        # par chaque question posée dedans (retour utilisateur direct).
+        return self._active_game.ask_ray(player_id, entry_label)
 
     def ask_peek(self, player_id: str, position: Position) -> str:
-        result = self._active_game.ask_peek(player_id, tuple(position))
-        self._after_turn_action()
-        return result
+        return self._active_game.ask_peek(player_id, tuple(position))
 
     def submit_solution(self, player_id: str, guess_payload: list[dict]) -> None:
         guess = [piece_from_payload(p) for p in guess_payload]

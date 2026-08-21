@@ -37,8 +37,10 @@ const GEM_HEIGHT = 0.5;
 const GHOST_OPACITY = 0.55;
 const REFLECTION_OPACITY = 0.7;
 const RAY_HEIGHT = 0.32;
-// Palette reprise de la maquette Claude Design (`claude_design/orapa-board.js`).
-const ENTRY_MARKER_DEFAULT_COLOR = 0x24345f;
+// Palette reprise de la maquette Claude Design (`claude_design/orapa-board.js`),
+// bornes éclaircies (retour utilisateur direct — trop sombres/peu
+// visibles sur le plateau, "idem" que le blanc des gemmes).
+const ENTRY_MARKER_DEFAULT_COLOR = 0x3c528c;
 const ENTRY_MARKER_HOVER_COLOR = 0xf2c24b;
 const TILE_DARK = 0x0c1636;
 const TILE_LIGHT = 0x11204c;
@@ -184,11 +186,16 @@ export class BoardScene {
     this.controls.minDistance = span * 0.6;
     this.controls.maxDistance = span * 2.2;
 
-    this.scene.add(new THREE.HemisphereLight(0x8fa4d8, 0x070e26, 0.8));
-    const sun = new THREE.DirectionalLight(0xffe6b0, 1.4);
+    // Un peu plus lumineux que la maquette Claude Design d'origine
+    // (retour utilisateur direct — "le plateau est un peu sombre") :
+    // intensités relevées, et les matériaux du plateau (voir `buildGrid`/
+    // `buildBoardBody`/`buildEntryMarkers`) légèrement moins rugueux pour
+    // que ces lumières se reflètent davantage dessus.
+    this.scene.add(new THREE.HemisphereLight(0x8fa4d8, 0x070e26, 1.05));
+    const sun = new THREE.DirectionalLight(0xffe6b0, 1.65);
     sun.position.set(4, 8, 3);
     this.scene.add(sun);
-    const fill = new THREE.DirectionalLight(0x5f86e0, 0.7);
+    const fill = new THREE.DirectionalLight(0x5f86e0, 0.9);
     fill.position.set(-6, 6, -6);
     this.scene.add(fill);
 
@@ -459,7 +466,7 @@ export class BoardScene {
           color: dark ? TILE_DARK : TILE_LIGHT,
           emissive: new THREE.Color(TILE_EMISSIVE_IDLE),
           emissiveIntensity: 0.5,
-          roughness: 0.6,
+          roughness: 0.48,
           metalness: 0.3,
           flatShading: true,
         });
@@ -489,7 +496,7 @@ export class BoardScene {
     const slabHeight = 0.5;
     const slab = new THREE.Mesh(
       new THREE.BoxGeometry(width + 1.8, slabHeight, height + 1.8),
-      new THREE.MeshStandardMaterial({ color: 0x0a1230, roughness: 0.55, metalness: 0.35, flatShading: true }),
+      new THREE.MeshStandardMaterial({ color: 0x0a1230, roughness: 0.42, metalness: 0.35, flatShading: true }),
     );
     slab.position.set(0, slabTopY - slabHeight / 2, 0);
     this.scene.add(slab);
@@ -497,7 +504,7 @@ export class BoardScene {
     const baseHeight = 0.34;
     const base = new THREE.Mesh(
       new THREE.BoxGeometry(width + 2.6, baseHeight, height + 2.6),
-      new THREE.MeshStandardMaterial({ color: 0x2c3a63, roughness: 0.6, metalness: 0.25, flatShading: true }),
+      new THREE.MeshStandardMaterial({ color: 0x2c3a63, roughness: 0.46, metalness: 0.25, flatShading: true }),
     );
     base.position.set(0, slabTopY - slabHeight - baseHeight / 2, 0);
     this.scene.add(base);
@@ -511,7 +518,7 @@ export class BoardScene {
         new THREE.CylinderGeometry(0.19, 0.22, 0.14, 6),
         new THREE.MeshStandardMaterial({
           color: ENTRY_MARKER_DEFAULT_COLOR,
-          roughness: 0.45,
+          roughness: 0.35,
           metalness: 0.5,
           flatShading: true,
         }),

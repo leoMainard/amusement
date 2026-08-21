@@ -180,7 +180,11 @@ def test_duel_full_flow_over_websocket() -> None:
             peek_response = asker_ws.receive_json()
             assert peek_response["type"] == "peek_result"
             assert peek_response["result"] == "Rien"
-            asker_ws.receive_json()  # game_state (tour passé à bob)
+            # Poser une question ne passe plus le tour (retour utilisateur
+            # direct — voir duel.py) : le game_state diffusé ensuite
+            # reflète toujours le même prospecteur.
+            game_state_after_question = asker_ws.receive_json()
+            assert game_state_after_question["current_prospector"] == first_prospector
 
 
 def test_fouille_full_flow_over_websocket() -> None:
@@ -204,12 +208,16 @@ def test_fouille_full_flow_over_websocket() -> None:
             # Plateau commun, tour par tour, variante officielle : la
             # réponse est diffusée à tout le monde, pas seulement au
             # demandeur (contrairement à Duel).
+            first_turn_player = game_state["current_turn_player"]
             alice_ws.send_json({"type": "ask_peek", "position": [8, 8]})
             alice_response = alice_ws.receive_json()
             assert alice_response["type"] == "peek_result"
             bob_response = bob_ws.receive_json()
             assert bob_response["type"] == "peek_result"
-            alice_ws.receive_json()  # game_state (tour passé à bob)
+            # Poser une question ne fait plus avancer le tour (retour
+            # utilisateur direct — voir fouille.py).
+            alice_state_after = alice_ws.receive_json()
+            assert alice_state_after["current_turn_player"] == first_turn_player
             bob_ws.receive_json()  # game_state
 
 

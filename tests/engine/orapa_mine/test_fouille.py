@@ -73,7 +73,13 @@ def test_turn_based_enforces_order() -> None:
     assert game.current_turn_player() == "a"
     with pytest.raises(FouilleError):
         game.ask_peek("b", (0, 0))
+    # Poser une question ne fait plus avancer le tour (voir docstring du
+    # module) : "a" peut en poser plusieurs d'affilée.
     game.ask_peek("a", (0, 0))
+    assert game.current_turn_player() == "a"
+    game.ask_ray("a", "1")
+    assert game.current_turn_player() == "a"
+    game.pass_turn("a")
     assert game.current_turn_player() == "b"
 
 

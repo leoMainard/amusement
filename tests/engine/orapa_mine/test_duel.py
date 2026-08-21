@@ -21,10 +21,23 @@ def make_game(starting_player: str = "alice") -> DuelGame:
     )
 
 
-def test_turns_alternate_after_a_question() -> None:
+def test_asking_a_question_does_not_pass_the_turn() -> None:
+    # Un tour est une fenêtre de temps, pas une action : poser une
+    # question ne le consomme plus (retour utilisateur direct — "je
+    # peux avoir besoin de temps pour réfléchir, positionner mes
+    # pièces"). Seul `pass_turn` (bouton/expiration du chrono) le fait.
     game = make_game()
     assert game.current_prospector == "alice"
     game.ask_peek("alice", (0, 0))
+    assert game.current_prospector == "alice"
+    game.ask_ray("alice", "1")
+    assert game.current_prospector == "alice"  # plusieurs questions d'affilée
+
+
+def test_pass_turn_alternates_turns() -> None:
+    game = make_game()
+    assert game.current_prospector == "alice"
+    game.pass_turn("alice")
     assert game.current_prospector == "bob"
 
 
@@ -45,7 +58,7 @@ def test_wrong_guess_loses_immediately() -> None:
 
 def test_non_starting_player_correct_guess_wins_immediately() -> None:
     game = make_game(starting_player="alice")
-    game.ask_peek("alice", (0, 0))  # passe la main à bob
+    game.pass_turn("alice")  # passe la main à bob
     correct_guess = game.boards["alice"].pieces()
     game.submit_solution("bob", correct_guess)
     assert game.finished
@@ -79,10 +92,21 @@ def test_opponent_correct_on_final_turn_is_a_draw() -> None:
     assert game.winner is None
 
 
+def test_opponent_asking_during_final_turn_does_not_confirm_win_yet() -> None:
+    # Poser une question ne consomme plus le tour (voir docstring du
+    # module) : bob peut interroger le plateau pendant son dernier tour
+    # sans le perdre pour autant — seule sa fin (pass_turn) tranche.
+    game = make_game(starting_player="alice")
+    game.submit_solution("alice", game.boards["bob"].pieces())
+    game.ask_peek("bob", (0, 0))
+    assert not game.finished
+    assert game.current_prospector == "bob"
+
+
 def test_opponent_skipping_final_turn_confirms_starting_player_win() -> None:
     game = make_game(starting_player="alice")
     game.submit_solution("alice", game.boards["bob"].pieces())
-    game.ask_peek("bob", (0, 0))  # bob n'utilise pas son tour pour proposer
+    game.pass_turn("bob")  # bob termine son tour sans proposer
     assert game.finished
     assert game.winner == "alice"
 
@@ -90,6 +114,7 @@ def test_opponent_skipping_final_turn_confirms_starting_player_win() -> None:
 def test_replay_does_not_consume_a_turn() -> None:
     game = make_game()
     game.ask_peek("alice", (0, 0))
+    game.pass_turn("alice")
     assert game.current_prospector == "bob"
     result = game.replay(0)
     assert result == "Rien"
