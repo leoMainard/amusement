@@ -155,7 +155,12 @@ export class BoardScene {
   private pointer = new THREE.Vector2();
   private resizeObserver: ResizeObserver;
   private animationHandle = 0;
-  private clock = new THREE.Clock();
+  // `THREE.Timer` plutôt que l'ancien `THREE.Clock` (déprécié depuis
+  // three.js — avertissement console à chaque scène montée, retour
+  // utilisateur direct : "il y'a toujours des warnings"). Contrairement à
+  // `Clock`, `Timer` exige un `update()` explicite par frame avant de lire
+  // `getDelta()`/`getElapsed()` (voir `tick`).
+  private timer = new THREE.Timer();
   // Position à l'appui du bouton, pour distinguer un vrai clic d'un
   // relâchement après avoir fait tourner la vue à la souris. Le DOM
   // déclenche quand même un "click" natif tant que l'appui et le
@@ -433,6 +438,7 @@ export class BoardScene {
 
   dispose(): void {
     cancelAnimationFrame(this.animationHandle);
+    this.timer.dispose();
     this.resizeObserver.disconnect();
     this.renderer.domElement.removeEventListener("pointerdown", this.handlePointerDown);
     this.renderer.domElement.removeEventListener("click", this.handleClick);
@@ -757,7 +763,8 @@ export class BoardScene {
   }
 
   private tick = (): void => {
-    const dt = Math.min(this.clock.getDelta(), 0.05);
+    this.timer.update();
+    const dt = Math.min(this.timer.getDelta(), 0.05);
     this.controls.update();
 
     for (const tile of this.tiles) {
@@ -778,7 +785,7 @@ export class BoardScene {
     }
 
     if (this.ghostMesh) {
-      this.ghostMesh.position.y = Math.sin(this.clock.elapsedTime * 3) * 0.04;
+      this.ghostMesh.position.y = Math.sin(this.timer.getElapsed() * 3) * 0.04;
     }
 
     if (this.rayDot && this.rayCurve) {

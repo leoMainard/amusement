@@ -232,7 +232,6 @@ def test_asking_a_question_does_not_reset_the_turn_timer() -> None:
     session.turn_deadline = time.time() + 1  # simule un tour presque écoulé
     almost_expired = session.turn_deadline
     session.ask_peek(alice.id, (0, 0))
-    session.ask_ray(alice.id, "1")
     assert session.turn_deadline == almost_expired
 
 

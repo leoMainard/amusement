@@ -5,10 +5,15 @@ tous, exploré tour par tour — reprend la variante 3+ joueurs officielle
 du livret. Jouable seul (un seul joueur : c'est alors toujours son
 tour) tout comme à plusieurs. Comme en Duel, un « tour » est une fenêtre
 de temps (voir `amusement.api.game_session.DEFAULT_TURN_DURATION_SECONDS`),
-pas une action unique : `ask_ray`/`ask_peek` ne la font plus avancer
-(retour utilisateur direct — poser une question ne doit pas coûter son
-tour) ; seule `pass_turn` (bouton "Terminer mon tour", ou expiration du
-chrono côté serveur) ou une proposition de solution la font avancer.
+mais reste limité à UNE SEULE question — `ask_ray` OU `ask_peek`, pas
+les deux (retour utilisateur direct : "sur un tour, il est possible de
+tirer un seul rayon OU d'interroger une seule case. C'est la même chose
+pour le mode fouille"). Poser cette question ne fait pas avancer le
+tour lui-même (le temps restant sert à réfléchir, pas à enchaîner
+d'autres questions, déjà interdites) ; seule `pass_turn` (bouton
+"Terminer mon tour", ou expiration du chrono côté serveur) ou une
+proposition de solution le font avancer — ce qui réarme aussi le droit
+à une nouvelle question pour le tour suivant.
 
 Le premier joueur à soumettre une solution complète et correcte gagne
 immédiatement. Une proposition erronée n'élimine pas son auteur tout de
@@ -44,6 +49,9 @@ class FouilleGame:
     _wrong_attempts: dict[str, int] = field(init=False)
     eliminated: set[str] = field(default_factory=set, init=False)
     _turn_index: int = field(default=0, init=False)
+    # Une seule question par tour (voir docstring du module) — remis à
+    # `False` à chaque vrai changement de tour, voir `_advance_turn`.
+    asked_this_turn: bool = field(default=False, init=False)
 
     def __post_init__(self) -> None:
         if len(self.players) < 1:
@@ -66,19 +74,30 @@ class FouilleGame:
         if player != self.current_turn_player():
             raise FouilleError(f"Ce n'est pas le tour de {player}.")
 
+    def _require_question_available(self) -> None:
+        if self.asked_this_turn:
+            raise FouilleError("Une seule question par tour : tire un rayon OU interroge une case, pas les deux.")
+
     def _advance_turn(self) -> None:
         self._turn_index += 1
+        self.asked_this_turn = False
 
     def ask_ray(self, player: str, entry_label: str) -> RayResult:
-        # Ne fait plus avancer le tour (voir docstring du module) :
-        # plusieurs questions peuvent être posées pendant le même tour.
+        # Ne fait pas avancer le tour (voir docstring du module), mais
+        # une seule question par tour reste appliquée.
         self._require_can_play(player)
+        self._require_question_available()
         entry = self.label_scheme.entry_for_label(entry_label)
-        return fire_ray(self.board, entry.position, entry.direction)
+        result = fire_ray(self.board, entry.position, entry.direction)
+        self.asked_this_turn = True
+        return result
 
     def ask_peek(self, player: str, position: Position) -> str:
         self._require_can_play(player)
-        return peek(self.board, position)
+        self._require_question_available()
+        result = peek(self.board, position)
+        self.asked_this_turn = True
+        return result
 
     def pass_turn(self, player: str) -> None:
         """Termine volontairement le tour de `player` sans poser de

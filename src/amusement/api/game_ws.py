@@ -73,6 +73,11 @@ def game_state_payload(session: OrapaMineSession) -> dict:
             # si non chronométré (voir `OrapaMineSession.turn_deadline`)
             # — le client calcule lui-même le compte à rebours affiché.
             "turn_deadline": session.turn_deadline,
+            # Une seule question par tour (voir duel.py) : le client
+            # désactive "Tirer un rayon"/"Interroger une case" une fois
+            # `True`, plutôt que de laisser l'utilisateur découvrir le
+            # refus après coup.
+            "asked_this_turn": game.asked_this_turn,
         }
 
     game = session.fouille
@@ -84,6 +89,7 @@ def game_state_payload(session: OrapaMineSession) -> dict:
         "finished": game.finished,
         "winner": game.winner,
         "turn_deadline": session.turn_deadline,
+        "asked_this_turn": game.asked_this_turn,
     }
 
 

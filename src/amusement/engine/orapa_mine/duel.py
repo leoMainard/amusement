@@ -3,12 +3,15 @@
 Chaque joueur a son propre plateau secret ; les rôles maître du jeu /
 prospecteur s'inversent à chaque tour. Un « tour » est une fenêtre de
 temps (voir `amusement.api.game_session.DEFAULT_TURN_DURATION_SECONDS`),
-pas une action unique : `ask_ray`/`ask_peek` peuvent être appelées
-plusieurs fois de suite par le même prospecteur (retour utilisateur
-direct — il peut avoir besoin de réfléchir entre deux questions) ; seule
+mais reste limité à UNE SEULE question — `ask_ray` OU `ask_peek`, pas
+les deux, pas deux fois la même (retour utilisateur direct : "sur un
+tour, il est possible de tirer un seul rayon OU d'interroger une seule
+case"). Le temps restant après cette question sert à réfléchir/
+positionner ses repères, pas à enchaîner d'autres questions ; seule
 `pass_turn` fait effectivement passer la main (bouton "Terminer mon
-tour" côté client, ou expiration du chrono côté serveur). Règles de fin
-de partie reprises du livret :
+tour" côté client, ou expiration du chrono côté serveur), ce qui
+réarme aussi le droit à une nouvelle question pour le tour suivant.
+Règles de fin de partie reprises du livret :
 
 - une proposition erronée fait perdre immédiatement son auteur ;
 - une proposition correcte du joueur qui N'A PAS débuté la partie le
@@ -64,6 +67,10 @@ class DuelGame:
     winner: str | None = field(default=None, init=False)
     draw: bool = field(default=False, init=False)
     log: list[LogEntry] = field(default_factory=list, init=False)
+    # Une seule question par tour (voir docstring du module) — remis à
+    # `False` à chaque vrai changement de tour (voir `_consume_turn` et
+    # la branche correspondante de `submit_solution`).
+    asked_this_turn: bool = field(default=False, init=False)
     _awaiting_final_guess_from: str | None = field(default=None, init=False)
 
     def __post_init__(self) -> None:
@@ -83,24 +90,33 @@ class DuelGame:
         if player != self.current_prospector:
             raise DuelError(f"Ce n'est pas le tour de {player}.")
 
+    def _require_question_available(self) -> None:
+        if self.asked_this_turn:
+            raise DuelError("Une seule question par tour : tire un rayon OU interroge une case, pas les deux.")
+
     def ask_ray(self, player: str, entry_label: str) -> RayResult:
-        """Tire un rayon sur le plateau adverse. Ne consomme PAS le tour
-        (voir docstring du module) : le prospecteur peut tirer plusieurs
-        rayons/interroger plusieurs cases de suite pendant le même tour."""
+        """Tire un rayon sur le plateau adverse — une seule question par
+        tour (voir docstring du module), ne consomme PAS le tour lui-même
+        (le temps restant sert à réfléchir, pas à enchaîner d'autres
+        questions, déjà interdites)."""
         self._require_current_prospector(player)
+        self._require_question_available()
         opponent_board = self.boards[self._opponent(player)]
         entry = self.label_scheme.entry_for_label(entry_label)
         result = fire_ray(opponent_board, entry.position, entry.direction)
         self.log.append(LogEntry(player, "ray", entry_label, result))
+        self.asked_this_turn = True
         return result
 
     def ask_peek(self, player: str, position: Position) -> str:
-        """Demande « qu'y a-t-il en [position] ? ». Ne consomme pas le
-        tour non plus (même raison que `ask_ray`)."""
+        """Demande « qu'y a-t-il en [position] ? » — même limite d'une
+        question par tour, même raison que `ask_ray`."""
         self._require_current_prospector(player)
+        self._require_question_available()
         opponent_board = self.boards[self._opponent(player)]
         result = peek(opponent_board, position)
         self.log.append(LogEntry(player, "peek", position, result))
+        self.asked_this_turn = True
         return result
 
     def replay(self, index: int) -> RayResult | str:
@@ -128,6 +144,7 @@ class DuelGame:
             self.winner = self._opponent(player)
             return
         self.current_prospector = self._opponent(self.current_prospector)
+        self.asked_this_turn = False
 
     def submit_solution(self, player: str, guess: list[Piece]) -> None:
         """Utilise le tour de prospecteur de `player` pour soumettre une
@@ -158,3 +175,4 @@ class DuelGame:
         # encore un tour pour proposer à son tour.
         self.current_prospector = opponent
         self._awaiting_final_guess_from = opponent
+        self.asked_this_turn = False

@@ -73,12 +73,12 @@ def test_turn_based_enforces_order() -> None:
     assert game.current_turn_player() == "a"
     with pytest.raises(FouilleError):
         game.ask_peek("b", (0, 0))
-    # Poser une question ne fait plus avancer le tour (voir docstring du
-    # module) : "a" peut en poser plusieurs d'affilée.
+    # Poser une question ne fait pas avancer le tour (voir docstring du
+    # module), mais une seule question par tour reste appliquée.
     game.ask_peek("a", (0, 0))
     assert game.current_turn_player() == "a"
-    game.ask_ray("a", "1")
-    assert game.current_turn_player() == "a"
+    with pytest.raises(FouilleError):
+        game.ask_ray("a", "1")
     game.pass_turn("a")
     assert game.current_turn_player() == "b"
 
@@ -106,8 +106,11 @@ def test_solo_player_always_has_the_turn() -> None:
     assert game.current_turn_player() == "solo"
     game.ask_peek("solo", (0, 0))
     assert game.current_turn_player() == "solo"  # toujours son tour
-    game.ask_ray("solo", "1")
+    with pytest.raises(FouilleError):
+        game.ask_ray("solo", "1")  # une seule question par tour
+    game.pass_turn("solo")  # termine le tour : réarme le droit à une question
     assert game.current_turn_player() == "solo"
+    game.ask_ray("solo", "1")  # ne lève plus
 
 
 def test_at_least_one_player_required() -> None:
@@ -121,6 +124,19 @@ def test_pass_turn_hands_off_without_a_question() -> None:
     game = FouilleGame(board=board, players=("a", "b"))
     game.pass_turn("a")
     assert game.current_turn_player() == "b"
+
+
+def test_only_one_question_per_turn() -> None:
+    # "C'est la même chose pour le mode fouille" (retour utilisateur
+    # direct) : même limite qu'en Duel.
+    board = make_board()
+    game = FouilleGame(board=board, players=("a", "b"))
+    game.ask_ray("a", "1")
+    with pytest.raises(FouilleError):
+        game.ask_peek("a", (0, 0))
+    game.pass_turn("a")
+    game.pass_turn("b")
+    game.ask_ray("a", "1")  # ne lève plus, nouveau tour
 
 
 def test_pass_turn_out_of_turn_raises() -> None:

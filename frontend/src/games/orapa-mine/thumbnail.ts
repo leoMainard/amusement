@@ -4,24 +4,29 @@
  * anciennes formes géométriques génériques (triangles/parallélogramme
  * décoratifs, sans rapport avec les vraies pièces). Même contenu dans
  * les deux contextes ; seul le style (taille, dégradé de fond) change
- * selon le conteneur — voir style.css. */
-
+ * selon le conteneur — voir style.css.
+ *
+ * Tailles volontairement inégales et positions à cheval les unes sur
+ * les autres (voir `.orapa-thumb-piece` dans style.css, qui gère le
+ * chevauchement/la rotation de base et l'animation au survol —
+ * différente pour chaque pièce) : retour utilisateur direct, plutôt
+ * qu'une rangée uniforme de gemmes identiques en taille. */
 import { pieceIconSvg } from "./piece-icon";
 import { Color, GemKind, PieceShape } from "./types";
 
 // 4 des 5 gemmes de base (voir `types.ts:BASE_PIECE_PALETTE`) : une de
 // chaque couleur plutôt que les 5 exactes (qui auraient inclus deux
 // blancs) — juste une vignette illustrative, pas la vraie composition
-// du jeu.
-const THUMBNAIL_PIECES: ReadonlyArray<{ shape: PieceShape; color: Color }> = [
-  { shape: PieceShape.RHOMBUS, color: Color.WHITE },
-  { shape: PieceShape.LARGE_TRIANGLE, color: Color.BLUE },
-  { shape: PieceShape.PARALLELOGRAM, color: Color.RED },
-  { shape: PieceShape.MEDIUM_TRIANGLE, color: Color.YELLOW },
+// du jeu. `scale` multiplie la taille de base passée à `orapaMineThumbnailHtml`.
+const THUMBNAIL_PIECES: ReadonlyArray<{ shape: PieceShape; color: Color; scale: number }> = [
+  { shape: PieceShape.RHOMBUS, color: Color.WHITE, scale: 0.85 },
+  { shape: PieceShape.LARGE_TRIANGLE, color: Color.BLUE, scale: 1.3 },
+  { shape: PieceShape.PARALLELOGRAM, color: Color.RED, scale: 0.95 },
+  { shape: PieceShape.MEDIUM_TRIANGLE, color: Color.YELLOW, scale: 1.1 },
 ];
 
 export function orapaMineThumbnailHtml(size: number = 60): string {
   return THUMBNAIL_PIECES.map(
-    (p) => `<span class="orapa-thumb-piece">${pieceIconSvg(p.shape, p.color, size, GemKind.NORMAL)}</span>`,
+    (p) => `<span class="orapa-thumb-piece">${pieceIconSvg(p.shape, p.color, Math.round(size * p.scale), GemKind.NORMAL)}</span>`,
   ).join("");
 }

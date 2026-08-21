@@ -185,6 +185,14 @@ def test_duel_full_flow_over_websocket() -> None:
             # reflète toujours le même prospecteur.
             game_state_after_question = asker_ws.receive_json()
             assert game_state_after_question["current_prospector"] == first_prospector
+            assert game_state_after_question["asked_this_turn"] is True
+
+            # Une deuxième question pendant le même tour est refusée (retour
+            # utilisateur direct : "il était possible de tirer plusieurs
+            # rayons... sur un tour, un seul rayon OU une seule case").
+            asker_ws.send_json({"type": "ask_ray", "entry_label": "1"})
+            error = asker_ws.receive_json()
+            assert error["type"] == "error"
 
 
 def test_fouille_full_flow_over_websocket() -> None:
@@ -218,7 +226,14 @@ def test_fouille_full_flow_over_websocket() -> None:
             # utilisateur direct — voir fouille.py).
             alice_state_after = alice_ws.receive_json()
             assert alice_state_after["current_turn_player"] == first_turn_player
+            assert alice_state_after["asked_this_turn"] is True
             bob_ws.receive_json()  # game_state
+
+            # Une deuxième question pendant le même tour est refusée (même
+            # règle qu'en Duel).
+            alice_ws.send_json({"type": "ask_ray", "entry_label": "1"})
+            error = alice_ws.receive_json()
+            assert error["type"] == "error"
 
 
 def test_fouille_solo_full_flow_over_websocket() -> None:

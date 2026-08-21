@@ -483,11 +483,12 @@ body:has(#app.om-shell) {
   background: var(--am-coral-dark);
 }
 
-/* Vignette : dégradé bleu nuit (bas) -> bleu plus clair (haut) avec les
-   vraies gemmes du jeu dessus (voir `orapa-mine/thumbnail.ts`), retour
-   utilisateur direct — remplace l'ancien bloc de formes géométriques
-   génériques. Même dégradé que `.om-shell__info-card-icon` (fiche du
-   jeu) : une seule vignette partagée entre accueil et fiche. */
+/* Vignette : le fond n'est plus un bloc bleu nuit codé en dur mais un
+   dégradé crème repris du fond de la page elle-même (retour utilisateur
+   direct — "le background sera identique à toute la page, toujours en
+   dégradé") : la vignette se fond dans l'accueil plutôt que de lire
+   comme une boîte à part. `.om-shell__info-card-icon` (fiche du jeu, ci-
+   dessous) fait la même chose avec le dégradé bleu nuit de SA page. */
 .game-card__icon {
   position: relative;
   flex: 0 0 240px;
@@ -495,13 +496,13 @@ body:has(#app.om-shell) {
   width: 240px;
   height: 240px;
   border-radius: 22px;
-  background: linear-gradient(to top, #0a1230 0%, #2f5cad 100%);
+  background: linear-gradient(165deg, var(--am-bg) 0%, #ede0c4 100%);
   overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-wrap: wrap;
-  gap: 18px;
+  gap: 0;
 }
 
 @media (max-width: 640px) {
@@ -510,35 +511,71 @@ body:has(#app.om-shell) {
   }
 }
 
-/* Gemmes de la vignette (voir `orapa-mine/thumbnail.ts`) : une petite
-   animation au survol du bloc entier (retour utilisateur direct), en
-   cascade plutôt que toutes en même temps — chaque gemme "saute" un
-   peu après la précédente. */
+/* Gemmes de la vignette (voir `orapa-mine/thumbnail.ts`) : tailles
+   inégales (voir le fichier), légèrement pivotées et rapprochées en
+   marges négatives pour se chevaucher plutôt qu'alignées en rangée
+   régulière — comme un petit tas de gemmes (retour utilisateur direct).
+   Chaque pièce a sa PROPRE animation au survol (nth-child ci-dessous) :
+   certaines tournent, d'autres se lèvent, pas le même mouvement partout
+   (retour utilisateur direct — "ne pas avoir la même animation au
+   survol"). */
 .orapa-thumb-piece {
   display: flex;
+  position: relative;
   filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.4));
   transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
-.game-card__icon:hover .orapa-thumb-piece,
-.om-shell__info-card-icon:hover .orapa-thumb-piece {
-  transform: translateY(-10px) scale(1.06);
-}
-
 .orapa-thumb-piece:nth-child(1) {
+  z-index: 4;
+  margin: 0 -12px 0 6px;
+  transform: rotate(-8deg);
   transition-delay: 0s;
 }
 
 .orapa-thumb-piece:nth-child(2) {
+  z-index: 3;
+  margin: 14px -16px 0 -8px;
+  transform: rotate(5deg);
   transition-delay: 0.06s;
 }
 
 .orapa-thumb-piece:nth-child(3) {
+  z-index: 2;
+  margin: -8px -10px 0 -12px;
+  transform: rotate(-4deg);
   transition-delay: 0.12s;
 }
 
 .orapa-thumb-piece:nth-child(4) {
+  z-index: 1;
+  margin: 6px 6px 0 -14px;
+  transform: rotate(9deg);
   transition-delay: 0.18s;
+}
+
+/* Losange blanc (1) : tourne sur lui-même. */
+.game-card__icon:hover .orapa-thumb-piece:nth-child(1),
+.om-shell__info-card-icon:hover .orapa-thumb-piece:nth-child(1) {
+  transform: rotate(-20deg) scale(1.05);
+}
+
+/* Triangle bleu (2) : se lève. */
+.game-card__icon:hover .orapa-thumb-piece:nth-child(2),
+.om-shell__info-card-icon:hover .orapa-thumb-piece:nth-child(2) {
+  transform: rotate(5deg) translateY(-16px);
+}
+
+/* Parallélogramme rouge (3) : tourne et grossit légèrement. */
+.game-card__icon:hover .orapa-thumb-piece:nth-child(3),
+.om-shell__info-card-icon:hover .orapa-thumb-piece:nth-child(3) {
+  transform: rotate(12deg) scale(1.12);
+}
+
+/* Triangle jaune (4) : se lève et tourne. */
+.game-card__icon:hover .orapa-thumb-piece:nth-child(4),
+.om-shell__info-card-icon:hover .orapa-thumb-piece:nth-child(4) {
+  transform: rotate(-14deg) translateY(-12px) scale(1.05);
 }
 
 .am-card--stub {
@@ -883,24 +920,32 @@ body:has(#app.om-shell) {
   text-align: center;
 }
 
-/* Dégradé bleu nuit (bas) -> bleu plus clair (haut), retour utilisateur
-   direct — les vraies gemmes du jeu (voir `orapa-mine/thumbnail.ts`) y
-   flottent, centrées, plutôt que les anciennes formes géométriques
-   décoratives. Même dégradé que `.game-card__icon` (carte d'accueil,
-   voir plus bas) — une seule vignette partagée entre les deux écrans. */
+/* Même dégradé radial que le fond de la page Orapa Mine elle-même (voir
+   `#app.om-shell` plus bas) plutôt qu'un bleu codé en dur à part (retour
+   utilisateur direct — "le background sera identique à toute la page,
+   toujours en dégradé") : la vignette se fond dans la fiche du jeu au
+   lieu de lire comme une boîte distincte. `.game-card__icon` (carte
+   d'accueil, plus haut) fait la même chose avec le dégradé crème de SA
+   page. Les vraies gemmes du jeu (voir `orapa-mine/thumbnail.ts`) y
+   flottent, chevauchées, plutôt que les anciennes formes géométriques
+   décoratives. */
 .om-shell__info-card-icon {
   position: relative;
   height: 190px;
   margin: 16px;
   border-radius: 14px;
-  background: linear-gradient(to top, #0a1230 0%, #2f5cad 100%);
+  background: var(--om-bg-deep);
+  background-image: radial-gradient(120% 45% at 50% 0%, var(--om-bg-top) 0%, var(--om-bg-mid) 45%, transparent 100%);
   overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 14px;
+  gap: 0;
 }
 
+/* Majuscules (retour utilisateur direct) — les autres actions dorées de
+   la page (ex. `.orapa-play__fire-btn`) sont déjà en capitales via
+   `letter-spacing`+contenu, "Jouer" restait la seule en bas de casse. */
 .om-shell__play-btn {
   padding: 13px;
   border-radius: 10px;
@@ -910,6 +955,7 @@ body:has(#app.om-shell) {
   font-family: "Chakra Petch", sans-serif;
   font-weight: 700;
   letter-spacing: 0.08em;
+  text-transform: uppercase;
   cursor: pointer;
 }
 
@@ -917,8 +963,15 @@ body:has(#app.om-shell) {
   background: var(--om-gold-hover);
 }
 
+/* Largeur alignée sur le bouton "Jouer" juste au-dessus (retour
+   utilisateur direct — "que les étiquettes en dessous prennent la
+   largeur du bouton jouer") : les deux partagent la colonne
+   `.om-shell__info-card` (`display: flex; flex-direction: column`), donc
+   un simple `width: 100%` suffit à les aligner sans dépendre de la
+   largeur exacte du bouton. */
 .om-shell__info-tags {
   display: flex;
+  width: 100%;
   gap: 8px;
   flex-wrap: wrap;
 }
@@ -2870,6 +2923,29 @@ kbd {
   align-self: stretch;
   width: 1px;
   background: var(--om-border-soft);
+}
+
+/* Message transitoire ("ce n'est pas ton tour", refus serveur...) —
+ * retombe à la ligne (`flex-basis: 100%`, le conteneur est déjà
+ * `flex-wrap: wrap`) sous les outils plutôt que de squeezer les
+ * colonnes existantes. Ne reste JAMAIS dans `.orapa-play__history-list`
+ * (retour utilisateur direct) : masqué par défaut, montré/masqué en
+ * fondu par `showTransientError` côté script. */
+.orapa-play__tools-status {
+  flex-basis: 100%;
+  margin: 0;
+  text-align: center;
+  font-size: 12.5px;
+  color: #ffb37a;
+  opacity: 0;
+  max-height: 0;
+  overflow: hidden;
+  transition: opacity 0.2s ease;
+}
+
+.orapa-play__tools-status.is-visible {
+  opacity: 1;
+  max-height: none;
 }
 
 @media (max-width: 900px) {

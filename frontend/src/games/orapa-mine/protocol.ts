@@ -39,6 +39,12 @@ export interface GameStatePayload {
    * tour en cours — `null`/absent si non chronométré (salon à un seul
    * joueur, ou hors partie). Voir `OrapaMineSession.turn_deadline`. */
   turn_deadline?: number | null;
+  /** Une seule question (rayon OU case) par tour — voir `duel.py`/
+   * `fouille.py`. `true` une fois la question du tour posée : le client
+   * désactive "Tirer un rayon"/"Interroger une case" jusqu'au tour
+   * suivant, plutôt que de laisser l'utilisateur découvrir le refus
+   * après coup. */
+  asked_this_turn?: boolean;
 }
 
 export interface RayResultPayload {

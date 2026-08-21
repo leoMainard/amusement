@@ -30,8 +30,23 @@ def test_asking_a_question_does_not_pass_the_turn() -> None:
     assert game.current_prospector == "alice"
     game.ask_peek("alice", (0, 0))
     assert game.current_prospector == "alice"
-    game.ask_ray("alice", "1")
-    assert game.current_prospector == "alice"  # plusieurs questions d'affilée
+
+
+def test_only_one_question_per_turn() -> None:
+    # "sur un tour, il est possible de tirer un seul rayon OU
+    # d'interroger une seule case" (retour utilisateur direct) : une
+    # deuxième question pendant le même tour est refusée, qu'elle soit
+    # du même type ou de l'autre.
+    game = make_game()
+    game.ask_peek("alice", (0, 0))
+    with pytest.raises(DuelError):
+        game.ask_ray("alice", "1")
+    with pytest.raises(DuelError):
+        game.ask_peek("alice", (1, 1))
+    # Terminer le tour réarme le droit à une question pour le suivant.
+    game.pass_turn("alice")
+    game.pass_turn("bob")
+    game.ask_peek("alice", (0, 0))  # ne lève plus
 
 
 def test_pass_turn_alternates_turns() -> None:

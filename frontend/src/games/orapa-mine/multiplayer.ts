@@ -133,6 +133,7 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
   // `renderPlaying`/le nettoyage en fin de partie, jamais recalculé côté
   // client : juste un rendu répété de `lastGameState.turn_deadline`.
   let timerInterval: ReturnType<typeof setInterval> | null = null;
+  let toolsStatusTimeout: ReturnType<typeof setTimeout> | null = null;
   const history: HistoryEntry[] = [];
   // Recalcule l'état désactivé/activé des outils de question (tirer un
   // rayon / interroger une case / proposer) selon le tour — posé par
@@ -436,6 +437,7 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
                   <button type="button" class="orapa-play__end-turn-btn">Terminer mon tour</button>
                   <p class="orapa-play__end-turn-caption">4 min par tour</p>
                 </div>
+                <p class="orapa-play__tools-status" aria-live="polite"></p>
               </div>
             </div>
 
@@ -663,13 +665,19 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
     // serveur (retour utilisateur direct — "je peux avoir besoin de
     // temps pour réfléchir, positionner mes pièces" : voir duel.py/
     // fouille.py) : seuls "Terminer mon tour" ou l'expiration du chrono
-    // le font. Ces boutons restent donc gérés par le seul tour en cours
-    // (`isMyTurn`), pas par un compteur d'actions.
+    // le font. Ces boutons restent donc gérés par le tour en cours
+    // (`isMyTurn`) — MAIS une seule question (rayon OU case) par tour
+    // reste permise (retour utilisateur direct — "sur un tour, il est
+    // possible de tirer un seul rayon OU d'interroger une seule case") :
+    // une fois `asked_this_turn` à `true`, les deux se désactivent
+    // jusqu'au tour suivant, "Terminer mon tour" restant lui toujours
+    // disponible.
     const refreshGating = () => {
       const myTurn = isMyTurn();
-      fireBtn.disabled = !myTurn;
-      entryInput.disabled = !myTurn;
-      askBtn.disabled = !myTurn || !askTarget;
+      const canAsk = myTurn && !lastGameState?.asked_this_turn;
+      fireBtn.disabled = !canAsk;
+      entryInput.disabled = !canAsk;
+      askBtn.disabled = !canAsk || !askTarget;
       proposeBtn.disabled = !myTurn;
       endTurnBtn.disabled = !myTurn;
     };
@@ -759,7 +767,11 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
       const label = entryInput.value.trim().toUpperCase();
       if (!label) return;
       if (!isMyTurn()) {
-        pushHistory("⚠️ Ce n'est pas ton tour.");
+        showTransientError("⚠️ Ce n'est pas ton tour.");
+        return;
+      }
+      if (lastGameState?.asked_this_turn) {
+        showTransientError("⚠️ Une seule question par tour : tire un rayon OU interroge une case, pas les deux.");
         return;
       }
       sendAskRay(socket!, label);
@@ -773,7 +785,11 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
     askBtn.addEventListener("click", () => {
       if (!askTarget) return;
       if (!isMyTurn()) {
-        pushHistory("⚠️ Ce n'est pas ton tour.");
+        showTransientError("⚠️ Ce n'est pas ton tour.");
+        return;
+      }
+      if (lastGameState?.asked_this_turn) {
+        showTransientError("⚠️ Une seule question par tour : tire un rayon OU interroge une case, pas les deux.");
         return;
       }
       sendAskPeek(socket!, askTarget);
@@ -859,6 +875,29 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
     renderHistory();
   }
 
+  /** Avertissements ("ce n'est pas ton tour", refus serveur...) : un
+   * message transitoire près des outils, jamais dans l'historique
+   * (retour utilisateur direct — l'historique ne doit garder que les
+   * vraies questions/réponses de la partie). Retombe sur le statut de
+   * placement ou d'accueil du salon si le panneau de jeu n'est pas
+   * affiché (erreur reçue hors phase PLAYING). */
+  function showTransientError(text: string): void {
+    const target =
+      root.querySelector<HTMLElement>(".orapa-play__tools-status") ??
+      root.querySelector<HTMLElement>(".orapa-mp__placement-status") ??
+      root.querySelector<HTMLElement>(".orapa-mp__error");
+    if (!target) {
+      console.warn(text);
+      return;
+    }
+    target.textContent = text;
+    target.classList.add("is-visible");
+    if (toolsStatusTimeout) clearTimeout(toolsStatusTimeout);
+    toolsStatusTimeout = setTimeout(() => {
+      target.classList.remove("is-visible");
+    }, 4000);
+  }
+
   function renderHistory(): void {
     // Écran "partie en cours" : panneau HISTORIQUE dédié (plus récent en
     // premier, comme la maquette).
@@ -900,10 +939,10 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
     ws.on("placement_ack", () => {
       /* la pose optimiste locale a déjà mis à jour l'affichage */
     });
-    ws.on("player_ready", (msg) => {
-      const id = msg.player_id as string;
-      const name = room?.players.find((p) => p.id === id)?.name ?? id;
-      pushHistory(`${name} a validé son placement.`);
+    ws.on("player_ready", () => {
+      // Purement informatif côté serveur (écran d'attente potentiel) —
+      // ne doit pas polluer l'historique de partie (retour utilisateur
+      // direct), donc rien à afficher ici pour l'instant.
     });
     ws.on("ray_result", (msg) => {
       const result = msg.result as RayResultPayload;
@@ -942,7 +981,9 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
       // concernée). En pratique, le moteur TS local (`preview-engine.ts`)
       // applique exactement les mêmes règles que le serveur, donc ce
       // cas ne devrait pas se produire hors bug.
-      pushHistory(`⚠️ ${msg.message as string}`);
+      // Message transitoire, pas dans l'historique (retour utilisateur
+      // direct — voir `showTransientError`).
+      showTransientError(`⚠️ ${msg.message as string}`);
     });
   }
 
