@@ -2827,6 +2827,58 @@ kbd {
   max-width: 720px;
 }
 
+/* Quand ce n'est pas ton tour, le bloc "Tirer un rayon / Interroger une
+   case / Terminer mon tour" laisse place à `.orapa-play__waiting`
+   (retour utilisateur direct) — bordure bleue plutôt que dorée, même
+   code couleur que le chrono adverse actif du bandeau du haut
+   (`.orapa-play__timer--opponent.is-active`), pour que "j'attends" se
+   distingue visuellement de "à moi de jouer" au premier coup d'œil. */
+.orapa-play__tools.is-waiting {
+  border-color: var(--om-blue);
+  background: rgba(47, 111, 208, 0.16);
+}
+
+.orapa-play__tools.is-waiting > *:not(.orapa-play__waiting) {
+  display: none;
+}
+
+.orapa-play__tools.is-waiting .orapa-play__waiting {
+  display: flex;
+}
+
+.orapa-play__waiting {
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  text-align: center;
+  max-width: 440px;
+}
+
+.orapa-play__waiting-title {
+  margin: 0;
+  font-family: "Chakra Petch", sans-serif;
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: 0.06em;
+  color: var(--om-text);
+}
+
+.orapa-play__waiting-body {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--om-text-2);
+}
+
+.orapa-play__waiting-time {
+  margin: 2px 0 0;
+  font-family: "Chakra Petch", sans-serif;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--om-blue);
+  min-height: 1em;
+}
+
 .orapa-play__tool {
   flex: 1 1 190px;
   min-width: 190px;

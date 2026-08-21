@@ -415,6 +415,11 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
               <div class="orapa-play__canvas"></div>
 
               <div class="orapa-play__tools">
+                <div class="orapa-play__waiting" hidden>
+                  <p class="orapa-play__waiting-title"></p>
+                  <p class="orapa-play__waiting-body"></p>
+                  <p class="orapa-play__waiting-time"></p>
+                </div>
                 <div class="orapa-play__tool">
                   <span class="om-eyebrow">Tirer un rayon</span>
                   <p>Clique un point d'entrée du plateau (1–18 ou A–R), ou saisis-le ici.</p>
@@ -642,17 +647,17 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
     const endTurnBtn = host.querySelector<HTMLButtonElement>(".orapa-play__end-turn-btn")!;
     const endTurnTool = host.querySelector<HTMLDivElement>(".orapa-play__tool--end-turn")!;
     const endTurnDivider = host.querySelector<HTMLDivElement>(".orapa-play__tool-divider--end-turn")!;
-    const endTurnCaption = host.querySelector<HTMLParagraphElement>(".orapa-play__end-turn-caption")!;
-    // Toujours affiché, même seul (retour utilisateur direct — un joueur
-    // Fouille solo restait bloqué après sa première question : le bouton
-    // était masqué au-delà d'un joueur, or c'est le SEUL moyen de réarmer
-    // le droit à une question par tour une fois `asked_this_turn` à
-    // `true`, voir `refreshGating`). Solo, il n'y a pas de vrai chrono à
-    // 4 min (voir `OrapaMineSession.turn_deadline`, jamais fixé pour un
-    // salon à un seul joueur) — la légende s'adapte en conséquence.
-    endTurnTool.hidden = false;
-    endTurnDivider.hidden = false;
-    endTurnCaption.textContent = (room?.players.length ?? 0) > 1 ? "4 min par tour" : "Pour poser une nouvelle question";
+    // Seulement à plusieurs (retour utilisateur direct — "en solo... je
+    // ne veux pas de bouton Terminer mon tour, c'est pénible en
+    // jouant") : en solo, le tour se termine tout seul dès qu'une
+    // question est posée (voir `fireEntry`/le gestionnaire de
+    // `askBtn`), pas besoin d'un bouton dédié pour réarmer le droit à la
+    // question suivante. Duel est toujours à 2 joueurs (jamais solo) :
+    // seul Fouille peut l'être, mais la condition reste juste "un seul
+    // joueur" — plus simple, et vraie dans les deux cas.
+    const isSolo = (room?.players.length ?? 0) <= 1;
+    endTurnTool.hidden = isSolo;
+    endTurnDivider.hidden = isSolo;
 
     // "Placer des repères" reste affiché en permanence désormais (plus
     // de bouton pour l'activer, retour utilisateur direct) : un simple
@@ -792,6 +797,12 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
       }
       sendAskRay(socket!, label);
       entryInput.value = "";
+      // Solo : le tour passe tout seul dès la question posée (retour
+      // utilisateur direct — pas de bouton "Terminer mon tour" pénible
+      // à cliquer à chaque fois). Le serveur traite les deux messages
+      // dans l'ordre reçu sur la même connexion : `asked_this_turn`
+      // passe à `true` puis le tour se termine (et le réarme) aussitôt.
+      if (isSolo) sendEndTurn(socket!);
     };
     fireBtn.addEventListener("click", fireEntry);
     entryInput.addEventListener("keydown", (event) => {
@@ -811,6 +822,8 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
       sendAskPeek(socket!, askTarget);
       askTarget = null;
       targetLabelEl.textContent = "—";
+      // Voir `fireEntry` : même règle solo, mêmes garanties d'ordre.
+      if (isSolo) sendEndTurn(socket!);
       refreshGating();
     });
 
@@ -859,7 +872,10 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
     const multiplayer = room.players.length > 1;
     if (turnEl) turnEl.hidden = multiplayer;
     host.hidden = !multiplayer;
-    if (!multiplayer) return;
+    if (!multiplayer) {
+      updateWaitingPanel(null, TURN_DURATION_SECONDS);
+      return;
+    }
 
     const state = lastGameState;
     const turnPlayerId = state ? (room.mode === "DUEL" ? state.current_prospector : state.current_turn_player) : null;
@@ -871,6 +887,38 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
       ...room.players.filter((p) => p.id !== playerId).map((p) => timerRowHtml(p.name, "opponent", turnPlayerId === p.id, remaining)),
     ];
     host.innerHTML = rows.join("");
+    updateWaitingPanel(turnPlayerId ?? null, remaining);
+  }
+
+  /** Remplace le bloc "Tirer un rayon / Interroger une case / Terminer
+   * mon tour" par un message d'attente quand ce n'est pas ton tour
+   * (retour utilisateur direct) : bordure bleue (voir `.is-waiting` dans
+   * style.css, même bleu que le chrono adverse actif du bandeau du haut)
+   * pour bien distinguer "j'attends" de "à moi de jouer" (bordure or).
+   * En Duel, où il n'y a qu'un seul adversaire déjà visible en haut à
+   * droite, le message y renvoie plutôt que de dupliquer le chrono ici ;
+   * en Fouille, où il peut y avoir plusieurs autres joueurs, le temps
+   * écoulé du joueur actif est affiché directement dans ce bloc. */
+  function updateWaitingPanel(turnPlayerId: string | null, remaining: number): void {
+    const tools = root.querySelector<HTMLDivElement>(".orapa-play__tools");
+    const titleEl = root.querySelector<HTMLParagraphElement>(".orapa-play__waiting-title");
+    const bodyEl = root.querySelector<HTMLParagraphElement>(".orapa-play__waiting-body");
+    const timeEl = root.querySelector<HTMLParagraphElement>(".orapa-play__waiting-time");
+    if (!tools || !titleEl || !bodyEl || !timeEl || !room) return;
+    const waiting = turnPlayerId !== null && turnPlayerId !== playerId;
+    tools.classList.toggle("is-waiting", waiting);
+    if (!waiting) return;
+    if (room.mode === "DUEL") {
+      titleEl.textContent = "Tour de l'adversaire";
+      bodyEl.textContent = "Il sonde votre gisement — regardez le plateau en haut à droite.";
+      timeEl.textContent = "";
+    } else {
+      const name = room.players.find((p) => p.id === turnPlayerId)?.name ?? "?";
+      const elapsed = Math.max(0, TURN_DURATION_SECONDS - remaining);
+      titleEl.textContent = `Tour de ${name}`;
+      bodyEl.textContent = "Il sonde le gisement.";
+      timeEl.textContent = `Temps écoulé : ${formatCountdown(elapsed)}`;
+    }
   }
 
   function timerRowHtml(name: string, kind: "you" | "opponent", active: boolean, remaining: number): string {
