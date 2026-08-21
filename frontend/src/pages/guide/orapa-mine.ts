@@ -19,6 +19,7 @@ import { mountOrapaMineDemo } from "../../games/orapa-mine/demo";
 import { cellLabel, labelForExit } from "../../games/orapa-mine/entry-labels";
 import { toContinuousCorner } from "../../games/orapa-mine/geometry";
 import { PlacementController } from "../../games/orapa-mine/placement-controller";
+import { mountHelpDialog } from "../../games/orapa-mine/help-panel";
 import { fireRayPreview, peek, PreviewBoard, type RayResult } from "../../games/orapa-mine/preview-engine";
 import { BASE_PIECE_PALETTE, Color, DEFAULT_DIMENSIONS, GemKind, type Piece, PieceShape } from "../../games/orapa-mine/types";
 
@@ -125,7 +126,7 @@ const STEPS: StepDef[] = [
       <p>Clique n'importe quelle borne du pourtour pour tirer un rayon librement.
       Active « ❓ Interroger une case » puis clique une case du plateau pour demander
       directement ce qu'elle contient (chaque case a un nom du type « E5 » — une lettre
-      pour la colonne, un chiffre pour la ligne). Les deux questions coûtent un tour en
+      pour la ligne, un chiffre pour la colonne). Les deux questions coûtent un tour en
       vraie partie : à toi de choisir la plus utile.</p>
     `,
     kind: "question",
@@ -186,6 +187,7 @@ export function mountOrapaMineGuide(root: HTMLElement): () => void {
           <button type="button" class="guide__prev" ${isFirst ? "disabled" : ""}>← Précédent</button>
           <span class="guide__progress">${stepIndex + 1} / ${STEPS.length}</span>
           <button type="button" class="guide__next" ${isLast ? "disabled" : ""}>Suivant →</button>
+          <button type="button" class="om-help-btn guide__help-btn">❔ Aide</button>
         </div>
         <div class="guide__heading">
           <span class="guide__badge"><span>${stepIndex + 1}</span></span>
@@ -206,6 +208,8 @@ export function mountOrapaMineGuide(root: HTMLElement): () => void {
       teardownStepResources();
       render();
     });
+    const helpDialog = mountHelpDialog(root);
+    root.querySelector<HTMLButtonElement>(".guide__help-btn")!.addEventListener("click", () => helpDialog.open());
 
     const stage = root.querySelector<HTMLDivElement>(".guide__stage")!;
     switch (step.kind) {
@@ -309,8 +313,8 @@ export function mountOrapaMineGuide(root: HTMLElement): () => void {
         </div>
         <div class="orapa-place__preview-box"></div>
         <div class="orapa-demo__transform">
-          <button type="button" class="orapa-demo__rotate">⟳ Pivoter 90°</button>
-          <button type="button" class="orapa-demo__mirror">⇋ Retourner</button>
+          <button type="button" class="orapa-demo__rotate">⟳ Pivoter 90° (R)</button>
+          <button type="button" class="orapa-demo__mirror">⇋ Retourner (F)</button>
         </div>
         <span class="om-eyebrow">Ta proposition</span>
         <div class="orapa-demo__palette"></div>
@@ -363,14 +367,19 @@ export function mountOrapaMineGuide(root: HTMLElement): () => void {
             used.add(idx);
           }
         }
-        resultHost.textContent =
-          matched === SOLUTION_PIECES.length
-            ? "✅ Exactement ça ! Voici le plateau réel, pour comparer :"
-            : `🟡 ${matched}/${SOLUTION_PIECES.length} gemme(s) bien placée(s). Voici le plateau réel, pour comparer :`;
-        // Illustratif seulement : en vraie partie, cette comparaison est
-        // faite côté serveur par `check_solution` (amusement.engine),
-        // jamais dans le navigateur.
-        scene!.setPieces(SOLUTION_PIECES);
+        // La révélation ne sert que pour comparer une proposition
+        // FAUSSE à la vraie disposition — si elle est déjà exacte, le
+        // plateau affiché est déjà identique, la révéler ne montrerait
+        // rien de nouveau (retour utilisateur direct).
+        if (matched === SOLUTION_PIECES.length) {
+          resultHost.textContent = "✅ Exactement ça !";
+        } else {
+          resultHost.textContent = `🟡 ${matched}/${SOLUTION_PIECES.length} gemme(s) bien placée(s). Voici le plateau réel, pour comparer :`;
+          // Illustratif seulement : en vraie partie, cette comparaison
+          // est faite côté serveur par `check_solution`
+          // (amusement.engine), jamais dans le navigateur.
+          scene!.setPieces(SOLUTION_PIECES);
+        }
       },
     });
     disposeStage = () => controller.dispose();

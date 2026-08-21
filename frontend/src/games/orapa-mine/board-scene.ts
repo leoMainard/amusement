@@ -57,9 +57,9 @@ type PieceMeshStyle = "solid" | "ghost" | "reflection";
 // (`types.ts:GEM_DISPLAY_COLOR`) pour rester cohérent.
 export const RAY_COLOR_HEX: Record<string, number> = {
   transparent: 0x9aa0a6,
-  rouge: 0xd8443c,
+  rouge: 0xe83c30,
   jaune: 0xf2c24b,
-  bleu: 0x2f6fd0,
+  bleu: 0x2f7ff0,
   blanc: 0xf4ead6,
   rose: 0xf09fb2,
   "jaune clair": 0xf8de9c,
@@ -560,13 +560,19 @@ export class BoardScene {
     // `MeshPhysicalMaterial` (pas `MeshStandardMaterial`) : le vernis
     // ("clearcoat") ajoute un second reflet net par-dessus la couleur de
     // base, comme le poli d'une vraie gemme taillée — le corps noir
-    // reste volontairement mat (aucun intérêt à briller).
+    // reste volontairement mat (aucun intérêt à briller). `metalness`
+    // réduit (les gemmes ne sont pas des métaux) et une pointe de lueur
+    // émissive de leur propre couleur : plus vif, plus visible sur le
+    // plateau sombre (retour utilisateur direct — le rendu précédent
+    // était trop terne).
     const material = new THREE.MeshPhysicalMaterial({
       color,
-      roughness: isDiamond ? 0.05 : isBlackBody ? 0.65 : 0.15,
-      metalness: isBlackBody ? 0.1 : 0.25,
+      roughness: isDiamond ? 0.05 : isBlackBody ? 0.65 : 0.12,
+      metalness: isBlackBody ? 0.1 : 0.08,
       clearcoat: isBlackBody ? 0 : isDiamond ? 0.9 : 0.65,
       clearcoatRoughness: 0.12,
+      emissive: isBlackBody ? 0x000000 : color,
+      emissiveIntensity: isBlackBody ? 0 : isDiamond ? 0.08 : 0.22,
       flatShading: true,
       transparent,
       opacity,

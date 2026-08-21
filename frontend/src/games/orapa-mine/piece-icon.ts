@@ -12,9 +12,9 @@ import { GemKind, type PieceShape } from "./types";
 // Mêmes hex que `types.ts:GEM_DISPLAY_COLOR` (source : maquette Claude
 // Design, `claude_design/orapa-board.js`).
 const FILL_BY_COLOR: Record<string, string> = {
-  RED: "#d8443c",
+  RED: "#e83c30",
   YELLOW: "#f2c24b",
-  BLUE: "#2f6fd0",
+  BLUE: "#2f7ff0",
   WHITE: "#f7f4ee",
 };
 

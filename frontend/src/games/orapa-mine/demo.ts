@@ -40,8 +40,8 @@ export function mountOrapaMineDemo(root: HTMLElement): () => void {
         </div>
         <div class="orapa-place__preview-box"></div>
         <div class="orapa-demo__transform">
-          <button type="button" class="orapa-demo__rotate">⟳ Pivoter 90°</button>
-          <button type="button" class="orapa-demo__mirror">⇋ Retourner</button>
+          <button type="button" class="orapa-demo__rotate">⟳ Pivoter 90° (R)</button>
+          <button type="button" class="orapa-demo__mirror">⇋ Retourner (F)</button>
         </div>
         <span class="om-eyebrow">Vos gemmes</span>
         <div class="orapa-demo__palette"></div>

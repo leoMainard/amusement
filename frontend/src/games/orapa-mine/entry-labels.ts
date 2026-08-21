@@ -29,10 +29,16 @@ export function labelForExit(position: Position, direction: Direction, scheme: L
 
 /** Désigne une case INTÉRIEURE (pas un point du pourtour, voir
  * `labelForExit` pour ça) par une combinaison lettre+chiffre façon
- * Bataille navale — colonne en lettre (A, B, C...), ligne en chiffre à
- * partir de 1 — plutôt que des coordonnées brutes (col, row), pas
+ * Bataille navale — plutôt que des coordonnées brutes (col, row), pas
  * lisibles pour un joueur (retour utilisateur direct). Utilisé pour
- * répondre à « qu'y a-t-il en [case] ? ». */
+ * répondre à « qu'y a-t-il en [case] ? ».
+ *
+ * ⚠️ La lettre vient de la LIGNE, le chiffre de la COLONNE — pas
+ * l'inverse : `LabelScheme` (borders.ts) assigne les lettres A-I aux
+ * lignes (bord gauche) et les chiffres 1-9 aux colonnes (bord haut).
+ * Cette fonction avait les deux inversées (un vrai bug, signalé par un
+ * retour utilisateur : cliquer une case visuellement en "E4" affichait
+ * à tort "D5" — décalage systématique dès que colonne ≠ ligne). */
 export function cellLabel([col, row]: Position): string {
-  return `${String.fromCharCode(65 + col)}${row + 1}`;
+  return `${String.fromCharCode(65 + row)}${col + 1}`;
 }

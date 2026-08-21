@@ -28,6 +28,7 @@ import { colorBadgeHtml, hexColor } from "./color-swatch";
 import { cellLabel, labelForExit } from "./entry-labels";
 import { PlacementController } from "./placement-controller";
 import { ReflectionController, type ReflectionPaletteEntry } from "./reflection-controller";
+import { mountHelpDialog } from "./help-panel";
 import {
   type GameStatePayload,
   type RayResultPayload,
@@ -119,18 +120,26 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
 
     function paint(): void {
       host.innerHTML = `
+        <div class="orapa-mp__setup-heading">
+          <span class="orapa-mp__setup-icon" aria-hidden="true">
+            <span class="orapa-mp__setup-icon-shape orapa-mp__setup-icon-shape--tri"></span>
+            <span class="orapa-mp__setup-icon-shape orapa-mp__setup-icon-shape--para"></span>
+          </span>
+          <h1>Créer une partie</h1>
+        </div>
         <div class="orapa-mp__mode-cards">
           ${modeCardHtml("DUEL", selectedMode)}
           ${modeCardHtml("FOUILLE", selectedMode)}
         </div>
         <div class="orapa-mp__setup">
           <section class="orapa-mp__panel">
-            <h3>Créer une partie</h3>
+            <h3>Ta partie</h3>
             <label>Ton nom <input type="text" class="orapa-mp__create-name" value="Joueur 1" /></label>
-            <label class="orapa-mp__max-players" ${selectedMode === "DUEL" ? "hidden" : ""}>Nombre de joueurs
-              <input type="number" class="orapa-mp__max-players-input" min="1" max="8" value="1" />
+            <label class="orapa-mp__max-players" ${selectedMode === "DUEL" ? "hidden" : ""}>
+              Nombre de joueurs <span class="orapa-mp__max-players-value">1</span>
+              <input type="range" class="orapa-mp__max-players-input" min="1" max="5" value="1" />
             </label>
-            <p class="orapa-mp__max-players-hint" ${selectedMode === "DUEL" ? "hidden" : ""}>Mets 1 pour jouer seul.</p>
+            <p class="orapa-mp__max-players-hint" ${selectedMode === "DUEL" ? "hidden" : ""}>1 joueur : tu joues seul.</p>
             <label class="orapa-mp__extensions">
               <input type="checkbox" class="orapa-mp__extensions-input" />
               Autoriser les pièces d'extension (Diamant, Corps noir)
@@ -160,6 +169,10 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
 
       const errorHost = host.querySelector<HTMLParagraphElement>(".orapa-mp__error")!;
       const maxPlayersInput = host.querySelector<HTMLInputElement>(".orapa-mp__max-players-input")!;
+      const maxPlayersValue = host.querySelector<HTMLSpanElement>(".orapa-mp__max-players-value")!;
+      maxPlayersInput.addEventListener("input", () => {
+        maxPlayersValue.textContent = maxPlayersInput.value;
+      });
       const extensionsInput = host.querySelector<HTMLInputElement>(".orapa-mp__extensions-input")!;
 
       host.querySelector<HTMLButtonElement>(".orapa-mp__create-btn")!.addEventListener("click", async () => {
@@ -210,8 +223,8 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
         <span class="orapa-mp__mode-pill">${MODE_NAMES[room.mode]}</span>
       </div>
       <div class="orapa-mp__lobby-panel">
-        <span class="om-eyebrow">Code de la partie</span>
-        <div class="orapa-mp__code">${room.code}</div>
+        <span class="om-eyebrow">Code de la partie — clique pour copier</span>
+        <button type="button" class="orapa-mp__code">${room.code}</button>
         <div class="orapa-mp__share">
           <input type="text" readonly class="orapa-mp__link" value="${link}" />
           <button type="button" class="orapa-mp__copy">Copier le lien</button>
@@ -236,6 +249,20 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
         copyButton.textContent = originalCopyLabel;
       }, 2000);
     });
+
+    // Le code lui-même est directement cliquable pour le copier (pas
+    // seulement le lien complet, retour utilisateur direct) : passe par
+    // le même repli `execCommand` que le lien, via `linkInput` (déjà
+    // présent dans la page) pour la sélection de secours.
+    const codeButton = host.querySelector<HTMLButtonElement>(".orapa-mp__code")!;
+    const originalCodeLabel = codeButton.textContent ?? room.code;
+    codeButton.addEventListener("click", async () => {
+      const copied = await copyToClipboard(room!.code, linkInput);
+      codeButton.textContent = copied ? "Copié !" : "Ctrl+C pour copier";
+      setTimeout(() => {
+        codeButton.textContent = originalCodeLabel;
+      }, 2000);
+    });
   }
 
   // --- Écran 3 : la partie (placement puis prospection) --------------------
@@ -251,17 +278,62 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
               <div class="orapa-play__mode">${MODE_NAMES[room.mode]}</div>
               <p class="orapa-mp__turn"></p>
             </div>
-            <div style="font-size: 12.5px; color: var(--om-text-5);">Glisse pour tourner la vue · molette pour zoomer</div>
+            <div style="display: flex; align-items: center; gap: 14px;">
+              <button type="button" class="om-help-btn orapa-play__help-btn">❔ Aide</button>
+              <div style="font-size: 12.5px; color: var(--om-text-5);">Glisse pour tourner la vue · molette pour zoomer</div>
+            </div>
           </div>
-          <div class="orapa-play__board">
-            <div class="orapa-play__canvas"></div>
-
+          <div class="orapa-play__layout">
             <div class="orapa-play__history">
               <div class="orapa-play__panel-head">
                 <span class="om-eyebrow">Historique</span>
                 <span class="orapa-play__history-count"></span>
               </div>
               <div class="orapa-play__history-list"></div>
+            </div>
+
+            <div class="orapa-play__center">
+              <div class="orapa-play__canvas"></div>
+
+              <div class="orapa-play__toggles">
+                <button type="button" class="orapa-mp__mark-toggle">✕ Marquer des cases</button>
+                <button type="button" class="orapa-mp__reflect-toggle">🧩 Placer des repères</button>
+              </div>
+              <div class="orapa-mp__reflect-panel" hidden>
+                <p class="orapa-demo__hint">
+                  Pose une gemme entière ou juste un repère (case ou demi-case colorée) comme hypothèse
+                  personnelle — visible pendant que tu poses des questions, jamais transmis à
+                  l'adversaire. Reclique une pièce posée (elle se teinte en rouge au survol) pour la
+                  retirer.
+                </p>
+                <div class="orapa-demo__palette orapa-mp__reflect-palette"></div>
+                <div class="orapa-demo__transform">
+                  <button type="button" class="orapa-demo__rotate">⟳ Pivoter (R)</button>
+                  <button type="button" class="orapa-demo__mirror">⇋ Retourner (F)</button>
+                </div>
+                <button type="button" class="orapa-mp__reflect-clear">Vider mes repères</button>
+                <p class="orapa-demo__result orapa-mp__reflect-status" aria-live="polite"></p>
+              </div>
+
+              <div class="orapa-play__tools">
+                <div class="orapa-play__tool">
+                  <span class="om-eyebrow">Tirer un rayon</span>
+                  <p>Clique un point d'entrée du plateau (1–18 ou A–R), ou saisis-le ici.</p>
+                  <div class="orapa-play__tool-row">
+                    <input type="text" class="orapa-play__entry-input" placeholder="ex. 7 ou K" maxlength="3" />
+                    <button type="button" class="orapa-play__fire-btn">Envoyer</button>
+                  </div>
+                </div>
+                <div class="orapa-play__tool-divider"></div>
+                <div class="orapa-play__tool">
+                  <span class="om-eyebrow">Interroger une case</span>
+                  <p>Clique une case du plateau : on te dit ce qu'elle contient.</p>
+                  <div class="orapa-play__tool-row">
+                    <div class="orapa-play__target-label">—</div>
+                    <button type="button" class="orapa-play__ask-btn" disabled>Demander</button>
+                  </div>
+                </div>
+              </div>
             </div>
 
             <div class="orapa-play__side orapa-play__side--ask">
@@ -280,8 +352,8 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
               <div class="orapa-place__preview"><span class="om-eyebrow">Aperçu</span></div>
               <div class="orapa-place__preview-box"></div>
               <div class="orapa-demo__transform">
-                <button type="button" class="orapa-demo__rotate">⟳ Pivoter</button>
-                <button type="button" class="orapa-demo__mirror">⇋ Retourner</button>
+                <button type="button" class="orapa-demo__rotate">⟳ Pivoter (R)</button>
+                <button type="button" class="orapa-demo__mirror">⇋ Retourner (F)</button>
               </div>
               <span class="om-eyebrow">Ta proposition</span>
               <div class="orapa-demo__palette"></div>
@@ -292,46 +364,6 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
               <button type="button" class="orapa-demo__validate" disabled>Proposer cette solution (0/5)</button>
               <button type="button" class="orapa-play__cancel-guess">← Annuler, revenir aux questions</button>
               <p class="orapa-demo__result orapa-play__guess-status" aria-live="polite"></p>
-            </div>
-
-            <div class="orapa-play__toggles">
-              <button type="button" class="orapa-mp__mark-toggle">✕ Marquer des cases</button>
-              <button type="button" class="orapa-mp__reflect-toggle">🧩 Placer des repères</button>
-            </div>
-            <div class="orapa-mp__reflect-panel" hidden>
-              <p class="orapa-demo__hint">
-                Pose une gemme entière ou juste un repère (case ou demi-case colorée) comme hypothèse
-                personnelle — visible pendant que tu poses des questions, jamais transmis à
-                l'adversaire. Reclique une pièce posée (elle se teinte en rouge au survol) pour la
-                retirer.
-              </p>
-              <div class="orapa-demo__palette orapa-mp__reflect-palette"></div>
-              <div class="orapa-demo__transform">
-                <button type="button" class="orapa-demo__rotate">⟳ Pivoter</button>
-                <button type="button" class="orapa-demo__mirror">⇋ Retourner</button>
-              </div>
-              <button type="button" class="orapa-mp__reflect-clear">Vider mes repères</button>
-              <p class="orapa-demo__result orapa-mp__reflect-status" aria-live="polite"></p>
-            </div>
-
-            <div class="orapa-play__tools">
-              <div class="orapa-play__tool">
-                <span class="om-eyebrow">Tirer un rayon</span>
-                <p>Clique un point d'entrée du plateau (1–18 ou A–R), ou saisis-le ici.</p>
-                <div class="orapa-play__tool-row">
-                  <input type="text" class="orapa-play__entry-input" placeholder="ex. 7 ou K" maxlength="3" />
-                  <button type="button" class="orapa-play__fire-btn">Envoyer</button>
-                </div>
-              </div>
-              <div class="orapa-play__tool-divider"></div>
-              <div class="orapa-play__tool">
-                <span class="om-eyebrow">Interroger une case</span>
-                <p>Clique une case du plateau : on te dit ce qu'elle contient.</p>
-                <div class="orapa-play__tool-row">
-                  <div class="orapa-play__target-label">—</div>
-                  <button type="button" class="orapa-play__ask-btn" disabled>Demander</button>
-                </div>
-              </div>
             </div>
           </div>
         </div>
@@ -346,6 +378,8 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
       renderHistory();
       renderPlaying(host);
       updateTurnIndicator();
+      const helpDialog = mountHelpDialog(host);
+      host.querySelector<HTMLButtonElement>(".orapa-play__help-btn")!.addEventListener("click", () => helpDialog.open());
       return;
     }
 
@@ -415,8 +449,8 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
       </div>
       <div class="orapa-place__preview-box"></div>
       <div class="orapa-demo__transform">
-        <button type="button" class="orapa-demo__rotate">⟳ Pivoter</button>
-        <button type="button" class="orapa-demo__mirror">⇋ Retourner</button>
+        <button type="button" class="orapa-demo__rotate">⟳ Pivoter (R)</button>
+        <button type="button" class="orapa-demo__mirror">⇋ Retourner (F)</button>
       </div>
       <span class="om-eyebrow">Vos gemmes</span>
       <div class="orapa-demo__palette"></div>

@@ -5,10 +5,9 @@
  * dans `regles/`).
  */
 
-import { BASE_PIECE_PALETTE, Color, EXTENSION_PIECE_PALETTE, PieceShape } from "../../games/orapa-mine/types";
+import { BASE_PIECE_PALETTE, EXTENSION_PIECE_PALETTE } from "../../games/orapa-mine/types";
 import { pieceIconSvg } from "../../games/orapa-mine/piece-icon";
-import { resolveRayColorName } from "../../games/orapa-mine/colors";
-import { rayColorStyle } from "../../games/orapa-mine/color-swatch";
+import { colorComboGalleryHtml } from "../../games/orapa-mine/color-combos";
 
 export function mountOrapaMineNotice(root: HTMLElement): () => void {
   const pieceGallery = BASE_PIECE_PALETTE.map(
@@ -27,7 +26,7 @@ export function mountOrapaMineNotice(root: HTMLElement): () => void {
       </li>`,
   ).join("");
 
-  const colorCombos = colorComboGallery();
+  const colorCombos = colorComboGalleryHtml();
 
   root.innerHTML = `
     <div class="notice">
@@ -157,55 +156,12 @@ export function mountOrapaMineNotice(root: HTMLElement): () => void {
   return () => {};
 }
 
-// Une silhouette représentative par couleur, pour illustrer les
-// mélanges — n'importe quelle gemme de cette couleur ferait l'affaire,
-// le rayon ne se soucie que de la couleur touchée, pas de la forme.
-const COMBO_SHAPE_BY_COLOR: Record<Color, PieceShape> = {
-  RED: PieceShape.PARALLELOGRAM,
-  YELLOW: PieceShape.MEDIUM_TRIANGLE,
-  BLUE: PieceShape.LARGE_TRIANGLE,
-  WHITE: PieceShape.RHOMBUS,
-};
-
-const ALL_COLORS: readonly Color[] = [Color.RED, Color.YELLOW, Color.BLUE, Color.WHITE];
-
-/** Toutes les combinaisons non vides des 4 couleurs (2^4 - 1 = 15),
- * regroupées par nombre de couleurs touchées — soit littéralement
- * « toutes les combinaisons » de mélange possibles au jeu. */
-function colorComboGallery(): string {
-  const combos: Color[][] = [];
-  for (let mask = 1; mask < 1 << ALL_COLORS.length; mask++) {
-    const combo = ALL_COLORS.filter((_, i) => mask & (1 << i));
-    combos.push(combo);
-  }
-  combos.sort((a, b) => a.length - b.length);
-
-  return combos.map((combo) => colorComboCard(combo)).join("");
-}
-
-function colorComboCard(combo: readonly Color[]): string {
-  const resultName = resolveRayColorName(new Set(combo));
-  const icons = combo.map((color) => pieceIconSvg(COMBO_SHAPE_BY_COLOR[color], color, 34)).join("");
-  // Les gemmes touchées sont déjà visibles via leurs icônes : pas besoin
-  // de les répéter en toutes lettres dans la pastille (qui n'a la place
-  // que pour un nom court).
-  const displayName = resultName.startsWith("mélange non documenté") ? "non documenté" : resultName;
-  return `
-    <li class="notice__combo">
-      <div class="notice__combo-top">
-        <div class="notice__combo-pieces">${icons}</div>
-        <span class="notice__combo-arrow">→</span>
-      </div>
-      <span class="notice__combo-result" style="${rayColorStyle(resultName)}">${displayName}</span>
-    </li>`;
-}
-
 // Couleurs des schémas alignées sur la palette de la maquette (voir
 // `types.ts:GEM_DISPLAY_COLOR`) : lignes de grille en crème translucide
 // (au lieu de gris clair, invisible sur le fond bleu nuit).
 const DIAGRAM_GRID = "rgba(244, 234, 214, 0.3)";
-const DIAGRAM_RED = "#d8443c";
-const DIAGRAM_BLUE = "#2f6fd0";
+const DIAGRAM_RED = "#e83c30";
+const DIAGRAM_BLUE = "#2f7ff0";
 const DIAGRAM_GOLD = "#f2c24b";
 
 function touchDiagram(cornerOnly: boolean): string {
