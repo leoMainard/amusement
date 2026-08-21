@@ -24,9 +24,12 @@
  */
 
 import { BoardScene, RAY_COLOR_HEX } from "./board-scene";
+import { LabelScheme } from "./borders";
 import { colorBadgeHtml, colorNameHtml, colorSquareHtml, hexColor } from "./color-swatch";
 import { cellLabel, labelForExit } from "./entry-labels";
+import { toContinuousCorner } from "./geometry";
 import { PlacementController } from "./placement-controller";
+import { fireRayPreview } from "./preview-engine";
 import { ReflectionController, type ReflectionPaletteEntry } from "./reflection-controller";
 import { mountHelpDialog } from "./help-panel";
 import {
@@ -123,11 +126,35 @@ interface HistoryEntry {
 export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
   let socket: RoomSocket | null = null;
   let scene: BoardScene | null = null;
+  // "VOTRE GISEMENT" (retour utilisateur direct) : un second plateau, non
+  // manipulable, propre au Duel (Fouille n'a qu'un seul plateau partagé,
+  // pas de notion de "mon" gisement séparé) — montre les pièces qu'on a
+  // soi-même posées et le dernier rayon que l'adversaire y a tiré (voir
+  // `wireSocket`, `ws.on("opponent_ray_result", ...)`).
+  let ownScene: BoardScene | null = null;
   let placementController: PlacementController | null = null;
   let reflectionController: ReflectionController | null = null;
   let playerId = "";
   let room: RoomPayload | null = null;
   let lastGameState: GameStatePayload | null = null;
+  // Repère les points d'entrée par leur libellé (ex. "R", "4") — sert à
+  // recalculer localement, côté défenseur, le tracé complet d'un rayon de
+  // l'adversaire sur `ownScene` (voir `preview-engine.fireRayPreview`) :
+  // le serveur n'envoie que l'entrée/la sortie au demandeur (pas les
+  // rebonds), mais le défenseur connaît déjà ses propres pièces, donc rien
+  // n'empêche de calculer le trajet complet localement pour lui.
+  const labelScheme = new LabelScheme(DEFAULT_DIMENSIONS);
+  // Dernier rayon de l'adversaire sur MON plateau : la ligne badge
+  // ("[carré] Rayon en X → sortie Y") reste affichée jusqu'au suivant,
+  // même une fois mon tour revenu (retour utilisateur direct). `null`
+  // avant le tout premier rayon de la partie.
+  let lastOwnBoardRayHtml: string | null = null;
+  // Phrase de statut pour "l'adversaire a déjà joué mais pas encore
+  // terminé son tour" (voir `updateOwnBoardPanel`) — recalculée à chaque
+  // `opponent_ray_result`/`opponent_peek_result`, réutilisée tant que ça
+  // reste vrai (le statut change, mais ce texte ne change plus avant la
+  // question suivante).
+  let lastOpponentActionStatus: string | null = null;
   // Ré-affiche le compte à rebours chaque seconde tant qu'on est en
   // PLAYING à plusieurs (voir `renderTimers`) — démarré/arrêté par
   // `renderPlaying`/le nettoyage en fin de partie, jamais recalculé côté
@@ -397,7 +424,7 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
               <div class="orapa-play__topbar-hint">Glisse pour tourner la vue · molette pour zoomer</div>
             </div>
           </div>
-          <div class="orapa-play__layout">
+          <div class="orapa-play__layout${room.mode === "DUEL" ? " orapa-play__layout--duel" : ""}">
             <div class="orapa-play__history">
               <div class="orapa-play__panel-head">
                 <span class="om-eyebrow">Historique</span>
@@ -446,6 +473,20 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
               </div>
             </div>
 
+            ${
+              room.mode === "DUEL"
+                ? `
+            <div class="orapa-play__own-board">
+              <div class="orapa-play__panel-head">
+                <span class="om-eyebrow">Votre gisement</span>
+              </div>
+              <div class="orapa-play__own-board-canvas"></div>
+              <p class="orapa-play__own-board-ray"></p>
+              <p class="orapa-play__own-board-status"></p>
+            </div>`
+                : ""
+            }
+
             <div class="orapa-play__side orapa-play__side--ask">
               <div class="orapa-mp__reflect-panel">
                 <div class="orapa-mp__reflect-head">
@@ -490,10 +531,29 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
       // fois la partie commencée, seulement les repères qu'on choisit
       // d'y poser).
       scene.setPieces([]);
+
+      // "Votre gisement" (Duel seulement — voir la docstring d'`ownScene`) :
+      // un second plateau, non manipulable (aucun `onCornerClick`/
+      // `onEntryClick` posé dessus), affichant les pièces qu'on a soi-même
+      // posées pendant PLACING.
+      const ownCanvasHost = host.querySelector<HTMLDivElement>(".orapa-play__own-board-canvas");
+      if (room.mode === "DUEL" && ownCanvasHost) {
+        if (!ownScene) {
+          ownScene = new BoardScene(ownCanvasHost, DEFAULT_DIMENSIONS);
+        } else {
+          ownScene.attachTo(ownCanvasHost);
+        }
+        ownScene.setPieces(placementController?.board.pieces() ?? []);
+      } else {
+        ownScene?.dispose();
+        ownScene = null;
+      }
+
       setUpNotepad(host.querySelector<HTMLTextAreaElement>(".orapa-mp__notepad")!);
       renderHistory();
       renderPlaying(host);
       updateTurnIndicator();
+      updateOwnBoardPanel();
       // Ré-affiche le compte à rebours chaque seconde (voir
       // `renderTimers`) — l'écran PLAYING peut être reconstruit plusieurs
       // fois (ex. `room_update` si un joueur se reconnecte) : on repart
@@ -855,6 +915,27 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
     }
     renderTimers();
     refreshTurnGating?.();
+    updateOwnBoardPanel();
+  }
+
+  /** Message sous "VOTRE GISEMENT" (Duel seulement, retour utilisateur
+   * direct) : 3 états selon la phase du tour. La ligne au-dessus (badge du
+   * dernier rayon adverse) est indépendante et ne change, elle, que sur
+   * un nouveau `opponent_ray_result` (voir `wireSocket`) — elle reste
+   * affichée même une fois mon tour revenu. */
+  function updateOwnBoardPanel(): void {
+    if (!room || room.mode !== "DUEL") return;
+    const rayEl = root.querySelector<HTMLParagraphElement>(".orapa-play__own-board-ray");
+    const statusEl = root.querySelector<HTMLParagraphElement>(".orapa-play__own-board-status");
+    if (!rayEl || !statusEl) return;
+    rayEl.innerHTML = lastOwnBoardRayHtml ?? "";
+    if (isMyTurn()) {
+      statusEl.textContent = "À vous. Votre gisement reste affiché ici pendant toute la partie.";
+    } else if (lastGameState?.asked_this_turn) {
+      statusEl.textContent = lastOpponentActionStatus ?? "";
+    } else {
+      statusEl.textContent = "Vos annotations sont parties. L'adversaire prépare son rayon.";
+    }
   }
 
   /** Chronos "Vous"/adversaire(s) du bandeau du haut (retour utilisateur
@@ -1037,6 +1118,38 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
       const hex = colorName ? hexColor(RAY_COLOR_HEX[colorName] ?? 0x666666) : null;
       pushHistory(`Qu'y a-t-il en ${label} ? ${colorizePeekResult(text)}`, hex ?? "var(--om-border)");
     });
+    // "VOTRE GISEMENT" (Duel seulement, retour utilisateur direct) : le
+    // joueur SONDÉ reçoit lui aussi le résultat (voir game_ws.py,
+    // `_notify_defender`) — c'est son propre plateau, il connaît déjà ses
+    // pièces, ça ne lui révèle rien. Contrairement à `ray_result`
+    // (entrée/sortie seulement, pour ne pas donner plus d'indices que le
+    // vrai jeu physique à qui POSE la question), ici le trajet complet
+    // peut être recalculé localement sans fuite d'information : ce sont
+    // MES pièces.
+    ws.on("opponent_ray_result", (msg) => {
+      const result = msg.result as RayResultPayload;
+      const label = msg.entry_label as string;
+      lastOwnBoardRayHtml = describeRay(label, result);
+      lastOpponentActionStatus = describeOpponentRayStatus(label, result);
+      if (ownScene && placementController) {
+        try {
+          const entry = labelScheme.entryForLabel(label);
+          const localResult = fireRayPreview(placementController.board, entry.position, entry.direction);
+          ownScene.animateRay(toContinuousCorner(entry.position), localResult.path, localResult.colorName);
+        } catch {
+          // Défensif : ne devrait pas arriver (même plateau que le
+          // serveur), mais un tracé manquant est un problème purement
+          // visuel — pas de raison de casser le reste de l'écran pour ça.
+        }
+      }
+      updateOwnBoardPanel();
+    });
+    ws.on("opponent_peek_result", (msg) => {
+      const position = msg.position as Position;
+      const text = msg.result as string;
+      lastOpponentActionStatus = `Il a interrogé la case ${cellLabel(position)}. Réponse transmise : ${text}`;
+      updateOwnBoardPanel();
+    });
     ws.on("error", (msg) => {
       // ⚠️ Limite connue (voir docs/plan.md) : une pose optimiste que le
       // serveur rejetterait resterait affichée localement jusqu'au
@@ -1055,6 +1168,7 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
     if (timerInterval) clearInterval(timerInterval);
     socket?.close();
     scene?.dispose();
+    ownScene?.dispose();
     placementController?.dispose();
     reflectionController?.dispose();
   };
@@ -1068,6 +1182,20 @@ function describeRay(label: string, result: RayResultPayload): string {
   if (result.absorbed) return `<strong>${label}</strong> Rayon → absorbé`;
   const exitLabel = labelForExit(result.exit!, result.exit_direction!);
   return `<strong>${label}</strong> Rayon → sortie <strong>${exitLabel}</strong> ${colorSquareHtml(result.color)}${colorNameHtml(result.color)}`;
+}
+
+// "VOTRE GISEMENT" (retour utilisateur direct) : phrase de statut pour
+// "l'adversaire a déjà tiré ce tour, mais n'a pas encore terminé son
+// tour" — ex. "Il a tiré en R. Réponse transmise : incolore, sortie I."
+// "incolore" plutôt que le "transparent" technique de `RAY_COLOR_HEX`/
+// `colors.py` (un rayon qui ne touche aucune pièce), seulement pour cette
+// phrase — `describeRay` (ci-dessus, réutilisé pour le badge) garde le
+// vocabulaire existant, déjà utilisé partout ailleurs sur le site.
+function describeOpponentRayStatus(label: string, result: RayResultPayload): string {
+  if (result.absorbed) return `Il a tiré en ${label}. Réponse transmise : absorbé.`;
+  const exitLabel = labelForExit(result.exit!, result.exit_direction!);
+  const colorWord = result.color === "transparent" ? "incolore" : result.color;
+  return `Il a tiré en ${label}. Réponse transmise : ${colorWord}, sortie ${exitLabel}.`;
 }
 
 // `peek()` (backend) répond par une phrase complète ("Une gemme rouge"),

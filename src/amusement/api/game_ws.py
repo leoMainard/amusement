@@ -140,6 +140,18 @@ async def _turn_timer_loop(
         tasks.pop(code, None)
 
 
+async def _notify_defender(code: str, room: Room, asker_id: str, payload: dict, connections: ConnectionManager) -> None:
+    """Duel seulement : le joueur SONDÉ (pas celui qui pose la question)
+    reçoit lui aussi le résultat — c'est son propre gisement, il connaît
+    déjà ses pièces, ça ne lui révèle rien qu'il ne sache pas déjà (retour
+    utilisateur direct — "VOTRE GISEMENT", un second plateau qui montre le
+    rayon de l'adversaire traverser son propre plateau). Aucun effet en
+    Fouille (déjà diffusé à tous, pas de notion de "sondé" séparée)."""
+    defender_id = next((p.id for p in room.players if p.id != asker_id), None)
+    if defender_id is not None:
+        await connections.send_to(code, defender_id, payload)
+
+
 def _ensure_timer_task(app, code: str, session: OrapaMineSession, connections: ConnectionManager) -> None:
     """Démarre la boucle de chrono du salon `code` si elle ne tourne pas
     déjà — appelé à chaque transition vers PLAYING (voir `room_socket`/
@@ -259,6 +271,7 @@ async def _handle_message(
                 await connections.broadcast(code, {**payload, "player_id": player_id})
             else:
                 await connections.send_to(code, player_id, payload)
+                await _notify_defender(code, room, player_id, {**payload, "type": "opponent_ray_result"}, connections)
             await connections.broadcast(code, {"type": "game_state", **game_state_payload(session)})
 
         elif msg_type == "ask_peek":
@@ -268,6 +281,7 @@ async def _handle_message(
                 await connections.broadcast(code, {**payload, "player_id": player_id})
             else:
                 await connections.send_to(code, player_id, payload)
+                await _notify_defender(code, room, player_id, {**payload, "type": "opponent_peek_result"}, connections)
             await connections.broadcast(code, {"type": "game_state", **game_state_payload(session)})
 
         elif msg_type == "submit_solution":

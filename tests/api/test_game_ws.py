@@ -226,6 +226,91 @@ def test_duel_full_flow_over_websocket() -> None:
             assert error["type"] == "error"
 
 
+def _reach_duel_playing(alice_ws, bob_ws) -> None:
+    """Amène un salon Duel fraîchement créé (2 joueurs déjà connectés,
+    `joined` déjà reçu par chacun) jusqu'en PLAYING — placement identique
+    des deux côtés, pose peu importe pour ces tests. Ne laisse aucun
+    message non lu derrière elle."""
+    placement = base_placement()
+    alice_ws.receive_json()  # room_update: bob a rejoint
+    alice_ws.receive_json()  # room_update: PLACING
+    bob_ws.receive_json()  # room_update: PLACING
+
+    for piece in placement:
+        alice_ws.send_json({"type": "place_piece", "piece": piece})
+        alice_ws.receive_json()
+        bob_ws.send_json({"type": "place_piece", "piece": piece})
+        bob_ws.receive_json()
+
+    alice_ws.send_json({"type": "validate_placement"})
+    alice_ws.receive_json()  # player_ready (elle-même)
+    bob_ws.send_json({"type": "validate_placement"})
+    alice_ws.receive_json()  # player_ready (bob)
+    bob_ws.receive_json()  # player_ready (bob, lui aussi)
+    alice_ws.receive_json()  # room_update PLAYING
+    alice_ws.receive_json()  # game_state
+    bob_ws.receive_json()  # room_update PLAYING
+    bob_ws.receive_json()  # game_state
+
+
+def test_duel_defender_receives_opponent_ray_result() -> None:
+    # "VOTRE GISEMENT" (retour utilisateur direct) : un second plateau,
+    # non manipulable, montre au joueur SONDÉ le rayon de l'adversaire
+    # traverser SON PROPRE plateau — c'est le sien, il connaît déjà ses
+    # pièces, ça ne lui révèle rien qu'il ne sache pas déjà. Contrairement
+    # à la réponse privée reçue par le demandeur (`ray_result`, entrée/
+    # sortie seulement), le défenseur n'a besoin que d'être notifié : son
+    # propre client recalcule localement le tracé complet à partir de ses
+    # pièces déjà connues (voir `preview-engine.ts`).
+    code = create_room(mode="duel", max_players=2)
+
+    with client.websocket_connect(f"/ws/rooms/{code}?name=Alice") as alice_ws:
+        alice_ws.receive_json()  # joined
+        with client.websocket_connect(f"/ws/rooms/{code}?name=Bob") as bob_ws:
+            bob_ws.receive_json()  # joined
+            _reach_duel_playing(alice_ws, bob_ws)
+
+            # Alice a rejoint en premier -> starting_player -> premier
+            # prospecteur (voir OrapaMineSession.start : "players[0]").
+            alice_ws.send_json({"type": "ask_ray", "entry_label": "1"})
+            ray_response = alice_ws.receive_json()
+            assert ray_response["type"] == "ray_result"
+            alice_ws.receive_json()  # game_state
+
+            # L'ordre de livraison entre deux connexions distinctes n'est
+            # pas garanti par `TestClient` (chaque connexion a son propre
+            # portail thread/boucle d'événements) : reçoit les deux
+            # messages attendus côté défenseur sans présupposer l'ordre.
+            bob_msgs = [bob_ws.receive_json(), bob_ws.receive_json()]
+            opponent_ray = next(m for m in bob_msgs if m["type"] == "opponent_ray_result")
+            assert opponent_ray["entry_label"] == "1"
+            assert opponent_ray["result"] == ray_response["result"]
+            assert any(m["type"] == "game_state" for m in bob_msgs)
+
+
+def test_duel_defender_receives_opponent_peek_result() -> None:
+    # Même principe que le rayon (voir le test précédent), pour interroger
+    # une case.
+    code = create_room(mode="duel", max_players=2)
+
+    with client.websocket_connect(f"/ws/rooms/{code}?name=Alice") as alice_ws:
+        alice_ws.receive_json()  # joined
+        with client.websocket_connect(f"/ws/rooms/{code}?name=Bob") as bob_ws:
+            bob_ws.receive_json()  # joined
+            _reach_duel_playing(alice_ws, bob_ws)
+
+            alice_ws.send_json({"type": "ask_peek", "position": [8, 8]})
+            peek_response = alice_ws.receive_json()
+            assert peek_response["type"] == "peek_result"
+            alice_ws.receive_json()  # game_state
+
+            bob_msgs = [bob_ws.receive_json(), bob_ws.receive_json()]
+            opponent_peek = next(m for m in bob_msgs if m["type"] == "opponent_peek_result")
+            assert opponent_peek["position"] == [8, 8]
+            assert opponent_peek["result"] == peek_response["result"]
+            assert any(m["type"] == "game_state" for m in bob_msgs)
+
+
 def test_fouille_full_flow_over_websocket() -> None:
     code = create_room(mode="fouille", max_players=2)
 

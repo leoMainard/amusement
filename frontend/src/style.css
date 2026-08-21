@@ -2567,6 +2567,15 @@ kbd {
   --orapa-play-row-h: min(640px, calc(100vh - 210px));
 }
 
+/* Duel seulement : une 4e colonne pour "VOTRE GISEMENT" (retour
+ * utilisateur direct) — Fouille n'a qu'un seul plateau partagé, pas de
+ * notion de "mon" gisement séparé. Colonnes légèrement plus étroites que
+ * les 3 autres (`minmax(220px, 280px)` plutôt que `300px`) pour laisser
+ * plus de place à la colonne centrale malgré la colonne en plus. */
+.orapa-play__layout--duel {
+  grid-template-columns: minmax(220px, 280px) minmax(0, 1fr) minmax(220px, 280px) minmax(220px, 280px);
+}
+
 /* Plafonnée comme les deux autres colonnes (voir `--orapa-play-row-h`
  * ci-dessus). "Marquer des cases" et "Tirer un rayon"/"Interroger une
  * case" gardent leur hauteur naturelle (`flex: none`, voir plus bas) —
@@ -2611,11 +2620,58 @@ kbd {
 }
 
 .orapa-play__history,
-.orapa-play__side {
+.orapa-play__side,
+.orapa-play__own-board {
   border-radius: 16px;
   background: var(--om-panel);
   border: 1px solid var(--om-border);
   padding: 16px;
+}
+
+/* "VOTRE GISEMENT" (retour utilisateur direct) : un second plateau, non
+ * manipulable, montrant les pièces qu'on a soi-même posées et le dernier
+ * rayon que l'adversaire y a tiré — voir `multiplayer.ts`, `ownScene`.
+ * Hauteur fixe pour le mini-plateau (pas de `flex: 1 1 auto` comme le
+ * plateau principal : il n'a pas besoin d'occuper tout l'espace restant,
+ * juste d'être assez grand pour rester lisible). */
+.orapa-play__own-board {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: var(--orapa-play-row-h);
+  overflow: hidden;
+}
+
+.orapa-play__own-board-canvas {
+  flex: none;
+  height: 170px;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.orapa-play__own-board-canvas canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* Badge du dernier rayon adverse (voir `describeRay`) : reste affiché
+ * même une fois mon tour revenu (retour utilisateur direct), donc ne
+ * dépend pas du tour en cours contrairement à `.orapa-play__own-board-status`
+ * juste en dessous. */
+.orapa-play__own-board-ray {
+  margin: 0;
+  min-height: 1.3em;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--om-text-2);
+}
+
+.orapa-play__own-board-status {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: var(--om-text-4);
 }
 
 .orapa-play__history {
@@ -3033,11 +3089,13 @@ kbd {
 }
 
 @media (max-width: 900px) {
-  .orapa-play__layout {
+  .orapa-play__layout,
+  .orapa-play__layout--duel {
     grid-template-columns: 1fr;
   }
   .orapa-play__history,
-  .orapa-play__side {
+  .orapa-play__side,
+  .orapa-play__own-board {
     max-height: none;
     overflow: visible;
   }
