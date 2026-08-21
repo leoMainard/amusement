@@ -49,9 +49,19 @@
   --om-cream-dark: #cdc4b4;
 }
 
+/* `.am-ticker`/`.orapa-play` s'étendent volontairement en `100vw` pour
+   déborder de leur colonne centrée (voir plus bas) — mais `100vw`
+   compte la barre de défilement verticale du navigateur, alors que la
+   largeur visible réelle ne la compte pas : dès qu'une page est assez
+   haute pour avoir une barre verticale, ce débordement crée à son tour
+   une fine barre HORIZONTALE sur tout le site (retour utilisateur
+   direct). `overflow-x: hidden` sur `body` neutralise ce débordement
+   d'un pixel sans jamais permettre de vrai défilement horizontal
+   voulu ailleurs (aucun contenu du site n'en a besoin). */
 body {
   margin: 0;
   min-height: 100vh;
+  overflow-x: hidden;
   background: var(--am-bg);
 }
 
@@ -1355,6 +1365,14 @@ kbd {
   letter-spacing: 0.02em;
 }
 
+/* Même bug que `.orapa-play__side` etc. (voir plus bas) : `display: flex`
+   ci-dessus l'emporte sur le `display: none` natif de `[hidden]` — le
+   slider "Nombre de joueurs" restait affiché en mode Duel malgré
+   `hidden` (retour utilisateur direct). */
+.orapa-mp__panel label[hidden] {
+  display: none;
+}
+
 .orapa-mp__panel input,
 .orapa-mp__panel select {
   padding: 10px 12px;
@@ -1628,8 +1646,27 @@ kbd {
   transition: background 0.2s ease;
 }
 
-.orapa-mp__code:hover {
+.orapa-mp__code:hover:not(:disabled) {
   background: rgba(242, 194, 75, 0.12);
+}
+
+.orapa-mp__code:disabled {
+  color: var(--om-text-5);
+  cursor: default;
+}
+
+/* Cible de secours invisible pour `copyToClipboard` (voir sa docstring
+   dans multiplayer.ts) — reste dans la mise en page (pas `display: none`)
+   pour rester focalisable/sélectionnable, juste hors champ visuel. */
+.orapa-mp__code-fallback {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  border: 0;
+  opacity: 0;
 }
 
 .orapa-mp__wait-text {
@@ -1796,25 +1833,80 @@ kbd {
 
 .orapa-mp__reflect-panel {
   margin-top: 0.5rem;
-  padding: 12px 16px;
+  padding: 10px 16px 14px;
   border-radius: 12px;
   border: 1px solid var(--om-border-soft);
   background: var(--om-panel-soft);
 }
 
+/* Le conteneur passé à `ReflectionController` (voir reflection-controller.ts)
+   n'est plus lui-même une grille : il n'accueille que l'intitulé de
+   chaque groupe et ses deux sous-grilles. */
 .orapa-mp__reflect-palette {
-  grid-template-columns: repeat(auto-fill, minmax(46px, 1fr));
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
-.orapa-mp__reflect-clear {
-  margin-top: 0.5rem;
-  padding: 9px 14px;
+.orapa-mp__reflect-group-label {
+  display: block;
+  margin-top: 6px;
+}
+
+.orapa-mp__reflect-group-label:first-child {
+  margin-top: 0;
+}
+
+/* Les 5 gemmes majeures tiennent sur une seule ligne (retour utilisateur
+   direct — les distinguer des petits repères, pas les mélanger dans une
+   même grille) ; les repères élémentaires, plus nombreux mais plus
+   petits, se resserrent dans une grille plus dense pour rester bas. */
+.orapa-mp__reflect-group--gems {
+  grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.orapa-mp__reflect-group--units {
+  grid-template-columns: repeat(auto-fill, minmax(34px, 1fr));
+  gap: 5px;
+}
+
+.orapa-demo__swatch--unit {
+  padding: 4px;
+}
+
+/* Pivoter/retourner/vider sur une même ligne (retour utilisateur direct
+   — trois lignes distinctes prenaient trop de hauteur). */
+.orapa-mp__reflect-actions {
+  margin-top: 0.6rem;
+  display: flex;
+  gap: 8px;
+}
+
+.orapa-mp__reflect-actions button {
+  padding: 9px 12px;
   border-radius: 10px;
   border: 1px solid var(--om-border);
   background: transparent;
   color: var(--om-text-1);
   cursor: pointer;
-  font-size: 13px;
+  font-family: "Chakra Petch", sans-serif;
+  font-size: 12.5px;
+}
+
+.orapa-mp__reflect-actions .orapa-demo__rotate,
+.orapa-mp__reflect-actions .orapa-demo__mirror {
+  flex: none;
+}
+
+.orapa-mp__reflect-actions .orapa-demo__rotate:hover,
+.orapa-mp__reflect-actions .orapa-demo__mirror:hover {
+  border-color: var(--om-gold);
+  color: var(--om-gold);
+}
+
+.orapa-mp__reflect-clear {
+  flex: 1;
 }
 
 .orapa-mp__reflect-clear:hover {
@@ -2333,8 +2425,14 @@ kbd {
   cursor: pointer;
 }
 
-.orapa-play__propose:hover {
+.orapa-play__propose:hover:not(:disabled) {
   background: rgba(242, 194, 75, 0.12);
+}
+
+.orapa-play__propose:disabled {
+  border-color: var(--om-border);
+  color: var(--om-text-5);
+  cursor: default;
 }
 
 .orapa-play__propose-status {
@@ -2408,6 +2506,11 @@ kbd {
   border-color: var(--om-gold);
 }
 
+.orapa-play__entry-input:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
 .orapa-play__fire-btn,
 .orapa-play__ask-btn {
   padding: 11px 16px;
@@ -2423,11 +2526,12 @@ kbd {
   white-space: nowrap;
 }
 
-.orapa-play__fire-btn:hover,
+.orapa-play__fire-btn:hover:not(:disabled),
 .orapa-play__ask-btn:hover:not(:disabled) {
   background: var(--om-gold-hover);
 }
 
+.orapa-play__fire-btn:disabled,
 .orapa-play__ask-btn:disabled {
   background: var(--om-panel-soft);
   color: var(--om-text-5);

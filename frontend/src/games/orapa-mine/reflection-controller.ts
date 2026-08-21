@@ -27,6 +27,12 @@ export interface ReflectionPaletteEntry {
   color?: Color;
   kind?: GemKind;
   label: string;
+  /** "gem" (défaut) : une des 5 gemmes majeures (ou une extension) —
+   * une hypothèse complète. "unit" : un simple repère élémentaire (case
+   * ou demi-case colorée, voir `types.ts:REFLECTION_UNIT_PALETTE`) —
+   * affiché séparément, plus petit (retour utilisateur direct : les
+   * deux se distinguaient mal dans une seule grille). */
+  variant?: "gem" | "unit";
 }
 
 export interface ReflectionControllerOptions {
@@ -51,13 +57,43 @@ export class ReflectionController {
     this.scene = options.scene;
     this.board = new PreviewBoard(this.scene.dimensions);
 
+    // Deux groupes distincts plutôt qu'une seule grille (retour
+    // utilisateur direct) : les 5 gemmes majeures (+ extensions) d'un
+    // côté, les petits repères élémentaires de l'autre — chacun dans sa
+    // propre sous-grille, avec son propre intitulé si les deux sont
+    // présents.
+    const gemEntries = options.entries.filter((e) => (e.variant ?? "gem") === "gem");
+    const unitEntries = options.entries.filter((e) => e.variant === "unit");
+    const showLabels = gemEntries.length > 0 && unitEntries.length > 0;
+
+    const gemHost = document.createElement("div");
+    gemHost.className = "orapa-demo__palette orapa-mp__reflect-group orapa-mp__reflect-group--gems";
+    const unitHost = document.createElement("div");
+    unitHost.className = "orapa-demo__palette orapa-mp__reflect-group orapa-mp__reflect-group--units";
+
+    if (showLabels) {
+      const gemLabel = document.createElement("span");
+      gemLabel.className = "om-eyebrow orapa-mp__reflect-group-label";
+      gemLabel.textContent = "Gemmes";
+      options.paletteHost.appendChild(gemLabel);
+    }
+    options.paletteHost.appendChild(gemHost);
+    if (showLabels) {
+      const unitLabel = document.createElement("span");
+      unitLabel.className = "om-eyebrow orapa-mp__reflect-group-label";
+      unitLabel.textContent = "Repères simples";
+      options.paletteHost.appendChild(unitLabel);
+    }
+    options.paletteHost.appendChild(unitHost);
+
     for (const entry of options.entries) {
       const kind = entry.kind ?? GemKind.NORMAL;
+      const isUnit = entry.variant === "unit";
       const button = document.createElement("button");
       button.type = "button";
-      button.className = "orapa-demo__swatch";
+      button.className = isUnit ? "orapa-demo__swatch orapa-demo__swatch--unit" : "orapa-demo__swatch";
       button.title = entry.label;
-      button.innerHTML = pieceIconSvg(entry.shape, entry.color, 38, kind);
+      button.innerHTML = pieceIconSvg(entry.shape, entry.color, isUnit ? 26 : 38, kind);
       button.addEventListener("click", () => {
         this.armed = {
           shape: entry.shape,
@@ -70,7 +106,7 @@ export class ReflectionController {
         this.updateSwatchSelection(button);
         this.refreshGhost();
       });
-      options.paletteHost.appendChild(button);
+      (isUnit ? unitHost : gemHost).appendChild(button);
     }
 
     options.rotateButton.addEventListener("click", () => this.rotateArmed());

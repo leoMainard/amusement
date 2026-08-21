@@ -68,7 +68,11 @@ const MODE_CARD_INFO: Record<RoomMode, { desc: string; tag: string }> = {
  * extensions si le salon les autorise, et les repères élémentaires
  * (case/demi-case colorée) — voir `reflection-controller.ts`. */
 function reflectionEntries(extensionsEnabled: boolean): ReflectionPaletteEntry[] {
-  return [...BASE_PIECE_PALETTE, ...(extensionsEnabled ? EXTENSION_PIECE_PALETTE : []), ...REFLECTION_UNIT_PALETTE];
+  return [
+    ...BASE_PIECE_PALETTE.map((e) => ({ ...e, variant: "gem" as const })),
+    ...(extensionsEnabled ? EXTENSION_PIECE_PALETTE.map((e) => ({ ...e, variant: "gem" as const })) : []),
+    ...REFLECTION_UNIT_PALETTE.map((e) => ({ ...e, variant: "unit" as const })),
+  ];
 }
 
 // Puce colorée au-dessus du nom du mode (retour utilisateur direct) —
@@ -110,6 +114,11 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
   let room: RoomPayload | null = null;
   let lastGameState: GameStatePayload | null = null;
   const history: HistoryEntry[] = [];
+  // Recalcule l'état désactivé/activé des outils de question (tirer un
+  // rayon / interroger une case / proposer) selon le tour — posé par
+  // `renderPlaying` (voir plus bas), rappelé à chaque `game_state` reçu
+  // (voir `updateTurnIndicator`). `null` en dehors de la phase PLAYING.
+  let refreshTurnGating: (() => void) | null = null;
 
   render();
 
@@ -140,9 +149,35 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
   function renderCreateJoin(host: HTMLElement): void {
     const prefillCode = new URLSearchParams(location.search).get("room") ?? "";
     let selectedMode: RoomMode = room?.mode ?? "DUEL";
+    // Le code n'attend plus le clic sur "Créer et rejoindre" pour
+    // apparaître (retour utilisateur direct) : un salon est créé en
+    // arrière-plan dès ce premier écran, et re-créé (l'ancien reste
+    // simplement inoccupé côté serveur) à chaque changement de mode/
+    // joueurs/extensions, puisque l'API n'a pas de "modifier un salon
+    // existant". "Créer et rejoindre" ne fait alors que rejoindre ce
+    // salon déjà prêt avec le nom choisi.
+    let previewCode: string | null = null;
+    let previewMaxPlayers = 1;
+    let previewExtensions = false;
+    let previewGeneration = 0;
+
+    async function refreshPreview(): Promise<void> {
+      if (room) return; // déjà réellement rejoint : plus besoin d'aperçu
+      const myGeneration = ++previewGeneration;
+      try {
+        const maxPlayers = selectedMode === "DUEL" ? 2 : previewMaxPlayers;
+        const createdRoom = await createRoom(selectedMode, maxPlayers, previewExtensions);
+        if (myGeneration !== previewGeneration) return; // une demande plus récente a déjà pris le relais
+        previewCode = createdRoom.code;
+      } catch {
+        if (myGeneration !== previewGeneration) return;
+        previewCode = null;
+      }
+      paint();
+    }
 
     function paint(): void {
-      const created = room !== null; // LOBBY : salon déjà créé, on attend les joueurs.
+      const created = room !== null; // LOBBY : salon réellement rejoint, on attend les joueurs.
       host.innerHTML = `
         <div class="orapa-mp__setup-heading">
           <h1>Créer une partie</h1>
@@ -154,11 +189,12 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
         </div>
         <div class="orapa-mp__setup">
           <section class="orapa-mp__panel">
+            <h3>Code de la partie</h3>
+            <button type="button" class="orapa-mp__code" title="Copier le code" ${created || previewCode ? "" : "disabled"}>${created ? room!.code : (previewCode ?? "···")}</button>
+            <input type="text" readonly class="orapa-mp__code-fallback" value="${created ? room!.code : (previewCode ?? "")}" />
             ${
               created && room
                 ? `
-              <h3>Code de la partie</h3>
-              <button type="button" class="orapa-mp__code" title="Copier le code">${room.code}</button>
               <div class="orapa-mp__share">
                 <input type="text" readonly class="orapa-mp__link" value="${location.origin}${location.pathname}?room=${room.code}" />
                 <button type="button" class="orapa-mp__copy">Copier le lien</button>
@@ -173,21 +209,20 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
               <button type="button" class="orapa-mp__launch-btn" disabled>Lancer · ${MODE_NAMES[room.mode]}</button>
             `
                 : `
-              <h3>Ta partie</h3>
               <label>Ton nom <input type="text" class="orapa-mp__create-name" value="Joueur 1" /></label>
               <label class="orapa-mp__max-players" ${selectedMode === "DUEL" ? "hidden" : ""}>
-                Nombre de joueurs <span class="orapa-mp__max-players-value">1</span>
-                <input type="range" class="orapa-mp__max-players-input" min="1" max="5" value="1" />
+                Nombre de joueurs <span class="orapa-mp__max-players-value">${previewMaxPlayers}</span>
+                <input type="range" class="orapa-mp__max-players-input" min="1" max="5" value="${previewMaxPlayers}" />
               </label>
               <p class="orapa-mp__max-players-hint" ${selectedMode === "DUEL" ? "hidden" : ""}>1 joueur : tu joues seul.</p>
               <label class="orapa-mp__extensions">
-                <input type="checkbox" class="orapa-mp__extensions-input" />
+                <input type="checkbox" class="orapa-mp__extensions-input" ${previewExtensions ? "checked" : ""} />
                 Autoriser les pièces d'extension (Diamant, Corps noir)
               </label>
               <p class="orapa-mp__extensions-hint">
                 Fixé pour tout le salon : les deux joueurs auront (ou non) accès à ces pièces en plus des 5 de base.
               </p>
-              <button type="button" class="orapa-mp__create-btn">Créer et rejoindre</button>
+              <button type="button" class="orapa-mp__create-btn" ${previewCode ? "" : "disabled"}>Créer et rejoindre</button>
             `
             }
           </section>
@@ -210,13 +245,34 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
       if (!created) {
         for (const card of host.querySelectorAll<HTMLButtonElement>(".orapa-mp__mode-card")) {
           card.addEventListener("click", () => {
+            if (selectedMode === card.dataset.mode) return;
             selectedMode = card.dataset.mode as RoomMode;
+            previewCode = null;
             paint();
+            refreshPreview();
           });
         }
       }
 
       const errorHost = host.querySelector<HTMLParagraphElement>(".orapa-mp__error")!;
+
+      // Le code (aperçu ou réel une fois rejoint) est toujours cliquable
+      // pour le copier — `codeFallbackInput` (invisible) sert seulement
+      // de cible de secours à `copyToClipboard` si `navigator.clipboard`
+      // est indisponible (voir sa docstring).
+      const codeButton = host.querySelector<HTMLButtonElement>(".orapa-mp__code")!;
+      const codeFallbackInput = host.querySelector<HTMLInputElement>(".orapa-mp__code-fallback")!;
+      const currentCode = created && room ? room.code : previewCode;
+      if (currentCode) {
+        const originalCodeLabel = codeButton.textContent ?? currentCode;
+        codeButton.addEventListener("click", async () => {
+          const copied = await copyToClipboard(currentCode, codeFallbackInput);
+          codeButton.textContent = copied ? "Copié !" : originalCodeLabel;
+          setTimeout(() => {
+            codeButton.textContent = originalCodeLabel;
+          }, 2000);
+        });
+      }
 
       if (created && room) {
         const link = `${location.origin}${location.pathname}?room=${room.code}`;
@@ -230,19 +286,6 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
             copyButton.textContent = originalCopyLabel;
           }, 2000);
         });
-        // Le code lui-même est directement cliquable pour le copier (pas
-        // seulement le lien complet, retour utilisateur direct) : passe
-        // par le même repli `execCommand` que le lien, via `linkInput`
-        // pour la sélection de secours.
-        const codeButton = host.querySelector<HTMLButtonElement>(".orapa-mp__code")!;
-        const originalCodeLabel = codeButton.textContent ?? room.code;
-        codeButton.addEventListener("click", async () => {
-          const copied = await copyToClipboard(room!.code, linkInput);
-          codeButton.textContent = copied ? "Copié !" : "Ctrl+C pour copier";
-          setTimeout(() => {
-            codeButton.textContent = originalCodeLabel;
-          }, 2000);
-        });
         return;
       }
 
@@ -251,13 +294,35 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
       maxPlayersInput.addEventListener("input", () => {
         maxPlayersValue.textContent = maxPlayersInput.value;
       });
+      maxPlayersInput.addEventListener("change", () => {
+        previewMaxPlayers = Number(maxPlayersInput.value) || 1;
+        previewCode = null;
+        paint();
+        refreshPreview();
+      });
       const extensionsInput = host.querySelector<HTMLInputElement>(".orapa-mp__extensions-input")!;
+      extensionsInput.addEventListener("change", () => {
+        previewExtensions = extensionsInput.checked;
+        previewCode = null;
+        paint();
+        refreshPreview();
+      });
 
       host.querySelector<HTMLButtonElement>(".orapa-mp__create-btn")!.addEventListener("click", async () => {
         errorHost.textContent = "";
         const name = host.querySelector<HTMLInputElement>(".orapa-mp__create-name")!.value.trim() || "Joueur";
-        const maxPlayers = selectedMode === "DUEL" ? 2 : Number(maxPlayersInput.value) || 1;
+        if (previewCode) {
+          try {
+            await connect(previewCode, name);
+          } catch (error) {
+            errorHost.textContent = error instanceof Error ? error.message : String(error);
+          }
+          return;
+        }
+        // Repli si l'aperçu n'a pas pu être généré (ex : coupure réseau) :
+        // on retente une création classique, en une fois.
         try {
+          const maxPlayers = selectedMode === "DUEL" ? 2 : previewMaxPlayers;
           const createdRoom = await createRoom(selectedMode, maxPlayers, extensionsInput.checked);
           await connect(createdRoom.code, name);
         } catch (error) {
@@ -282,6 +347,7 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
     }
 
     paint();
+    refreshPreview();
   }
 
   async function connect(code: string, name: string): Promise<void> {
@@ -326,18 +392,13 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
                 <button type="button" class="orapa-mp__reflect-toggle">🧩 Placer des repères</button>
               </div>
               <div class="orapa-mp__reflect-panel" hidden>
-                <p class="orapa-demo__hint">
-                  Pose une gemme entière ou juste un repère (case ou demi-case colorée) comme hypothèse
-                  personnelle — visible pendant que tu poses des questions, jamais transmis à
-                  l'adversaire. Reclique une pièce posée (elle se teinte en rouge au survol) pour la
-                  retirer.
-                </p>
+                <p class="orapa-demo__hint">Hypothèses personnelles, jamais transmises à l'adversaire — reclique un repère posé pour le retirer.</p>
                 <div class="orapa-demo__palette orapa-mp__reflect-palette"></div>
-                <div class="orapa-demo__transform">
-                  <button type="button" class="orapa-demo__rotate">⟳ Pivoter (R)</button>
-                  <button type="button" class="orapa-demo__mirror">⇋ Retourner (F)</button>
+                <div class="orapa-mp__reflect-actions">
+                  <button type="button" class="orapa-demo__rotate">⟳ (R)</button>
+                  <button type="button" class="orapa-demo__mirror">⇋ (F)</button>
+                  <button type="button" class="orapa-mp__reflect-clear">Vider mes repères</button>
                 </div>
-                <button type="button" class="orapa-mp__reflect-clear">Vider mes repères</button>
                 <p class="orapa-demo__result orapa-mp__reflect-status" aria-live="polite"></p>
               </div>
 
@@ -389,6 +450,13 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
       } else {
         scene.attachTo(canvasHost);
       }
+      // La scène est réutilisée d'une phase à l'autre (voir `attachTo`
+      // ci-dessus) : sans ce vidage, les gemmes qu'on vient de poser
+      // pendant PLACING restaient visibles pendant PLAYING (retour
+      // utilisateur direct — on ne doit plus voir ses propres gemmes une
+      // fois la partie commencée, seulement les repères qu'on choisit
+      // d'y poser).
+      scene.setPieces([]);
       setUpNotepad(host.querySelector<HTMLTextAreaElement>(".orapa-mp__notepad")!);
       renderHistory();
       renderPlaying(host);
@@ -530,6 +598,20 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
     let askSubMode: "none" | "mark" | "reflect" = "none";
     let askTarget: Position | null = null;
 
+    // Tirer un rayon / interroger une case / proposer une disposition
+    // ne sont plus seulement refusés après coup (message d'avertissement) :
+    // ils sont directement désactivés hors de son tour (retour
+    // utilisateur direct). "Marquer"/"Placer des repères" restent
+    // toujours actifs : outils personnels, jamais envoyés à l'adversaire.
+    const refreshGating = () => {
+      const myTurn = isMyTurn();
+      fireBtn.disabled = !myTurn;
+      entryInput.disabled = !myTurn;
+      askBtn.disabled = !myTurn || !askTarget;
+      proposeBtn.disabled = !myTurn;
+    };
+    refreshTurnGating = refreshGating;
+
     const setAskSubMode = (next: "none" | "mark" | "reflect") => {
       askSubMode = next;
       markToggle.classList.toggle("is-selected", next === "mark");
@@ -566,7 +648,7 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
           }
           askTarget = corner;
           targetLabelEl.textContent = cellLabel(corner);
-          askBtn.disabled = false;
+          refreshGating();
         };
       }
     };
@@ -634,10 +716,11 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
       sendAskPeek(socket!, askTarget);
       askTarget = null;
       targetLabelEl.textContent = "—";
-      askBtn.disabled = true;
+      refreshGating();
     });
 
     setAskSubMode(askSubMode);
+    refreshGating();
   }
 
   function renderFinished(phaseHost: HTMLElement): void {
@@ -666,6 +749,7 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
     } else {
       el.textContent = "";
     }
+    refreshTurnGating?.();
   }
 
   // --- Historique (panneau gauche en jeu, journal dans les autres écrans) --
