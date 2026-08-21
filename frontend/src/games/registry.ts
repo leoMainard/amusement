@@ -11,6 +11,7 @@
 
 import { mountOrapaMineDemo } from "./orapa-mine/demo";
 import { mountOrapaMineMultiplayer } from "./orapa-mine/multiplayer";
+import { orapaMineThumbnailHtml } from "./orapa-mine/thumbnail";
 import { mountOrapaMineNotice } from "../pages/notice/orapa-mine";
 import { mountOrapaMineGuide } from "../pages/guide/orapa-mine";
 
@@ -26,6 +27,17 @@ export interface GameDescriptor {
   id: string;
   title: string;
   description: string;
+  /** Étiquette courte (ex. "Déduction") affichée à côté de `players`/
+   * `duration` sur la carte d'accueil (voir `main.ts#gameCardHtml`). */
+  category: string;
+  players: string;
+  duration: string;
+  /** Contenu HTML autonome (déjà du markup, pas juste du texte) réutilisé
+   * tel quel par la carte d'accueil (`.game-card__icon`) et la fiche du
+   * jeu (`.om-shell__info-card-icon`) — chaque jeu fournit sa propre
+   * vignette (voir `orapa-mine/thumbnail.ts`), `main.ts` ne connaît
+   * toujours aucun jeu par son nom. */
+  thumbnailHtml: string;
   mountNotice: MountView;
   mountGuide: MountView;
   mountDemo: MountView;
@@ -36,7 +48,11 @@ export const GAMES: readonly GameDescriptor[] = [
   {
     id: "orapa_mine",
     title: "Orapa Mine",
-    description: "Plateau 3D, mode Duel et mode Fouille.",
+    description: "Un jeu de déduction. Envoyez des rayons dans le gisement adverse et devinez où sont cachées les cinq gemmes.",
+    category: "Déduction",
+    players: "1-5 joueurs",
+    duration: "10-30 min",
+    thumbnailHtml: orapaMineThumbnailHtml(),
     mountNotice: mountOrapaMineNotice,
     mountGuide: mountOrapaMineGuide,
     mountDemo: mountOrapaMineDemo,

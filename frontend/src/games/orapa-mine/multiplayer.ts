@@ -680,14 +680,13 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
       sendEndTurn(socket!);
     });
 
-    // Regroupé avec "Repères simples" plutôt que posé à part sous le
-    // plateau (retour utilisateur direct) — voir
-    // `ReflectionController`/`markToggleButton`, qui le repositionne
-    // lui-même dans le panneau de repères.
+    // Traité comme un repère élémentaire de plus, pas un bouton à part
+    // (retour utilisateur direct) — `ReflectionController` (via
+    // `markToggleButton`) lui donne sa classe/son icône et le place
+    // dans la grille "Repères simples" ; on ne câble ici que son
+    // comportement (bascule le mode marquage).
     const markToggle = document.createElement("button");
     markToggle.type = "button";
-    markToggle.className = "orapa-mp__mark-toggle";
-    markToggle.textContent = "✕ Marquer des cases";
     markToggle.addEventListener("click", () => {
       markMode = !markMode;
       markToggle.classList.toggle("is-selected", markMode);

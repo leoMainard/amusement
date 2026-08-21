@@ -483,10 +483,11 @@ body:has(#app.om-shell) {
   background: var(--am-coral-dark);
 }
 
-/* Bloc décoratif (formes géométriques sur fond noir, reprises de la
-   maquette) — purement illustratif, mêmes teintes que les formes
-   flottantes du hero (`--am-purple`/`--am-yellow`), pas les couleurs
-   réelles des gemmes du jeu. */
+/* Vignette : dégradé bleu nuit (bas) -> bleu plus clair (haut) avec les
+   vraies gemmes du jeu dessus (voir `orapa-mine/thumbnail.ts`), retour
+   utilisateur direct — remplace l'ancien bloc de formes géométriques
+   génériques. Même dégradé que `.om-shell__info-card-icon` (fiche du
+   jeu) : une seule vignette partagée entre accueil et fiche. */
 .game-card__icon {
   position: relative;
   flex: 0 0 240px;
@@ -494,8 +495,13 @@ body:has(#app.om-shell) {
   width: 240px;
   height: 240px;
   border-radius: 22px;
-  background: var(--am-text);
+  background: linear-gradient(to top, #0a1230 0%, #2f5cad 100%);
   overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 18px;
 }
 
 @media (max-width: 640px) {
@@ -504,36 +510,35 @@ body:has(#app.om-shell) {
   }
 }
 
-.game-card__icon-shape {
-  position: absolute;
-  display: block;
+/* Gemmes de la vignette (voir `orapa-mine/thumbnail.ts`) : une petite
+   animation au survol du bloc entier (retour utilisateur direct), en
+   cascade plutôt que toutes en même temps — chaque gemme "saute" un
+   peu après la précédente. */
+.orapa-thumb-piece {
+  display: flex;
+  filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.4));
+  transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
-.game-card__icon-shape--tri-a {
-  left: 22px;
-  bottom: 20px;
-  width: 118px;
-  height: 118px;
-  background: #f6efe2;
-  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+.game-card__icon:hover .orapa-thumb-piece,
+.om-shell__info-card-icon:hover .orapa-thumb-piece {
+  transform: translateY(-10px) scale(1.06);
 }
 
-.game-card__icon-shape--tri-b {
-  left: 98px;
-  bottom: 20px;
-  width: 104px;
-  height: 104px;
-  background: var(--am-purple);
-  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+.orapa-thumb-piece:nth-child(1) {
+  transition-delay: 0s;
 }
 
-.game-card__icon-shape--para {
-  left: 100px;
-  bottom: 16px;
-  width: 68px;
-  height: 46px;
-  background: var(--am-yellow);
-  clip-path: polygon(32% 0, 100% 0, 68% 100%, 0 100%);
+.orapa-thumb-piece:nth-child(2) {
+  transition-delay: 0.06s;
+}
+
+.orapa-thumb-piece:nth-child(3) {
+  transition-delay: 0.12s;
+}
+
+.orapa-thumb-piece:nth-child(4) {
+  transition-delay: 0.18s;
 }
 
 .am-card--stub {
@@ -849,13 +854,22 @@ body:has(#app.om-shell) {
   }
 }
 
+/* Colonne de mise en page seulement (retour utilisateur direct :
+   "bouton JOUER en dessous, pas dans le même bloc") — le fond/la
+   bordure "carte" vivent maintenant sur `.om-shell__info-thumb-card`
+   seule ; "Jouer" et les étiquettes deviennent des éléments à part,
+   espacés par ce `gap`. */
 .om-shell__info-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.om-shell__info-thumb-card {
   border-radius: 16px;
   overflow: hidden;
   border: 1px solid var(--om-border);
   background: var(--om-panel);
-  display: flex;
-  flex-direction: column;
 }
 
 .om-shell__info-card-header {
@@ -869,17 +883,25 @@ body:has(#app.om-shell) {
   text-align: center;
 }
 
+/* Dégradé bleu nuit (bas) -> bleu plus clair (haut), retour utilisateur
+   direct — les vraies gemmes du jeu (voir `orapa-mine/thumbnail.ts`) y
+   flottent, centrées, plutôt que les anciennes formes géométriques
+   décoratives. Même dégradé que `.game-card__icon` (carte d'accueil,
+   voir plus bas) — une seule vignette partagée entre les deux écrans. */
 .om-shell__info-card-icon {
   position: relative;
   height: 190px;
-  margin: 16px 16px 0;
+  margin: 16px;
   border-radius: 14px;
-  background: var(--om-bg-deep);
+  background: linear-gradient(to top, #0a1230 0%, #2f5cad 100%);
   overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
 }
 
 .om-shell__play-btn {
-  margin: 16px 16px 0;
   padding: 13px;
   border-radius: 10px;
   border: none;
@@ -899,7 +921,6 @@ body:has(#app.om-shell) {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
-  margin: 14px 16px 18px;
 }
 
 .om-shell__info-tags span {
@@ -1857,8 +1878,7 @@ kbd {
   flex-wrap: wrap;
 }
 
-.orapa-mp__peek-toggle,
-.orapa-mp__mark-toggle {
+.orapa-mp__peek-toggle {
   padding: 8px 12px;
   border-radius: 10px;
   border: 1px solid var(--om-border);
@@ -1872,13 +1892,6 @@ kbd {
   border-color: var(--om-green, #2ecc71);
   border-width: 2px;
   color: #7bbf8a;
-  font-weight: 600;
-}
-
-.orapa-mp__mark-toggle.is-selected {
-  border-color: var(--om-red);
-  border-width: 2px;
-  color: var(--om-red);
   font-weight: 600;
 }
 
@@ -1972,30 +1985,26 @@ kbd {
   gap: 5px;
 }
 
-/* En-tête du groupe "Repères simples" : le libellé, et désormais
-   "✕ Marquer des cases" à côté (retour utilisateur direct — les deux
-   sont de simples annotations personnelles, regroupées plutôt que
-   "Marquer" isolé sous le plateau ; voir `reflection-controller.ts`,
-   qui repositionne lui-même ce bouton ici). */
-.orapa-mp__reflect-unit-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.orapa-mp__reflect-unit-head .om-eyebrow {
-  margin-bottom: 0;
-}
-
-.orapa-mp__reflect-unit-head .orapa-mp__mark-toggle {
-  flex: none;
-  padding: 4px 10px;
-  font-size: 11px;
-}
-
 .orapa-demo__swatch--unit {
   padding: 4px;
+}
+
+/* "Marquer des cases" posé comme un repère élémentaire de plus, en
+   première case de la grille "Repères simples" (retour utilisateur
+   direct — plus un bouton à part) : hérite de `.orapa-demo__swatch`/
+   `--unit` (taille, fond, survol), juste la croix en plus grand pour
+   rester lisible sans icône SVG, et un rouge distinct au repos comme à
+   la sélection (mode marquage actif). */
+.orapa-mp__mark-toggle {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--om-red);
+}
+
+.orapa-demo__swatch.orapa-mp__mark-toggle.is-selected {
+  border-color: var(--om-red);
+  background: rgba(216, 68, 60, 0.16);
+  color: var(--om-red);
 }
 
 .orapa-mp__notepad-block {
@@ -2484,6 +2493,7 @@ kbd {
  * tienne exactement dans la même hauteur que l'historique/les repères,
  * quelle que soit la fenêtre. */
 .orapa-play__center {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -2493,7 +2503,9 @@ kbd {
    * voir `.orapa-play__canvas`) — ça suppose une hauteur de conteneur
    * déjà déterminée, pas seulement plafonnée (sans quoi le plateau se
    * réduisait carrément à 0px de haut : un vrai bug rencontré en
-   * testant ce correctif). */
+   * testant ce correctif). `position: relative` sert d'ancre à
+   * `.orapa-play__tools`, qui flotte maintenant par-dessus le plateau
+   * (voir sa docstring) au lieu de prendre sa propre place en dessous. */
   height: var(--orapa-play-row-h);
   overflow: hidden;
 }
@@ -2691,10 +2703,13 @@ kbd {
   display: none;
 }
 
-/* Moins large que la colonne entière (retour utilisateur direct) :
- * centré plutôt qu'étiré sur toute la largeur du plateau —
- * `align-self: center` annule le `stretch` par défaut hérité de
- * `.orapa-play__center` (flex column) pour ce seul enfant.
+/* Flotte par-dessus le plateau plutôt qu'en dessous (retour utilisateur
+ * direct — "le plateau passe dessous le bloc central... cela permet au
+ * plateau d'être plus grand") : `position: absolute` dans
+ * `.orapa-play__center` (voir sa docstring, `position: relative`),
+ * ancré en bas et centré horizontalement. Fond semi-transparent +
+ * flou ("le bloc sera légèrement transparent pour voir le plateau
+ * derrière") plutôt que le fond plein opaque d'avant.
  * `flex-wrap` + `min-width` sur `.orapa-play__tool` (voir plus bas) :
  * depuis que "Terminer mon tour" rejoint ce bandeau (3 colonnes au lieu
  * de 2), un plafond trop serré faisait chevaucher le bouton "Envoyer"
@@ -2703,17 +2718,22 @@ kbd {
  * "Terminer mon tour" retombe à la ligne plutôt que de continuer à
  * comprimer les deux autres si la fenêtre est vraiment étroite. */
 .orapa-play__tools {
+  position: absolute;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  z-index: 4;
   border-radius: 18px;
-  background: var(--om-panel);
+  background: rgba(11, 19, 48, 0.58);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   border: 1px solid rgba(242, 194, 75, 0.3);
   padding: 12px 22px;
   display: flex;
-  flex: none;
   flex-wrap: wrap;
   align-items: center;
   justify-content: center;
   gap: 18px 22px;
-  align-self: center;
   /* Un pourcentage plutôt qu'un simple plafond en pixels : reste
      visiblement plus étroit que la colonne centrale à n'importe quelle
      largeur d'écran (un `max-width` seul ne "mordait" pas encore à la

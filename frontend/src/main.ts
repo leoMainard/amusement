@@ -64,14 +64,17 @@ function gameCardHtml(game: GameDescriptor): string {
         <div class="game-card__badge">Jouable</div>
         <h2>${game.title}</h2>
         <p>${game.description}</p>
+        <div class="game-card__tags">
+          <span class="game-card__tag">${game.category}</span>
+          <span class="game-card__tag">${game.players}</span>
+          <span class="game-card__tag">${game.duration}</span>
+        </div>
         <div class="game-card__actions">
           <button type="button" data-game="${game.id}" data-view="notice">Ouvrir le jeu →</button>
         </div>
       </div>
       <div class="game-card__icon" aria-hidden="true">
-        <span class="game-card__icon-shape game-card__icon-shape--tri-a"></span>
-        <span class="game-card__icon-shape game-card__icon-shape--tri-b"></span>
-        <span class="game-card__icon-shape game-card__icon-shape--para"></span>
+        ${game.thumbnailHtml}
       </div>
     </div>`;
 }
@@ -213,16 +216,16 @@ function showView(gameId: string, view: ViewKind): void {
         ? `
       <div class="om-shell__info-layout">
         <aside class="om-shell__info-card">
-          <div class="om-shell__info-card-header">${game.title}</div>
-          <div class="om-shell__info-card-icon" aria-hidden="true">
-            <span class="game-card__icon-shape game-card__icon-shape--tri-a"></span>
-            <span class="game-card__icon-shape game-card__icon-shape--tri-b"></span>
-            <span class="game-card__icon-shape game-card__icon-shape--para"></span>
+          <div class="om-shell__info-thumb-card">
+            <div class="om-shell__info-card-header">${game.title}</div>
+            <div class="om-shell__info-card-icon" aria-hidden="true">
+              ${game.thumbnailHtml}
+            </div>
           </div>
           <button type="button" class="om-shell__play-btn" data-view="play">Jouer</button>
           <div class="om-shell__info-tags">
-            <span>2 joueurs et +</span>
-            <span>~30 min</span>
+            <span>${game.players}</span>
+            <span>${game.duration}</span>
           </div>
         </aside>
         <div class="om-shell__info-content">

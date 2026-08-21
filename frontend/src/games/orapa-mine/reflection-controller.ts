@@ -56,14 +56,15 @@ export interface ReflectionControllerOptions {
   previewHost?: HTMLElement;
   statusHost?: HTMLElement;
   entries: ReadonlyArray<ReflectionPaletteEntry>;
-  /** Bouton "✕ Marquer des cases" (voir `multiplayer.ts`) : regroupé
-   * avec "Repères simples" (retour utilisateur direct — les deux sont
-   * de simples annotations personnelles, pas de vraies gemmes) plutôt
-   * que posé à part sous le plateau. Câblé par l'appelant (l'activation
-   * du mode marquage reste arbitrée par `multiplayer.ts`, pas par ce
-   * contrôleur) ; ce module se contente de le placer dans l'en-tête du
-   * groupe "Repères simples". Ignoré si absent, ou si aucun repère
-   * élémentaire n'est fourni (rien à regrouper avec). */
+  /** Bouton "Marquer des cases" (voir `multiplayer.ts`) : traité comme
+   * un repère élémentaire de plus (retour utilisateur direct — "je le
+   * verrai plus comme une simple croix à côté des autres repères
+   * simples"), au lieu d'un bouton à part. Câblé par l'appelant
+   * (l'activation du mode marquage reste arbitrée par `multiplayer.ts`,
+   * pas par ce contrôleur) ; ce module se contente de le restyler en
+   * case de la grille "Repères simples" et de l'y placer en premier.
+   * Ignoré si absent, ou si aucun repère élémentaire n'est fourni (rien
+   * à regrouper avec). */
   markToggleButton?: HTMLButtonElement;
 }
 
@@ -118,15 +119,25 @@ export class ReflectionController {
     if (unitEntries.length > 0) {
       const unitGroup = document.createElement("div");
       unitGroup.className = "orapa-demo__group orapa-demo__group--units";
-      const unitHead = document.createElement("div");
-      unitHead.className = "orapa-mp__reflect-unit-head";
       const unitLabel = document.createElement("span");
       unitLabel.className = "om-eyebrow";
       unitLabel.textContent = "Repères simples";
-      unitHead.appendChild(unitLabel);
-      if (options.markToggleButton) unitHead.appendChild(options.markToggleButton);
-      unitGroup.append(unitHead, unitHost);
+      unitGroup.append(unitLabel, unitHost);
       options.paletteHost.appendChild(unitGroup);
+      if (options.markToggleButton) {
+        // Même case que les autres repères élémentaires (icône, taille),
+        // juste une croix plutôt qu'une pièce — posée en premier dans la
+        // grille. `.orapa-mp__mark-toggle` (pas `.orapa-demo__swatch`
+        // seul) permet à `updateSwatchSelection` de l'exclure de son
+        // survol des gemmes/repères armés (voir plus bas) : son
+        // "is-selected" à elle est géré indépendamment par
+        // `multiplayer.ts` (mode marquage, pas une pièce armée).
+        const btn = options.markToggleButton;
+        btn.className = "orapa-demo__swatch orapa-demo__swatch--unit orapa-mp__mark-toggle";
+        btn.title = "Marquer des cases";
+        btn.textContent = "✕";
+        unitHost.appendChild(btn);
+      }
     }
 
     for (const entry of options.entries) {
@@ -356,7 +367,12 @@ export class ReflectionController {
   }
 
   private updateSwatchSelection(active: HTMLButtonElement | null): void {
-    for (const button of this.options.paletteHost.querySelectorAll<HTMLButtonElement>(".orapa-demo__swatch")) {
+    // `:not(.orapa-mp__mark-toggle)` : sa sélection visuelle à elle
+    // (mode marquage actif ou non) est gérée par `multiplayer.ts`, pas
+    // par l'armement d'une gemme/d'un repère — sans cette exclusion,
+    // armer n'importe quelle autre pièce effaçait à tort son
+    // "is-selected" (voir docstring de `markToggleButton`).
+    for (const button of this.options.paletteHost.querySelectorAll<HTMLButtonElement>(".orapa-demo__swatch:not(.orapa-mp__mark-toggle)")) {
       button.classList.toggle("is-selected", button === active);
     }
   }

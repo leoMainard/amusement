@@ -51,6 +51,13 @@ const TILE_HOVER_Y = -0.02;
 const ENTRY_BASE_Y = 0.06;
 const ENTRY_HOVER_Y = 0.18;
 const HOVER_LERP_SPEED = 0.22;
+// Distance entre le bord des cases et le centre d'une borne d'entrée
+// (voir `continuousToWorld`) : assez petite pour que la borne touche
+// visiblement le plateau, en laissant sa moitié la plus large (0.22 de
+// rayon, voir `buildEntryMarkers`) légèrement chevaucher le bord plutôt
+// que de s'arrêter pile dessus — retour utilisateur direct ("il y a un
+// léger espace actuellement").
+const ENTRY_TOUCH_OFFSET = 0.15;
 
 type PieceMeshStyle = "solid" | "ghost" | "reflection";
 
@@ -101,8 +108,8 @@ export class BoardScene {
   private labelScheme: LabelScheme;
 
   private pieceGroup = new THREE.Group();
-  private pieceMeshes = new Map<Piece, THREE.Object3D>();
-  private ghostMesh: THREE.Object3D | null = null;
+  private pieceMeshes = new Map<Piece, THREE.Mesh>();
+  private ghostMesh: THREE.Mesh | null = null;
   private ghostValid = true;
   private rayGroup = new THREE.Group();
   // Tracé du rayon : tube + point lumineux animé le long de son
@@ -120,11 +127,11 @@ export class BoardScene {
   // effacées par `setPieces` (qui affiche l'état RÉEL du plateau — vide
   // en mode question, alors que ces repères doivent y rester visibles).
   private reflectionGroup = new THREE.Group();
-  private reflectionMeshes = new Map<Piece, THREE.Object3D>();
+  private reflectionMeshes = new Map<Piece, THREE.Mesh>();
   // Survol d'une pièce déjà posée (réelle ou de réflexion) : teinte
   // temporairement son maillage pour signaler qu'un clic la retirerait
   // (voir `setRemoveHighlight`).
-  private removeHighlightMesh: THREE.Object3D | null = null;
+  private removeHighlightMesh: THREE.Mesh | null = null;
   private removeHighlightOriginalColor: number | null = null;
   // Plan mathématique y=0 pour le survol/clic de case : plus robuste que
   // de rayonner contre le maillage des pièces ou du sol (déjà utilisés
@@ -216,9 +223,25 @@ export class BoardScene {
     this.tick();
   }
 
+  /** Libère la géométrie/le matériau d'un maillage de pièce avant de le
+   * retirer de la scène — `Object3D.remove()` seul ne fait que le
+   * détacher du graphe de scène, la géométrie/le matériau créés par
+   * `buildPieceMesh` (un `ExtrudeGeometry` + `MeshPhysicalMaterial` par
+   * pièce) restaient sinon en mémoire GPU indéfiniment. Un vrai bug —
+   * poser/retirer des pièces plusieurs fois (ex. "Tout retirer" en
+   * placement Duel) finissait par déclencher de nombreux avertissements
+   * du pilote graphique, signalés par un retour utilisateur direct. */
+  private disposePieceMesh(mesh: THREE.Mesh): void {
+    mesh.geometry.dispose();
+    (mesh.material as THREE.Material).dispose();
+  }
+
   /** Remplace toutes les pièces affichées par `pieces`. */
   setPieces(pieces: Piece[]): void {
-    for (const mesh of this.pieceMeshes.values()) this.pieceGroup.remove(mesh);
+    for (const mesh of this.pieceMeshes.values()) {
+      this.pieceGroup.remove(mesh);
+      this.disposePieceMesh(mesh);
+    }
     this.pieceMeshes.clear();
     // Les maillages ci-dessus disparaissent : toute référence à l'un
     // d'eux pour la surbrillance "retirer" serait périmée.
@@ -238,6 +261,7 @@ export class BoardScene {
   setGhost(piece: Piece | null, valid: boolean = true): void {
     if (this.ghostMesh) {
       this.pieceGroup.remove(this.ghostMesh);
+      this.disposePieceMesh(this.ghostMesh);
       this.ghostMesh = null;
     }
     if (!piece) return;
@@ -260,6 +284,7 @@ export class BoardScene {
     const mesh = this.reflectionMeshes.get(piece);
     if (!mesh) return;
     this.reflectionGroup.remove(mesh);
+    this.disposePieceMesh(mesh);
     this.reflectionMeshes.delete(piece);
     if (this.removeHighlightMesh === mesh) {
       this.removeHighlightMesh = null;
@@ -268,6 +293,7 @@ export class BoardScene {
   }
 
   clearReflectionPieces(): void {
+    for (const mesh of this.reflectionMeshes.values()) this.disposePieceMesh(mesh);
     this.reflectionGroup.clear();
     this.reflectionMeshes.clear();
     this.removeHighlightMesh = null;
@@ -391,7 +417,7 @@ export class BoardScene {
    * efface la surbrillance en cours. Un seul maillage à la fois. */
   setRemoveHighlight(piece: Piece | null): void {
     if (this.removeHighlightMesh && this.removeHighlightOriginalColor !== null) {
-      const material = (this.removeHighlightMesh as THREE.Mesh).material as THREE.MeshStandardMaterial;
+      const material = this.removeHighlightMesh.material as THREE.MeshStandardMaterial;
       material.color.setHex(this.removeHighlightOriginalColor);
     }
     this.removeHighlightMesh = null;
@@ -399,7 +425,7 @@ export class BoardScene {
     if (!piece) return;
     const mesh = this.pieceMeshes.get(piece) ?? this.reflectionMeshes.get(piece);
     if (!mesh) return;
-    const material = (mesh as THREE.Mesh).material as THREE.MeshStandardMaterial;
+    const material = mesh.material as THREE.MeshStandardMaterial;
     this.removeHighlightOriginalColor = material.color.getHex();
     material.color.lerp(new THREE.Color(0xe74c3c), 0.55);
     this.removeHighlightMesh = mesh;
@@ -411,6 +437,14 @@ export class BoardScene {
     this.renderer.domElement.removeEventListener("pointerdown", this.handlePointerDown);
     this.renderer.domElement.removeEventListener("click", this.handleClick);
     this.renderer.domElement.removeEventListener("pointermove", this.handlePointerMove);
+    // Voir `disposePieceMesh` : le reste de la scène (cases, socle,
+    // bornes) est purement statique — construit une seule fois à la
+    // création, jamais recréé — donc bien moins concerné par ce genre
+    // de fuite ; les pièces, elles, sont reconstruites à chaque pose/
+    // retrait pendant toute une session.
+    for (const mesh of this.pieceMeshes.values()) this.disposePieceMesh(mesh);
+    for (const mesh of this.reflectionMeshes.values()) this.disposePieceMesh(mesh);
+    if (this.ghostMesh) this.disposePieceMesh(this.ghostMesh);
     this.renderer.dispose();
     this.container.removeChild(this.renderer.domElement);
   }
@@ -441,9 +475,26 @@ export class BoardScene {
    * `cornerAverageWorld`, n'ajoute aucun centrage : l'appelant doit
    * avoir converti toute position discrète au préalable (voir
    * `geometry.toContinuousCorner`), sans quoi le tracé se décale d'une
-   * demi-case (bug corrigé une fois — voir docs/plan.md). */
+   * demi-case (bug corrigé une fois — voir docs/plan.md).
+   *
+   * Un point de BORD (entrée/sortie d'un rayon, ou une borne d'entrée —
+   * voir `buildEntryMarkers`, qui passe aussi par ici) est en plus
+   * "tiré" vers le plateau sur son seul axe hors limites (`ENTRY_TOUCH_OFFSET`
+   * au lieu d'une case entière), pour toucher visiblement son bord
+   * plutôt que de s'en trouver légèrement écarté (retour utilisateur
+   * direct). Un point intérieur (rebond) n'est jamais concerné : ses
+   * deux coordonnées restent dans les limites du plateau, donc aucune
+   * des branches ci-dessous ne s'applique. */
   private continuousToWorld([x, z]: Point): THREE.Vector3 {
-    return new THREE.Vector3(x - this.dimensions.width / 2, 0, z - this.dimensions.height / 2);
+    const halfW = this.dimensions.width / 2;
+    const halfH = this.dimensions.height / 2;
+    let worldX = x - halfW;
+    let worldZ = z - halfH;
+    if (worldZ < -halfH) worldZ = -halfH - ENTRY_TOUCH_OFFSET;
+    else if (worldZ > halfH) worldZ = halfH + ENTRY_TOUCH_OFFSET;
+    else if (worldX < -halfW) worldX = -halfW - ENTRY_TOUCH_OFFSET;
+    else if (worldX > halfW) worldX = halfW + ENTRY_TOUCH_OFFSET;
+    return new THREE.Vector3(worldX, 0, worldZ);
   }
 
   /** Damier de cases pleines (au lieu d'un simple plan + grille de
@@ -512,7 +563,13 @@ export class BoardScene {
 
   private buildEntryMarkers(): void {
     for (const { label, entry } of this.labelScheme.allEntries()) {
-      const center = this.cornerAverageWorld(entry.position);
+      // `continuousToWorld` (pas `cornerAverageWorld`) : les bornes
+      // d'entrée sont des points de BORD, tirés vers le plateau pour le
+      // toucher (voir sa docstring / `ENTRY_TOUCH_OFFSET`) — contrairement
+      // à une case ordinaire du plateau (`cornerAverageWorld`, ex.
+      // `toggleMark`), qui garde son centrage habituel.
+      const [col, row] = entry.position;
+      const center = this.continuousToWorld([col + 0.5, row + 0.5]);
 
       const marker = new THREE.Mesh(
         new THREE.CylinderGeometry(0.19, 0.22, 0.14, 6),
@@ -539,7 +596,7 @@ export class BoardScene {
     }
   }
 
-  private buildPieceMesh(piece: Piece, style: PieceMeshStyle): THREE.Object3D {
+  private buildPieceMesh(piece: Piece, style: PieceMeshStyle): THREE.Mesh {
     const isGhost = style === "ghost";
     const isReflection = style === "reflection";
     const verts = pieceVertices(piece);
@@ -676,6 +733,12 @@ export class BoardScene {
     if (!hit) return null;
     const col = Math.floor(point.x + this.dimensions.width / 2);
     const row = Math.floor(point.z + this.dimensions.height / 2);
+    // Le plan mathématique est infini (voir docstring ci-dessus) : sans
+    // cette vérification, cliquer n'importe où EN DEHORS du plateau
+    // visible renvoyait quand même une case (col, row) hors limites —
+    // un vrai bug, signalé par un retour utilisateur direct ("des cases
+    // invisibles sont interrogeables").
+    if (col < 0 || col >= this.dimensions.width || row < 0 || row >= this.dimensions.height) return null;
     return [col, row];
   }
 
