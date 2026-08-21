@@ -77,6 +77,14 @@ class FouilleGame:
         self._advance_turn()
         return result
 
+    def pass_turn(self, player: str) -> None:
+        """Termine volontairement le tour de `player` sans poser de
+        question — bouton "Terminer mon tour" côté client, ou forcé par
+        le serveur quand le chrono de tour expire (voir
+        `amusement.api.game_session`)."""
+        self._require_can_play(player)
+        self._advance_turn()
+
     def submit_solution(self, player: str, guess: list[Piece]) -> None:
         self._require_can_play(player)
 

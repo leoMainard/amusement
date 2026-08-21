@@ -108,3 +108,28 @@ def test_at_least_one_player_required() -> None:
     board = make_board()
     with pytest.raises(ValueError):
         FouilleGame(board=board, players=())
+
+
+def test_pass_turn_hands_off_without_a_question() -> None:
+    board = make_board()
+    game = FouilleGame(board=board, players=("a", "b"))
+    game.pass_turn("a")
+    assert game.current_turn_player() == "b"
+
+
+def test_pass_turn_out_of_turn_raises() -> None:
+    board = make_board()
+    game = FouilleGame(board=board, players=("a", "b"))
+    with pytest.raises(FouilleError):
+        game.pass_turn("b")
+
+
+def test_pass_turn_eliminated_player_raises() -> None:
+    board = make_board()
+    game = FouilleGame(board=board, players=("a", "b"))
+    game.submit_solution("a", wrong_guess())
+    game.submit_solution("b", wrong_guess())
+    game.submit_solution("a", wrong_guess())  # 2e erreur de "a" -> éliminé
+    assert "a" in game.eliminated
+    with pytest.raises(FouilleError):
+        game.pass_turn("a")

@@ -94,3 +94,28 @@ def test_replay_does_not_consume_a_turn() -> None:
     result = game.replay(0)
     assert result == "Rien"
     assert game.current_prospector == "bob"  # inchangé
+
+
+def test_pass_turn_hands_off_without_a_question() -> None:
+    game = make_game()
+    game.pass_turn("alice")
+    assert game.current_prospector == "bob"
+    assert game.log == []  # aucune question posée, contrairement à ask_ray/ask_peek
+
+
+def test_pass_turn_out_of_turn_raises() -> None:
+    game = make_game()
+    with pytest.raises(DuelError):
+        game.pass_turn("bob")
+
+
+def test_pass_turn_on_final_turn_confirms_starting_player_win() -> None:
+    # Même cas particulier que "l'adversaire n'utilise pas son dernier
+    # tour pour proposer" (voir test_opponent_skipping_final_turn_...),
+    # mais via "Terminer mon tour"/expiration du chrono plutôt qu'une
+    # vraie question.
+    game = make_game(starting_player="alice")
+    game.submit_solution("alice", game.boards["bob"].pieces())
+    game.pass_turn("bob")
+    assert game.finished
+    assert game.winner == "alice"

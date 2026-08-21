@@ -5,6 +5,8 @@ mémoire, pas de vrai serveur réseau)."""
 
 from __future__ import annotations
 
+import time
+
 from fastapi.testclient import TestClient
 
 from amusement.api.game_session import piece_to_payload
@@ -224,6 +226,126 @@ def test_fouille_solo_full_flow_over_websocket() -> None:
         ws.send_json({"type": "ask_peek", "position": [8, 8]})
         assert ws.receive_json()["type"] == "peek_result"
         ws.receive_json()  # game_state — toujours son tour, seul joueur
+
+
+def test_game_state_includes_turn_deadline_with_two_players() -> None:
+    code = create_room(mode="fouille", max_players=2)
+    before = time.time()
+
+    with client.websocket_connect(f"/ws/rooms/{code}?name=Alice") as alice_ws:
+        alice_ws.receive_json()  # joined
+        with client.websocket_connect(f"/ws/rooms/{code}?name=Bob") as bob_ws:
+            bob_ws.receive_json()  # joined
+            alice_ws.receive_json()  # room_update: bob a rejoint
+            alice_ws.receive_json()  # room_update: PLAYING
+            game_state = alice_ws.receive_json()
+            assert game_state["type"] == "game_state"
+            deadline = game_state["turn_deadline"]
+            assert deadline is not None
+            # ~4 min (240s) à partir du démarrage, avec une marge large
+            # pour l'exécution du test lui-même.
+            assert before + 200 <= deadline <= before + 280
+
+
+def test_game_state_turn_deadline_absent_for_fouille_solo() -> None:
+    # "lorsqu'il y a plusieurs joueurs" (retour utilisateur direct) :
+    # personne à presser tout seul.
+    code = create_room(mode="fouille", max_players=1)
+    with client.websocket_connect(f"/ws/rooms/{code}?name=Solo") as ws:
+        ws.receive_json()  # joined
+        ws.receive_json()  # room_update PLAYING
+        game_state = ws.receive_json()
+        assert game_state["type"] == "game_state"
+        assert game_state["turn_deadline"] is None
+
+
+def test_end_turn_over_websocket_hands_off_turn() -> None:
+    code = create_room(mode="fouille", max_players=2)
+
+    with client.websocket_connect(f"/ws/rooms/{code}?name=Alice") as alice_ws:
+        alice_ws.receive_json()  # joined
+        with client.websocket_connect(f"/ws/rooms/{code}?name=Bob") as bob_ws:
+            bob_ws.receive_json()  # joined
+            alice_ws.receive_json()  # room_update: bob a rejoint
+            alice_ws.receive_json()  # room_update: PLAYING
+            first_state = alice_ws.receive_json()
+            assert first_state["current_turn_player"] is not None
+            bob_ws.receive_json()  # room_update PLAYING
+            bob_ws.receive_json()  # game_state
+
+            # Bouton "Terminer mon tour" : passe la main sans poser de
+            # question, diffusé aux deux joueurs.
+            alice_ws.send_json({"type": "end_turn"})
+            alice_new_state = alice_ws.receive_json()
+            bob_new_state = bob_ws.receive_json()
+            assert alice_new_state["type"] == "game_state"
+            assert alice_new_state["current_turn_player"] != first_state["current_turn_player"]
+            assert bob_new_state["current_turn_player"] == alice_new_state["current_turn_player"]
+
+
+def test_end_turn_out_of_turn_is_refused_over_websocket() -> None:
+    code = create_room(mode="fouille", max_players=2)
+
+    with client.websocket_connect(f"/ws/rooms/{code}?name=Alice") as alice_ws:
+        alice_ws.receive_json()  # joined
+        with client.websocket_connect(f"/ws/rooms/{code}?name=Bob") as bob_ws:
+            bob_ws.receive_json()  # joined
+            alice_ws.receive_json()  # room_update: bob a rejoint
+            alice_ws.receive_json()  # room_update: PLAYING
+            alice_ws.receive_json()  # game_state (tour d'alice, arrivée en premier)
+            bob_ws.receive_json()  # room_update PLAYING
+            bob_ws.receive_json()  # game_state
+
+            bob_ws.send_json({"type": "end_turn"})
+            error = bob_ws.receive_json()
+            assert error["type"] == "error"
+
+
+def test_turn_timer_forces_turn_change_after_expiry() -> None:
+    # Vérifie la boucle d'arrière-plan de bout en bout (voir
+    # `game_ws._turn_timer_loop`) : un chrono raccourci artificiellement
+    # (session déjà en mémoire après la connexion d'Alice, avant que le
+    # salon ne se remplisse — voir `OrapaMineSession.turn_duration_seconds`)
+    # doit faire passer la main tout seul, sans action d'aucun joueur.
+    #
+    # ⚠️ Client dédié, utilisé comme gestionnaire de contexte (contrairement
+    # au `client` module ci-dessus) : chaque `websocket_connect()` sans
+    # `with TestClient(app) as ...` ouvre son propre "portail" (thread +
+    # boucle asyncio séparés, voir `starlette.testclient`). Une diffusion
+    # émise par une tâche d'arrière-plan démarrée sur la connexion de Bob
+    # vers le socket d'Alice — sur un portail différent du sien — ne
+    # réveille alors jamais sa lecture bloquante (bug de test découvert en
+    # écrivant ce test, pas un bug produit : en production, uvicorn ne
+    # fait tourner qu'UNE seule boucle événementielle pour toutes les
+    # connexions). Partager un seul portail entre les deux connexions
+    # (`with TestClient(app) as scoped_client:`) reproduit fidèlement ce
+    # fonctionnement réel.
+    with TestClient(app) as scoped_client:
+        code = scoped_client.post(
+            "/api/rooms",
+            json={"game": "orapa_mine", "mode": "fouille", "max_players": 2, "extensions_enabled": False},
+        ).json()["code"]
+
+        with scoped_client.websocket_connect(f"/ws/rooms/{code}?name=Alice") as alice_ws:
+            alice_ws.receive_json()  # joined
+            session = scoped_client.app.state.sessions[code]
+            session.turn_duration_seconds = 0.2
+
+            with scoped_client.websocket_connect(f"/ws/rooms/{code}?name=Bob") as bob_ws:
+                bob_ws.receive_json()  # joined
+                alice_ws.receive_json()  # room_update: bob a rejoint
+                alice_ws.receive_json()  # room_update: PLAYING
+                first_state = alice_ws.receive_json()
+                assert first_state["current_turn_player"] is not None
+                bob_ws.receive_json()  # room_update PLAYING
+                bob_ws.receive_json()  # game_state
+
+                # Ni Alice ni Bob n'envoient quoi que ce soit : seule
+                # l'expiration du chrono doit produire ce prochain
+                # game_state.
+                timed_out_state = alice_ws.receive_json()
+                assert timed_out_state["type"] == "game_state"
+                assert timed_out_state["current_turn_player"] != first_state["current_turn_player"]
 
 
 def test_error_message_on_invalid_action() -> None:

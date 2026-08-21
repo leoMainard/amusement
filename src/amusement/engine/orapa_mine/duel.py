@@ -101,6 +101,16 @@ class DuelGame:
         index dans `log`), sans consommer de tour."""
         return self.log[index].result
 
+    def pass_turn(self, player: str) -> None:
+        """Termine volontairement le tour de `player` sans poser de
+        question ni proposer de solution — bouton "Terminer mon tour"
+        côté client, ou forcé par le serveur quand le chrono de tour
+        expire (voir `amusement.api.game_session`). Consomme le tour
+        exactement comme une question normale (même cas particulier de
+        fin de partie, voir `_consume_turn`)."""
+        self._require_current_prospector(player)
+        self._consume_turn(player)
+
     def _consume_turn(self, player: str) -> None:
         if self._awaiting_final_guess_from == player:
             # L'adversaire du premier joueur avait un unique tour pour

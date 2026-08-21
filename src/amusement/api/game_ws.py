@@ -8,6 +8,9 @@ reçoit quoi et pourquoi).
 
 from __future__ import annotations
 
+import asyncio
+import time
+
 from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
 
 from amusement.engine.orapa_mine import PlacementError
@@ -19,6 +22,13 @@ from .connections import ConnectionManager
 from .game_session import OrapaMineSession, piece_from_payload, piece_to_payload
 
 router = APIRouter()
+
+# Granularité du sondage de `OrapaMineSession.turn_deadline` par
+# `_turn_timer_loop` ci-dessous — pas un réveil unique programmé à
+# l'avance, puisque le délai peut être repoussé à tout moment par une
+# action de jeu (voir `_reset_turn_timer`) ; re-vérifier périodiquement
+# est plus simple que d'annuler/reprogrammer un minuteur à chaque coup.
+_TURN_TIMER_POLL_SECONDS = 2.0
 
 # Toute erreur "attendue" (mauvaise action du joueur, pas un bug serveur)
 # devient un message {"type": "error"} renvoyé au seul joueur concerné,
@@ -59,6 +69,10 @@ def game_state_payload(session: OrapaMineSession) -> dict:
             "finished": game.finished,
             "winner": game.winner,
             "draw": game.draw,
+            # Horodatage Unix (secondes) de fin du tour en cours, `None`
+            # si non chronométré (voir `OrapaMineSession.turn_deadline`)
+            # — le client calcule lui-même le compte à rebours affiché.
+            "turn_deadline": session.turn_deadline,
         }
 
     game = session.fouille
@@ -69,7 +83,66 @@ def game_state_payload(session: OrapaMineSession) -> dict:
         "eliminated": list(game.eliminated),
         "finished": game.finished,
         "winner": game.winner,
+        "turn_deadline": session.turn_deadline,
     }
+
+
+async def _turn_timer_loop(
+    code: str,
+    session: OrapaMineSession,
+    connections: ConnectionManager,
+    tasks: dict[str, asyncio.Task],
+) -> None:
+    """Tâche d'arrière-plan (une par salon en cours de partie chronométrée) :
+    force la fin du tour en cours quand `session.turn_deadline` expire
+    sans action du joueur, et diffuse l'état à jour. Sonde plutôt que de
+    programmer un réveil unique (voir `_TURN_TIMER_POLL_SECONDS`) : le
+    délai peut être repoussé à chaque action de jeu, une simple
+    re-vérification périodique évite d'avoir à annuler/reprogrammer un
+    minuteur à chaque coup. S'arrête d'elle-même une fois la partie
+    terminée, et se retire alors de `tasks`."""
+    try:
+        while True:
+            if session.room.status == RoomStatus.FINISHED:
+                return
+            deadline = session.turn_deadline
+            if deadline is None:
+                # Pas de tour chronométré pour l'instant (salon à un seul
+                # joueur, ou entre deux parties) : ré-essaie plus tard,
+                # au cas où un autre joueur rejoindrait entre-temps.
+                await asyncio.sleep(_TURN_TIMER_POLL_SECONDS)
+                continue
+            remaining = deadline - time.time()
+            if remaining > 0:
+                await asyncio.sleep(min(remaining, _TURN_TIMER_POLL_SECONDS))
+                continue
+            player = session.current_player_id
+            if player is None:
+                session.turn_deadline = None
+                continue
+            try:
+                session.end_turn(player)
+            except Exception:
+                # Ne devrait pas arriver (le joueur courant a toujours le
+                # droit de terminer son tour) — coupe le chrono plutôt
+                # que de boucler indéfiniment sur la même échéance
+                # dépassée.
+                session.turn_deadline = None
+                continue
+            await connections.broadcast(code, {"type": "game_state", **game_state_payload(session)})
+    finally:
+        tasks.pop(code, None)
+
+
+def _ensure_timer_task(app, code: str, session: OrapaMineSession, connections: ConnectionManager) -> None:
+    """Démarre la boucle de chrono du salon `code` si elle ne tourne pas
+    déjà — appelé à chaque transition vers PLAYING (voir `room_socket`/
+    `_handle_message`), idempotent."""
+    tasks: dict[str, asyncio.Task] = app.state.timer_tasks
+    existing = tasks.get(code)
+    if existing is not None and not existing.done():
+        return
+    tasks[code] = asyncio.create_task(_turn_timer_loop(code, session, connections, tasks))
 
 
 @router.websocket("/ws/rooms/{code}")
@@ -112,11 +185,12 @@ async def room_socket(websocket: WebSocket, code: str, name: str = Query(...)) -
         await connections.broadcast(code, {"type": "room_update", "room": room_payload(room)})
         if room.status == RoomStatus.PLAYING:
             await connections.broadcast(code, {"type": "game_state", **game_state_payload(session)})
+            _ensure_timer_task(app, code, session, connections)
 
     try:
         while True:
             message = await websocket.receive_json()
-            await _handle_message(code, player.id, session, room, connections, message)
+            await _handle_message(app, code, player.id, session, room, connections, message)
     except WebSocketDisconnect:
         pass
     finally:
@@ -126,6 +200,7 @@ async def room_socket(websocket: WebSocket, code: str, name: str = Query(...)) -
 
 
 async def _handle_message(
+    app,
     code: str,
     player_id: str,
     session: OrapaMineSession,
@@ -154,6 +229,14 @@ async def _handle_message(
             if all_ready:
                 await connections.broadcast(code, {"type": "room_update", "room": room_payload(room)})
                 await connections.broadcast(code, {"type": "game_state", **game_state_payload(session)})
+                _ensure_timer_task(app, code, session, connections)
+
+        elif msg_type == "end_turn":
+            # Bouton "Terminer mon tour" (retour utilisateur direct) :
+            # même effet que l'expiration du chrono (voir
+            # `_turn_timer_loop`), déclenché volontairement.
+            session.end_turn(player_id)
+            await connections.broadcast(code, {"type": "game_state", **game_state_payload(session)})
 
         elif msg_type == "ask_ray":
             result = session.ask_ray(player_id, message["entry_label"])

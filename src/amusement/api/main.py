@@ -6,6 +6,8 @@ salon) et un WebSocket (déroulement de la partie) — voir `rooms_api.py`
 et `game_ws.py`.
 """
 
+import asyncio
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -37,6 +39,10 @@ app.add_middleware(
 app.state.room_manager = RoomManager()
 app.state.connections = ConnectionManager()
 app.state.sessions: dict[str, OrapaMineSession] = {}
+# Une tâche d'arrière-plan par salon en cours de partie, qui force la
+# fin du tour quand son chrono expire — voir game_ws.py
+# (`_turn_timer_loop`/`_ensure_timer_task`).
+app.state.timer_tasks: dict[str, asyncio.Task] = {}
 
 app.include_router(rooms_router)
 app.include_router(game_ws_router)

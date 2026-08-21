@@ -7,6 +7,7 @@ rester testable sans WebSocket réel.
 
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass, field
 
 from amusement.engine.orapa_mine import (
@@ -25,6 +26,12 @@ from amusement.engine.orapa_mine import (
     random_board,
 )
 from amusement.rooms.room import Room, RoomError, RoomMode, RoomStatus
+
+# Durée d'un tour avant qu'il ne soit terminé automatiquement côté
+# serveur (voir `OrapaMineSession.turn_deadline`/`end_turn`, et la
+# boucle d'arrière-plan dans `game_ws.py`) — retour utilisateur direct :
+# "chaque tour dure 4 min".
+DEFAULT_TURN_DURATION_SECONDS = 240.0
 
 
 def piece_from_payload(payload: dict) -> Piece:
@@ -72,13 +79,27 @@ class PendingPlacement:
 class OrapaMineSession:
     """État de partie associé à un salon Orapa Mine."""
 
-    def __init__(self, room: Room, dimensions: BoardDimensions | None = None) -> None:
+    def __init__(
+        self,
+        room: Room,
+        dimensions: BoardDimensions | None = None,
+        turn_duration_seconds: float = DEFAULT_TURN_DURATION_SECONDS,
+    ) -> None:
         self.room = room
         self.dimensions = dimensions or BoardDimensions()
         self.label_scheme = LabelScheme(self.dimensions)
         self.placements: dict[str, PendingPlacement] = {}
         self.duel: DuelGame | None = None
         self.fouille: FouilleGame | None = None
+        # Réglable (voir tests) : la boucle d'arrière-plan de game_ws.py
+        # attend ce délai sans action avant de terminer le tour en cours
+        # automatiquement.
+        self.turn_duration_seconds = turn_duration_seconds
+        # Horodatage Unix de l'échéance du tour EN COURS (voir
+        # `_reset_turn_timer`/`end_turn`) — `None` tant qu'il n'y a pas de
+        # tour à chronométrer (hors PLAYING, partie terminée, ou salon à
+        # un seul joueur : personne à presser, voir docs/plan.md).
+        self.turn_deadline: float | None = None
 
     # --- démarrage, selon le mode du salon --------------------------------
 
@@ -93,6 +114,7 @@ class OrapaMineSession:
             players = tuple(p.id for p in self.room.players)
             self.fouille = FouilleGame(board=board, players=players, label_scheme=self.label_scheme)
             self.room.status = RoomStatus.PLAYING
+            self._reset_turn_timer()
 
     # --- Duel : placement ---------------------------------------------------
 
@@ -141,6 +163,7 @@ class OrapaMineSession:
         starting_player = players[0]  # ordre d'arrivée — tirage au sort réel à ajouter côté UI
         self.duel = DuelGame(players=players, boards=boards, starting_player=starting_player, label_scheme=self.label_scheme)
         self.room.status = RoomStatus.PLAYING
+        self._reset_turn_timer()
 
     # --- jeu : questions/réponses, commun aux deux modes ---------------------
 
@@ -152,13 +175,53 @@ class OrapaMineSession:
         return game
 
     def ask_ray(self, player_id: str, entry_label: str):
-        return self._active_game.ask_ray(player_id, entry_label)
+        result = self._active_game.ask_ray(player_id, entry_label)
+        self._after_turn_action()
+        return result
 
     def ask_peek(self, player_id: str, position: Position) -> str:
-        return self._active_game.ask_peek(player_id, tuple(position))
+        result = self._active_game.ask_peek(player_id, tuple(position))
+        self._after_turn_action()
+        return result
 
     def submit_solution(self, player_id: str, guess_payload: list[dict]) -> None:
         guess = [piece_from_payload(p) for p in guess_payload]
         self._active_game.submit_solution(player_id, guess)
         if self._active_game.finished:
             self.room.status = RoomStatus.FINISHED
+        self._after_turn_action()
+
+    def end_turn(self, player_id: str) -> None:
+        """Termine volontairement le tour de `player_id` sans poser de
+        question ni proposer — bouton "Terminer mon tour" côté client,
+        ou forcé par le serveur quand `turn_deadline` expire sans action
+        (voir la boucle d'arrière-plan dans `game_ws.py`). Lève la même
+        erreur qu'une action normale hors tour."""
+        self._active_game.pass_turn(player_id)
+        self._after_turn_action()
+
+    @property
+    def current_player_id(self) -> str | None:
+        """Le joueur dont c'est le tour, tous modes confondus — `None`
+        si la partie n'a pas démarré, ou si personne ne peut plus jouer
+        (tout le monde éliminé en Fouille). Sert à savoir qui presser
+        quand `turn_deadline` expire (voir game_ws.py)."""
+        if self.room.mode == RoomMode.DUEL:
+            return self.duel.current_prospector if self.duel else None
+        return self.fouille.current_turn_player() if self.fouille else None
+
+    def _reset_turn_timer(self) -> None:
+        """(Re)démarre le chrono du tour EN COURS — appelé au lancement
+        de la partie et après chaque action qui le fait potentiellement
+        basculer (voir `_after_turn_action`). Désactivé (`None`) hors
+        PLAYING, partie terminée, ou salon à un seul joueur : personne
+        d'autre à presser (retour utilisateur direct — "lorsqu'il y a
+        plusieurs joueurs")."""
+        game = self.duel if self.room.mode == RoomMode.DUEL else self.fouille
+        if self.room.status != RoomStatus.PLAYING or game is None or game.finished or len(self.room.players) < 2:
+            self.turn_deadline = None
+            return
+        self.turn_deadline = time.time() + self.turn_duration_seconds
+
+    def _after_turn_action(self) -> None:
+        self._reset_turn_timer()

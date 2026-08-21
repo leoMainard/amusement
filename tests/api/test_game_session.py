@@ -1,3 +1,5 @@
+import time
+
 import pytest
 
 from amusement.api.game_session import OrapaMineSession, piece_from_payload, piece_to_payload
@@ -175,3 +177,125 @@ def test_fouille_solo_flow() -> None:
     session.submit_solution(solo.id, correct_guess)
     assert session.fouille.finished
     assert session.fouille.winner == solo.id
+
+
+# --- Chrono de tour (4 min, "lorsqu'il y a plusieurs joueurs") -----------
+
+
+def test_turn_deadline_starts_when_fouille_multiplayer_begins() -> None:
+    room = Room(code="ABCDE", game="orapa_mine", mode=RoomMode.FOUILLE, max_players=2)
+    room.add_player("Alice")
+    room.add_player("Bob")
+    session = OrapaMineSession(room, BoardDimensions(width=9, height=9), turn_duration_seconds=240.0)
+    before = time.time()
+    session.start()
+    assert session.turn_deadline is not None
+    assert before + 239 <= session.turn_deadline <= before + 241
+
+
+def test_turn_deadline_absent_for_fouille_solo() -> None:
+    # "lorsqu'il y a plusieurs joueurs" (retour utilisateur direct) :
+    # personne à presser tout seul.
+    room = Room(code="ABCDE", game="orapa_mine", mode=RoomMode.FOUILLE, max_players=1)
+    room.add_player("Solo")
+    session = OrapaMineSession(room, BoardDimensions(width=9, height=9))
+    session.start()
+    assert session.turn_deadline is None
+
+
+def test_turn_deadline_starts_when_duel_placement_completes() -> None:
+    room = Room(code="ABCDE", game="orapa_mine", mode=RoomMode.DUEL, max_players=2)
+    alice = room.add_player("Alice")
+    bob = room.add_player("Bob")
+    session = OrapaMineSession(room, BoardDimensions(width=9, height=9))
+    session.start()
+    assert session.turn_deadline is None  # encore en PLACING
+
+    for entry in base_pieces_payload():
+        session.place_piece(alice.id, piece_from_payload(entry))
+        session.place_piece(bob.id, piece_from_payload(entry))
+    session.validate_placement(alice.id)
+    session.validate_placement(bob.id)
+    assert room.status == RoomStatus.PLAYING
+    assert session.turn_deadline is not None
+
+
+def test_turn_deadline_resets_after_each_action() -> None:
+    room = Room(code="ABCDE", game="orapa_mine", mode=RoomMode.FOUILLE, max_players=2)
+    alice = room.add_player("Alice")
+    room.add_player("Bob")
+    session = OrapaMineSession(room, BoardDimensions(width=9, height=9), turn_duration_seconds=240.0)
+    session.start()
+    first_deadline = session.turn_deadline
+    session.turn_deadline = time.time() + 1  # simule un tour presque écoulé
+    session.ask_peek(alice.id, (0, 0))
+    # Une vraie action relance le chrono complet, pas seulement +1s.
+    assert session.turn_deadline > first_deadline - 1
+
+
+def test_turn_deadline_cleared_once_game_finished() -> None:
+    room = Room(code="ABCDE", game="orapa_mine", mode=RoomMode.FOUILLE, max_players=2)
+    alice = room.add_player("Alice")
+    room.add_player("Bob")
+    session = OrapaMineSession(room, BoardDimensions(width=9, height=9))
+    session.start()
+    assert session.turn_deadline is not None
+    correct_guess = [piece_to_payload(p) for p in session.fouille.board.pieces()]
+    session.submit_solution(alice.id, correct_guess)
+    assert session.fouille.finished
+    assert session.turn_deadline is None
+
+
+def test_end_turn_hands_off_in_fouille() -> None:
+    room = Room(code="ABCDE", game="orapa_mine", mode=RoomMode.FOUILLE, max_players=2)
+    alice = room.add_player("Alice")
+    bob = room.add_player("Bob")
+    session = OrapaMineSession(room, BoardDimensions(width=9, height=9))
+    session.start()
+    assert session.current_player_id == alice.id
+    session.end_turn(alice.id)
+    assert session.current_player_id == bob.id
+    assert session.turn_deadline is not None  # rechronométré pour le tour suivant
+
+
+def test_end_turn_hands_off_in_duel() -> None:
+    room = Room(code="ABCDE", game="orapa_mine", mode=RoomMode.DUEL, max_players=2)
+    alice = room.add_player("Alice")
+    bob = room.add_player("Bob")
+    session = OrapaMineSession(room, BoardDimensions(width=9, height=9))
+    session.start()
+    for entry in base_pieces_payload():
+        session.place_piece(alice.id, piece_from_payload(entry))
+        session.place_piece(bob.id, piece_from_payload(entry))
+    session.validate_placement(alice.id)
+    session.validate_placement(bob.id)
+    assert session.current_player_id == alice.id
+    session.end_turn(alice.id)
+    assert session.current_player_id == bob.id
+
+
+def test_end_turn_out_of_turn_raises() -> None:
+    room = Room(code="ABCDE", game="orapa_mine", mode=RoomMode.FOUILLE, max_players=2)
+    alice = room.add_player("Alice")
+    bob = room.add_player("Bob")
+    session = OrapaMineSession(room, BoardDimensions(width=9, height=9))
+    session.start()
+    with pytest.raises(FouilleError):
+        session.end_turn(bob.id)
+
+
+def test_end_turn_before_game_starts_raises() -> None:
+    room = Room(code="ABCDE", game="orapa_mine", mode=RoomMode.DUEL, max_players=2)
+    alice = room.add_player("Alice")
+    room.add_player("Bob")
+    session = OrapaMineSession(room)
+    with pytest.raises(RoomError):
+        session.end_turn(alice.id)
+
+
+def test_current_player_id_none_before_game_starts() -> None:
+    room = Room(code="ABCDE", game="orapa_mine", mode=RoomMode.DUEL, max_players=2)
+    room.add_player("Alice")
+    room.add_player("Bob")
+    session = OrapaMineSession(room)
+    assert session.current_player_id is None

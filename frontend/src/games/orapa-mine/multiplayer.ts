@@ -24,7 +24,7 @@
  */
 
 import { BoardScene, RAY_COLOR_HEX } from "./board-scene";
-import { colorBadgeHtml, hexColor } from "./color-swatch";
+import { colorBadgeHtml, colorNameHtml, colorSquareHtml, hexColor } from "./color-swatch";
 import { cellLabel, labelForExit } from "./entry-labels";
 import { PlacementController } from "./placement-controller";
 import { ReflectionController, type ReflectionPaletteEntry } from "./reflection-controller";
@@ -37,6 +37,7 @@ import {
   createRoom,
   sendAskPeek,
   sendAskRay,
+  sendEndTurn,
   sendSubmitSolution,
   sendValidatePlacement,
   sendRemovePiece,
@@ -52,6 +53,20 @@ const MODE_LABELS: Record<RoomMode, string> = {
 };
 
 const MODE_NAMES: Record<RoomMode, string> = { DUEL: "Duel", FOUILLE: "Fouille" };
+
+// Miroir de `DEFAULT_TURN_DURATION_SECONDS` (amusement.api.game_session) :
+// sert seulement à afficher le temps plein pour un joueur dont ce n'est
+// pas le tour (voir `renderTimers`) — la vraie échéance vient toujours
+// du serveur (`GameStatePayload.turn_deadline`), jamais recalculée
+// localement.
+const TURN_DURATION_SECONDS = 240;
+
+function formatCountdown(totalSeconds: number): string {
+  const s = Math.max(0, Math.round(totalSeconds));
+  const minutes = Math.floor(s / 60);
+  const seconds = s % 60;
+  return `${minutes}:${String(seconds).padStart(2, "0")}`;
+}
 
 const MODE_CARD_INFO: Record<RoomMode, { desc: string; tag: string }> = {
   DUEL: {
@@ -113,6 +128,11 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
   let playerId = "";
   let room: RoomPayload | null = null;
   let lastGameState: GameStatePayload | null = null;
+  // Ré-affiche le compte à rebours chaque seconde tant qu'on est en
+  // PLAYING à plusieurs (voir `renderTimers`) — démarré/arrêté par
+  // `renderPlaying`/le nettoyage en fin de partie, jamais recalculé côté
+  // client : juste un rendu répété de `lastGameState.turn_deadline`.
+  let timerInterval: ReturnType<typeof setInterval> | null = null;
   const history: HistoryEntry[] = [];
   // Recalcule l'état désactivé/activé des outils de question (tirer un
   // rayon / interroger une case / proposer) selon le tour — posé par
@@ -370,6 +390,7 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
               <div class="orapa-play__mode">${MODE_NAMES[room.mode]}</div>
               <p class="orapa-mp__turn"></p>
             </div>
+            <div class="orapa-play__timers" hidden></div>
             <div style="display: flex; align-items: center; gap: 14px;">
               <button type="button" class="om-help-btn orapa-play__help-btn">❔ Aide</button>
               <div style="font-size: 12.5px; color: var(--om-text-5);">Glisse pour tourner la vue · molette pour zoomer</div>
@@ -415,6 +436,8 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
                   </div>
                 </div>
               </div>
+
+              <button type="button" class="orapa-play__end-turn-btn" hidden>Terminer mon tour</button>
             </div>
 
             <div class="orapa-play__side orapa-play__side--ask">
@@ -465,9 +488,19 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
       renderHistory();
       renderPlaying(host);
       updateTurnIndicator();
+      // Ré-affiche le compte à rebours chaque seconde (voir
+      // `renderTimers`) — l'écran PLAYING peut être reconstruit plusieurs
+      // fois (ex. `room_update` si un joueur se reconnecte) : on repart
+      // toujours d'un seul intervalle propre, jamais empilés.
+      if (timerInterval) clearInterval(timerInterval);
+      timerInterval = setInterval(renderTimers, 1000);
       const helpDialog = mountHelpDialog(host);
       host.querySelector<HTMLButtonElement>(".orapa-play__help-btn")!.addEventListener("click", () => helpDialog.open());
       return;
+    }
+    if (timerInterval) {
+      clearInterval(timerInterval);
+      timerInterval = null;
     }
 
     // PLACING / FINISHED : mise en page canvas + panneau latéral. Pas de
@@ -606,6 +639,11 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
     const askBtn = host.querySelector<HTMLButtonElement>(".orapa-play__ask-btn")!;
     const proposeBtn = host.querySelector<HTMLButtonElement>(".orapa-play__propose")!;
     const proposeStatus = host.querySelector<HTMLParagraphElement>(".orapa-play__propose-status")!;
+    const endTurnBtn = host.querySelector<HTMLButtonElement>(".orapa-play__end-turn-btn")!;
+    // Chrono/bouton "Terminer mon tour" seulement à plusieurs (voir
+    // `renderTimers` — même condition que le chrono côté serveur,
+    // `OrapaMineSession.turn_deadline`) : personne à presser tout seul.
+    endTurnBtn.hidden = (room?.players.length ?? 0) <= 1;
 
     // "Placer des repères" reste affiché en permanence désormais (plus
     // de bouton pour l'activer, retour utilisateur direct) : un simple
@@ -630,8 +668,14 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
       entryInput.disabled = !myTurn;
       askBtn.disabled = !myTurn || !askTarget;
       proposeBtn.disabled = !myTurn;
+      endTurnBtn.disabled = !myTurn;
     };
     refreshTurnGating = refreshGating;
+
+    endTurnBtn.addEventListener("click", () => {
+      if (!isMyTurn()) return;
+      sendEndTurn(socket!);
+    });
 
     if (scene) {
       reflectionController?.dispose();
@@ -741,22 +785,59 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
 
   function updateTurnIndicator(): void {
     const el = root.querySelector<HTMLParagraphElement>(".orapa-mp__turn");
-    if (!el || !room) return;
-    const state = lastGameState;
-    if (!state) {
-      el.textContent = "";
-      return;
+    if (el && room) {
+      const state = lastGameState;
+      const turnPlayer = state ? (room.mode === "DUEL" ? state.current_prospector : state.current_turn_player) : null;
+      if (turnPlayer === playerId) {
+        el.textContent = "À toi de jouer.";
+      } else if (turnPlayer) {
+        const name = room.players.find((p) => p.id === turnPlayer)?.name ?? turnPlayer;
+        el.textContent = `Au tour de ${name}.`;
+      } else {
+        el.textContent = "";
+      }
     }
-    const turnPlayer = room.mode === "DUEL" ? state.current_prospector : state.current_turn_player;
-    if (turnPlayer === playerId) {
-      el.textContent = "À toi de jouer.";
-    } else if (turnPlayer) {
-      const name = room.players.find((p) => p.id === turnPlayer)?.name ?? turnPlayer;
-      el.textContent = `Au tour de ${name}.`;
-    } else {
-      el.textContent = "";
-    }
+    renderTimers();
     refreshTurnGating?.();
+  }
+
+  /** Chronos "Vous"/adversaire(s) du bandeau du haut (retour utilisateur
+   * direct : "chaque tour dure 4 min... vous avec un point vert, et
+   * adversaire avec un point bleu") — seulement à plusieurs (voir
+   * `OrapaMineSession.turn_deadline` côté serveur : personne à presser
+   * tout seul). Remplace le texte "À toi de jouer"/"Au tour de X" plutôt
+   * que de le doubler. N'affiche un compte à rebours qui défile que pour
+   * le joueur dont c'est VRAIMENT le tour ; les autres montrent le temps
+   * plein "4:00", en attente du leur. */
+  function renderTimers(): void {
+    const host = root.querySelector<HTMLDivElement>(".orapa-play__timers");
+    const turnEl = root.querySelector<HTMLParagraphElement>(".orapa-mp__turn");
+    if (!host || !room) return;
+    const multiplayer = room.players.length > 1;
+    if (turnEl) turnEl.hidden = multiplayer;
+    host.hidden = !multiplayer;
+    if (!multiplayer) return;
+
+    const state = lastGameState;
+    const turnPlayerId = state ? (room.mode === "DUEL" ? state.current_prospector : state.current_turn_player) : null;
+    const deadline = state?.turn_deadline;
+    const remaining = deadline != null ? deadline - Date.now() / 1000 : TURN_DURATION_SECONDS;
+
+    const rows: string[] = [
+      timerRowHtml("Vous", "you", turnPlayerId === playerId, remaining),
+      ...room.players.filter((p) => p.id !== playerId).map((p) => timerRowHtml(p.name, "opponent", turnPlayerId === p.id, remaining)),
+    ];
+    host.innerHTML = rows.join("");
+  }
+
+  function timerRowHtml(name: string, kind: "you" | "opponent", active: boolean, remaining: number): string {
+    const time = formatCountdown(active ? remaining : TURN_DURATION_SECONDS);
+    return `
+      <span class="orapa-play__timer${active ? " is-active" : ""}">
+        <span class="orapa-play__timer-dot orapa-play__timer-dot--${kind}"></span>
+        ${escapeHtml(name)} <span class="orapa-play__timer-time">${time}</span>
+      </span>
+    `;
   }
 
   // --- Historique (panneau gauche en jeu, journal dans les autres écrans) --
@@ -855,6 +936,7 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
   }
 
   return () => {
+    if (timerInterval) clearInterval(timerInterval);
     socket?.close();
     scene?.dispose();
     placementController?.dispose();
@@ -862,10 +944,14 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
   };
 }
 
+// Texte de l'historique simplifié au maximum (retour utilisateur
+// direct — l'ancienne phrase complète "Rayon depuis X : sort en Y —
+// couleur [pastille]." était trop verbeuse) : "ENTRÉE Rayon → sortie
+// SORTIE [case colorée] COULEUR".
 function describeRay(label: string, result: RayResultPayload): string {
-  if (result.absorbed) return `Rayon depuis ${label} : signal absorbé.`;
+  if (result.absorbed) return `<strong>${label}</strong> Rayon → absorbé`;
   const exitLabel = labelForExit(result.exit!, result.exit_direction!);
-  return `Rayon depuis ${label} : sort en ${exitLabel} — couleur ${colorBadgeHtml(result.color)}.`;
+  return `<strong>${label}</strong> Rayon → sortie <strong>${exitLabel}</strong> ${colorSquareHtml(result.color)}${colorNameHtml(result.color)}`;
 }
 
 // `peek()` (backend) répond par une phrase complète ("Une gemme rouge"),

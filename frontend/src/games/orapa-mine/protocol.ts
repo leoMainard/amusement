@@ -35,6 +35,10 @@ export interface GameStatePayload {
   // communs
   finished?: boolean;
   winner?: string | null;
+  /** Horodatage Unix (secondes, éventuellement fractionnaires) de fin du
+   * tour en cours — `null`/absent si non chronométré (salon à un seul
+   * joueur, ou hors partie). Voir `OrapaMineSession.turn_deadline`. */
+  turn_deadline?: number | null;
 }
 
 export interface RayResultPayload {
@@ -103,4 +107,11 @@ export function sendAskPeek(socket: RoomSocket, position: Position): void {
 
 export function sendSubmitSolution(socket: RoomSocket, guess: Piece[]): void {
   socket.send({ type: "submit_solution", guess: guess.map(piecePayload) });
+}
+
+/** Bouton "Terminer mon tour" : passe la main volontairement sans poser
+ * de question ni proposer — même effet que l'expiration du chrono côté
+ * serveur (voir `turn_deadline`). */
+export function sendEndTurn(socket: RoomSocket): void {
+  socket.send({ type: "end_turn" });
 }

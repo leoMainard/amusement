@@ -1314,6 +1314,27 @@ kbd {
   font-size: 0.85em;
 }
 
+/* Case + nom colorés (voir `color-swatch.ts:colorSquareHtml`/
+   `colorNameHtml`) — historique multijoueur simplifié : "ENTRÉE Rayon →
+   sortie SORTIE [case] COULEUR", plus court que l'ancienne pastille à
+   fond plein + phrase complète. */
+.ray-color-square {
+  display: inline-block;
+  width: 0.85em;
+  height: 0.85em;
+  margin-right: 0.35em;
+  border-radius: 0.2em;
+  border: 1px solid var(--om-border);
+  vertical-align: -0.05em;
+}
+
+.ray-color-name {
+  font-weight: 600;
+  font-family: "Chakra Petch", sans-serif;
+  font-size: 0.85em;
+  letter-spacing: 0.04em;
+}
+
 @media (max-width: 720px) {
   .orapa-demo {
     grid-template-columns: 1fr;
@@ -2333,6 +2354,62 @@ kbd {
   color: var(--om-text-4);
 }
 
+/* Chronos "Vous"/adversaire(s) (retour utilisateur direct : "chaque
+   tour dure 4 min... vous avec un point vert, et adversaire avec un
+   point bleu") — remplace `.orapa-mp__turn` à plusieurs, voir
+   `renderTimers` dans multiplayer.ts. */
+.orapa-play__timers {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.orapa-play__timer {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-family: "Chakra Petch", sans-serif;
+  font-size: 12.5px;
+  letter-spacing: 0.04em;
+  color: var(--om-text-4);
+}
+
+.orapa-play__timer-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.orapa-play__timer-dot--you {
+  background: var(--om-green);
+}
+
+.orapa-play__timer-dot--opponent {
+  background: var(--om-blue);
+}
+
+.orapa-play__timer-time {
+  font-weight: 700;
+  color: var(--om-text-2);
+}
+
+/* Le joueur dont c'est VRAIMENT le tour ressort en or, le compte à
+   rebours défile réellement pour lui seul (voir `renderTimers`) — les
+   autres affichent juste "4:00" en attente, sans donner l'impression
+   qu'un chrono tourne aussi pour eux. */
+.orapa-play__timer.is-active {
+  color: var(--om-text);
+}
+
+.orapa-play__timer.is-active .orapa-play__timer-time {
+  color: var(--om-gold);
+}
+
+.orapa-play__timer.is-active .orapa-play__timer-dot {
+  box-shadow: 0 0 0 3px rgba(242, 194, 75, 0.2);
+}
+
 /* `--orapa-play-row-h` borne les trois colonnes à la même hauteur, et
  * cette hauteur elle-même à ce qui reste réellement visible sous le
  * chrome de la page (en-tête + fil d'ariane + marge de `#view-root`) —
@@ -2569,7 +2646,9 @@ kbd {
    disposition" en jeu. */
 .orapa-play__side[hidden],
 .orapa-play__tools[hidden],
-.orapa-play__toggles[hidden] {
+.orapa-play__toggles[hidden],
+.orapa-play__timers[hidden],
+.orapa-play__end-turn-btn[hidden] {
   display: none;
 }
 
@@ -2579,6 +2658,10 @@ kbd {
   gap: 8px;
 }
 
+/* Moins large que la colonne entière (retour utilisateur direct) :
+ * centré plutôt qu'étiré sur toute la largeur du plateau —
+ * `align-self: center` annule le `stretch` par défaut hérité de
+ * `.orapa-play__center` (flex column) pour ce seul enfant. */
 .orapa-play__tools {
   border-radius: 18px;
   background: var(--om-panel);
@@ -2587,12 +2670,51 @@ kbd {
   display: flex;
   flex: none;
   align-items: center;
-  gap: 28px;
+  gap: 22px;
+  align-self: center;
+  /* Un pourcentage plutôt qu'un simple plafond en pixels : reste
+     visiblement plus étroit que la colonne centrale à n'importe quelle
+     largeur d'écran (un `max-width` seul ne "mordait" pas encore à la
+     largeur de colonne courante — retour utilisateur direct). */
+  width: 82%;
+  max-width: 560px;
 }
 
 .orapa-play__tool {
   flex: 1;
   min-width: 0;
+}
+
+/* Bouton "Terminer mon tour" (retour utilisateur direct — visible
+   seulement à plusieurs, voir `renderPlaying`/`.orapa-play__timers`) :
+   même largeur/alignement que `.orapa-play__tools` juste au-dessus, en
+   plein bandeau doré pour rester une action volontaire assumée, pas un
+   simple lien discret. */
+.orapa-play__end-turn-btn {
+  align-self: center;
+  width: 82%;
+  max-width: 560px;
+  padding: 12px;
+  border-radius: 12px;
+  border: none;
+  background: var(--om-gold);
+  color: var(--om-surface);
+  font-family: "Chakra Petch", sans-serif;
+  font-weight: 700;
+  font-size: 12.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.orapa-play__end-turn-btn:hover:not(:disabled) {
+  background: var(--om-gold-hover);
+}
+
+.orapa-play__end-turn-btn:disabled {
+  background: var(--om-panel-soft);
+  color: var(--om-text-5);
+  cursor: default;
 }
 
 .orapa-play__tool p {
