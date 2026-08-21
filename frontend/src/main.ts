@@ -33,16 +33,12 @@ const STEPS = [
   { n: "3", title: "Jouez", body: "Tout le monde arrive avec le code, la partie démarre. Rien à installer.", color: "var(--am-green)" },
 ];
 
-// Jeux à venir : purement décoratifs (pas dans `GAMES`, rien à ouvrir).
-// Seul Uno reste comme aperçu "Bientôt" (déjà dans la maquette) — Monopoly
-// et Jeu de dés retirés : pas encore construits, pas besoin de les
-// afficher (retour utilisateur direct).
+// Jeux à venir : purement décoratif (pas dans `GAMES`, rien à ouvrir).
+// Plus aucun aperçu "Bientôt" (Uno retiré — retour utilisateur direct :
+// pas encore construit, pas besoin de l'afficher) — seule "Votre jeu
+// ici" reste, à côté d'Orapa Mine plutôt que sur sa propre ligne (voir
+// `.game-card`, qui ne prend plus toute la largeur de la grille).
 const STUB_CARDS_HTML = `
-  <div class="am-card--stub" style="background: #6c4bf6; color: #f6efe2;">
-    <div class="am-card__badge" style="border-color: rgba(246,239,226,.6);">Bientôt</div>
-    <h3>Uno</h3>
-    <p>Cartes rapides · 2 à 10</p>
-  </div>
   <div class="am-card--empty">
     <div class="am-card__badge">En chantier</div>
     <div class="am-card--empty__spin"></div>

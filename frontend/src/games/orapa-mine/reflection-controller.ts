@@ -66,6 +66,14 @@ export interface ReflectionControllerOptions {
    * Ignoré si absent, ou si aucun repère élémentaire n'est fourni (rien
    * à regrouper avec). */
   markToggleButton?: HTMLButtonElement;
+  /** Appelé quand une gemme/un repère devient armé (voir le gestionnaire
+   * de clic des boutons de palette, plus bas) — permet à l'appelant de
+   * désactiver le mode marquage en cours (retour utilisateur direct : un
+   * vrai bug permettait d'avoir à la fois une croix ET une gemme/un
+   * repère sélectionnés). Rien d'équivalent n'est nécessaire dans l'autre
+   * sens : voir `disarm()`, public, que `multiplayer.ts` appelle en
+   * activant le mode marquage. */
+  onArm?: () => void;
 }
 
 export class ReflectionController {
@@ -180,6 +188,7 @@ export class ReflectionController {
         this.updateSwatchSelection(button);
         this.refreshGhost();
         this.refreshPreview();
+        this.options.onArm?.();
       });
       (isUnit ? unitHost : gemHost).appendChild(button);
     }
@@ -296,8 +305,12 @@ export class ReflectionController {
 
   /** Repose la sélection après une pose de gemme (voir `handleCornerClick`)
    * ou un reclic sur une gemme/un repère déjà armé (voir le gestionnaire
-   * de clic des boutons de palette, plus haut). */
-  private disarm(): void {
+   * de clic des boutons de palette, plus haut). Public : `multiplayer.ts`
+   * l'appelle aussi en activant le mode marquage, pour qu'une croix et
+   * une gemme/un repère ne puissent jamais être sélectionnés en même
+   * temps (retour utilisateur direct — bug corrigé). Sans effet si rien
+   * n'est déjà armé. */
+  disarm(): void {
     this.armed = null;
     this.armedIsGem = false;
     this.updateSwatchSelection(null);

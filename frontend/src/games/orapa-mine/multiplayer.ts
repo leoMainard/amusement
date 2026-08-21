@@ -613,7 +613,7 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
       // généré, pas de pose manuelle — voir rooms/room.py).
       validateLabel: "Je suis prêt",
       onPlace: (piece) => sendPlacePiece(socket!, piece),
-      onRemove: (piece) => sendRemovePiece(socket!, piece.origin),
+      onRemove: (piece) => sendRemovePiece(socket!, piece),
       onValidate: () => {
         sendValidatePlacement(socket!);
         controlsHost.querySelector(".orapa-mp__wait")!.textContent = "En attente de l'adversaire...";
@@ -642,12 +642,17 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
     const endTurnBtn = host.querySelector<HTMLButtonElement>(".orapa-play__end-turn-btn")!;
     const endTurnTool = host.querySelector<HTMLDivElement>(".orapa-play__tool--end-turn")!;
     const endTurnDivider = host.querySelector<HTMLDivElement>(".orapa-play__tool-divider--end-turn")!;
-    // Chrono/bouton "Terminer mon tour" seulement à plusieurs (voir
-    // `renderTimers` — même condition que le chrono côté serveur,
-    // `OrapaMineSession.turn_deadline`) : personne à presser tout seul.
-    const showEndTurn = (room?.players.length ?? 0) > 1;
-    endTurnTool.hidden = !showEndTurn;
-    endTurnDivider.hidden = !showEndTurn;
+    const endTurnCaption = host.querySelector<HTMLParagraphElement>(".orapa-play__end-turn-caption")!;
+    // Toujours affiché, même seul (retour utilisateur direct — un joueur
+    // Fouille solo restait bloqué après sa première question : le bouton
+    // était masqué au-delà d'un joueur, or c'est le SEUL moyen de réarmer
+    // le droit à une question par tour une fois `asked_this_turn` à
+    // `true`, voir `refreshGating`). Solo, il n'y a pas de vrai chrono à
+    // 4 min (voir `OrapaMineSession.turn_deadline`, jamais fixé pour un
+    // salon à un seul joueur) — la légende s'adapte en conséquence.
+    endTurnTool.hidden = false;
+    endTurnDivider.hidden = false;
+    endTurnCaption.textContent = (room?.players.length ?? 0) > 1 ? "4 min par tour" : "Pour poser une nouvelle question";
 
     // "Placer des repères" reste affiché en permanence désormais (plus
     // de bouton pour l'activer, retour utilisateur direct) : un simple
@@ -698,6 +703,10 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
     markToggle.addEventListener("click", () => {
       markMode = !markMode;
       markToggle.classList.toggle("is-selected", markMode);
+      // Une croix et une gemme/un repère armés en même temps n'ont pas de
+      // sens (retour utilisateur direct — bug corrigé) : activer le mode
+      // marquage désarme toute gemme/repère en cours de sélection.
+      if (markMode) reflectionController?.disarm();
     });
 
     if (scene) {
@@ -712,6 +721,13 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
         statusHost: reflectPanel.querySelector(".orapa-mp__reflect-status")!,
         entries: reflectionEntries(room?.extensions_enabled ?? false),
         markToggleButton: markToggle,
+        // Symétrique du désarmement ci-dessus : armer une gemme/un repère
+        // désactive le mode marquage en cours.
+        onArm: () => {
+          if (!markMode) return;
+          markMode = false;
+          markToggle.classList.remove("is-selected");
+        },
       });
       scene.onCornerClick = ({ corner }) => {
         if (markMode) {

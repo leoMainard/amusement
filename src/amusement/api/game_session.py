@@ -128,10 +128,24 @@ class OrapaMineSession:
         pending.board.place_piece(piece)  # peut lever PlacementError
         pending.used.add(key)
 
-    def remove_piece_at(self, player_id: str, position: Position) -> None:
+    def remove_piece(self, player_id: str, piece: Piece) -> None:
+        """Retire `piece` (description complète — forme/couleur/origine/
+        rotation/miroir), pas une simple position. Un retrait PAR CASE
+        cliquée (`board.piece_at_cell`) semblait plus simple, mais une
+        case donnée n'est pas toujours couverte par la pièce dont c'est
+        pourtant l'origine (`origin` marque le coin de la boîte
+        englobante, pas nécessairement un quartier réellement occupé —
+        ex. le losange, dont aucun sommet ne tombe sur ce coin) : pour
+        certaines rotations/miroirs, retirer par position sur `origin`
+        échouait donc à tort avec « Aucune pièce à cet endroit » — bug
+        réel, retour utilisateur direct (repéré via « Au hasard », qui
+        tire des rotations/miroirs aléatoires bien plus souvent qu'un
+        placement manuel). La correspondance EXACTE (`Piece` est un
+        dataclass gelé, comparé par valeur) élimine ce problème de
+        géométrie entièrement plutôt que de le contourner au cas par cas.
+        """
         pending = self._pending_for(player_id)
-        piece = pending.board.piece_at_cell(tuple(position))
-        if piece is None:
+        if piece not in pending.board.pieces():
             raise RoomError("Aucune pièce à cet endroit.")
         pending.board.remove_piece(piece)
         pending.used.discard(_piece_key(piece))

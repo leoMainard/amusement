@@ -224,8 +224,13 @@ async def _handle_message(
             await connections.send_to(code, player_id, {"type": "placement_ack", "piece": piece_to_payload(piece)})
 
         elif msg_type == "remove_piece":
-            session.remove_piece_at(player_id, tuple(message["position"]))
-            await connections.send_to(code, player_id, {"type": "placement_ack", "removed": message["position"]})
+            # Description complète de la pièce, pas juste sa position
+            # (voir la docstring de `OrapaMineSession.remove_piece`) : un
+            # retrait par simple position pouvait échouer à tort selon la
+            # rotation/le miroir de la pièce.
+            piece = piece_from_payload(message["piece"])
+            session.remove_piece(player_id, piece)
+            await connections.send_to(code, player_id, {"type": "placement_ack", "removed": message["piece"]})
 
         elif msg_type == "validate_placement":
             all_ready = session.validate_placement(player_id)

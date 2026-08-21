@@ -135,11 +135,44 @@ def test_remove_piece_before_validating() -> None:
     room.add_player("Bob")
     session = OrapaMineSession(room)
     session.start()
-    session.place_piece(alice.id, Piece.normal(PieceShape.MEDIUM_TRIANGLE, Color.YELLOW, origin=(0, 0)))
-    session.remove_piece_at(alice.id, (0, 0))
+    piece = Piece.normal(PieceShape.MEDIUM_TRIANGLE, Color.YELLOW, origin=(0, 0))
+    session.place_piece(alice.id, piece)
+    session.remove_piece(alice.id, piece)
     assert session.placements[alice.id].used == set()
     # La replacer doit fonctionner (le "used" a bien été libéré).
-    session.place_piece(alice.id, Piece.normal(PieceShape.MEDIUM_TRIANGLE, Color.YELLOW, origin=(0, 0)))
+    session.place_piece(alice.id, piece)
+
+
+def test_remove_piece_matches_by_full_description_not_just_position() -> None:
+    # "Au hasard" tire des rotations/miroirs aléatoires bien plus souvent
+    # qu'un placement manuel (retour utilisateur direct) : `origin`
+    # marque le coin de la boîte englobante d'une pièce, pas forcément
+    # une case qu'elle occupe réellement une fois tournée/retournée — un
+    # retrait par simple position pouvait donc échouer à tort avec
+    # « Aucune pièce à cet endroit » pour certaines orientations. La
+    # correspondance par description complète (forme/couleur/origine/
+    # rotation/miroir) élimine ce problème de géométrie entièrement.
+    room = Room(code="ABCDE", game="orapa_mine", mode=RoomMode.DUEL, max_players=2)
+    alice = room.add_player("Alice")
+    room.add_player("Bob")
+    session = OrapaMineSession(room)
+    session.start()
+    for rotation_steps in range(4):
+        for mirrored in (False, True):
+            piece = Piece.normal(PieceShape.RHOMBUS, Color.WHITE, origin=(4, 4), rotation_steps=rotation_steps, mirrored=mirrored)
+            session.place_piece(alice.id, piece)
+            session.remove_piece(alice.id, piece)
+            assert session.placements[alice.id].used == set()
+
+
+def test_remove_piece_not_present_raises() -> None:
+    room = Room(code="ABCDE", game="orapa_mine", mode=RoomMode.DUEL, max_players=2)
+    alice = room.add_player("Alice")
+    room.add_player("Bob")
+    session = OrapaMineSession(room)
+    session.start()
+    with pytest.raises(RoomError):
+        session.remove_piece(alice.id, Piece.normal(PieceShape.MEDIUM_TRIANGLE, Color.YELLOW, origin=(0, 0)))
 
 
 def test_fouille_full_flow() -> None:

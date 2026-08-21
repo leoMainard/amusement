@@ -97,6 +97,37 @@ def test_extension_piece_rejected_over_websocket_when_room_disallows_it() -> Non
             assert response["type"] == "error"
 
 
+def test_remove_piece_over_websocket_matches_by_full_description() -> None:
+    # Un retrait par simple position échouait à tort pour certaines
+    # rotations/miroirs (retour utilisateur direct, repéré via "Au
+    # hasard" qui en tire beaucoup) : voir la docstring de
+    # `OrapaMineSession.remove_piece`. `remove_piece` envoie désormais la
+    # pièce entière, pas seulement sa position.
+    code = create_room(mode="duel", max_players=2)
+    rotated = piece_to_payload(Piece.normal(PieceShape.RHOMBUS, Color.WHITE, origin=(4, 4), rotation_steps=1, mirrored=True))
+
+    with client.websocket_connect(f"/ws/rooms/{code}?name=Alice") as alice_ws:
+        alice_ws.receive_json()  # joined
+        with client.websocket_connect(f"/ws/rooms/{code}?name=Bob") as bob_ws:
+            bob_ws.receive_json()  # joined
+            alice_ws.receive_json()  # room_update: bob a rejoint
+            alice_ws.receive_json()  # room_update: PLACING
+            bob_ws.receive_json()  # room_update: PLACING
+
+            alice_ws.send_json({"type": "place_piece", "piece": rotated})
+            ack = alice_ws.receive_json()
+            assert ack["type"] == "placement_ack"
+
+            alice_ws.send_json({"type": "remove_piece", "piece": rotated})
+            ack = alice_ws.receive_json()
+            assert ack["type"] == "placement_ack"
+
+            # La replacer doit fonctionner (le "used" a bien été libéré).
+            alice_ws.send_json({"type": "place_piece", "piece": rotated})
+            ack = alice_ws.receive_json()
+            assert ack["type"] == "placement_ack"
+
+
 def test_join_unknown_room_is_refused() -> None:
     try:
         with client.websocket_connect("/ws/rooms/ZZZZZ?name=Alice"):

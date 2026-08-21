@@ -95,8 +95,15 @@ export function sendPlacePiece(socket: RoomSocket, piece: Piece): void {
   socket.send({ type: "place_piece", piece: piecePayload(piece) });
 }
 
-export function sendRemovePiece(socket: RoomSocket, position: Position): void {
-  socket.send({ type: "remove_piece", position });
+/** Décrit `piece` en entier (forme/couleur/origine/rotation/miroir),
+ * pas juste sa position : `origin` marque le coin de la boîte
+ * englobante de la pièce, pas nécessairement une case qu'elle occupe
+ * réellement une fois posée (ex. le losange) — un retrait par simple
+ * position pouvait donc échouer à tort selon la rotation/le miroir
+ * (retour utilisateur direct, repéré via "Au hasard"). Voir
+ * `OrapaMineSession.remove_piece` côté serveur. */
+export function sendRemovePiece(socket: RoomSocket, piece: Piece): void {
+  socket.send({ type: "remove_piece", piece: piecePayload(piece) });
 }
 
 export function sendValidatePlacement(socket: RoomSocket): void {

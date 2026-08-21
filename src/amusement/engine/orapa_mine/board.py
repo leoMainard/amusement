@@ -127,12 +127,22 @@ class Board:
 
     def remove_piece(self, piece: Piece) -> None:
         """Retire une pièce posée (ajustement pendant la phase de
-        placement, avant validation — voir `rooms/`)."""
+        placement, avant validation — voir `rooms/`).
+
+        Comparaison par VALEUR (`==`), pas par identité (`is`) : `Piece`
+        est un dataclass gelé comparé par valeur, et l'appelant (voir
+        `game_session.OrapaMineSession.remove_piece`) reconstruit
+        désormais la pièce à retirer à partir du message WebSocket —
+        c'est un objet Python différent de celui stocké ici, même s'il
+        décrit exactement la même pièce. Comparer par identité laissait
+        silencieusement les quartiers occupés dans `_occupancy` (jamais
+        supprimés, faute de correspondance), bloquant à tort toute pose
+        future à cet endroit — vrai bug, retour utilisateur direct."""
         if piece not in self._pieces:
             raise PlacementError("Cette pièce n'est pas posée sur ce plateau.")
         self._pieces.remove(piece)
         for quadrant_key in piece.quadrants():
-            if self._occupancy.get(quadrant_key) is piece:
+            if self._occupancy.get(quadrant_key) == piece:
                 del self._occupancy[quadrant_key]
 
     def _validate_placement(self, quadrants: set[tuple[int, int, Quadrant]]) -> None:
