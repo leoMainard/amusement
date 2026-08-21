@@ -232,7 +232,7 @@ function showView(gameId: string, view: ViewKind): void {
         </div>
       </div>`
         : `
-      ${view === "play" ? "" : `<button type="button" class="om-shell__fiche-link" data-view="notice">← Fiche du jeu</button>`}
+      <button type="button" class="om-shell__fiche-link" data-view="notice">← Fiche du jeu</button>
       <div id="view-root"></div>`
     }
   `;

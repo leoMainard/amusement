@@ -1037,6 +1037,17 @@ body:has(#app.om-shell) {
   margin: 0;
 }
 
+.orapa-demo__panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.orapa-demo__panel-head h3 {
+  margin: 0;
+}
+
 .orapa-demo__hint {
   font-size: 13.5px;
   line-height: 1.5;
@@ -1355,10 +1366,19 @@ kbd {
   font-size: 14px;
 }
 
+/* Interrupteur stylisé (pas une case à cocher nue, retour utilisateur
+   direct — "c'est moche"), même principe que les autres champs :
+   `appearance: none` sur l'`<input>`, redessiné en piste + poignée via
+   `::before`. */
 .orapa-mp__panel label.orapa-mp__extensions {
   flex-direction: row;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.7rem;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--om-panel-soft);
+  border: 1px solid var(--om-border-soft);
+  cursor: pointer;
 }
 
 .orapa-mp__panel label.orapa-mp__max-players {
@@ -1384,7 +1404,40 @@ kbd {
 }
 
 .orapa-mp__panel label.orapa-mp__extensions input {
-  width: auto;
+  appearance: none;
+  -webkit-appearance: none;
+  position: relative;
+  flex: none;
+  width: 40px;
+  height: 22px;
+  margin: 0;
+  border-radius: 999px;
+  background: rgba(244, 234, 214, 0.15);
+  border: 1px solid var(--om-border);
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.orapa-mp__panel label.orapa-mp__extensions input::before {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--om-text-4);
+  transition: transform 0.2s ease, background 0.2s ease;
+}
+
+.orapa-mp__panel label.orapa-mp__extensions input:checked {
+  background: rgba(242, 194, 75, 0.22);
+  border-color: var(--om-gold);
+}
+
+.orapa-mp__panel label.orapa-mp__extensions input:checked::before {
+  transform: translateX(18px);
+  background: var(--om-gold);
 }
 
 .orapa-mp__extensions-hint,
@@ -1489,13 +1542,10 @@ kbd {
   color: var(--om-gold);
 }
 
-/* Titre de l'écran "Créer une partie" + petite icône colorée à côté du
-   nom du jeu (retour utilisateur direct — mêmes formes que la carte
-   d'accueil, en plus petit). */
+/* Titre de l'écran "Créer une partie" + sous-titre — plus d'icône ici
+   (retirée, retour utilisateur direct) : les cartes de mode portent
+   maintenant chacune leur propre puce colorée à la place. */
 .orapa-mp__setup-heading {
-  display: flex;
-  align-items: center;
-  gap: 14px;
   margin-bottom: 22px;
 }
 
@@ -1504,55 +1554,62 @@ kbd {
   font-size: 30px;
 }
 
-.orapa-mp__setup-icon {
-  position: relative;
-  flex: none;
-  width: 46px;
-  height: 46px;
-  border-radius: 12px;
-  background: var(--om-bg-deep);
-  overflow: hidden;
+.orapa-mp__setup-subtitle {
+  margin: 8px 0 0;
+  font-size: 14.5px;
+  color: var(--om-text-3);
 }
 
-.orapa-mp__setup-icon-shape {
-  position: absolute;
+/* Puce au-dessus du nom du mode : rouge (parallélogramme) pour Duel,
+   bleu (triangle) pour Fouille — retour utilisateur direct. */
+.orapa-mp__mode-card-chip {
+  display: block;
+  width: 28px;
+  height: 28px;
+  margin-bottom: 14px;
 }
 
-.orapa-mp__setup-icon-shape--tri {
-  left: 6px;
-  bottom: 5px;
-  width: 24px;
-  height: 24px;
-  background: var(--om-gold);
+.orapa-mp__mode-card-chip--duel {
+  background: #e83c30;
+  clip-path: polygon(22% 0, 100% 0, 78% 100%, 0 100%);
+}
+
+.orapa-mp__mode-card-chip--fouille {
+  background: #2f7ff0;
   clip-path: polygon(50% 0, 100% 100%, 0 100%);
 }
 
-.orapa-mp__setup-icon-shape--para {
-  right: 5px;
-  bottom: 6px;
-  width: 18px;
-  height: 13px;
-  background: #2f7ff0;
-  clip-path: polygon(30% 0, 100% 0, 70% 100%, 0 100%);
+/* Une fois la partie créée, le mode ne peut plus changer : les cartes
+   restent affichées (rappel visuel) mais ne réagissent plus au clic. */
+.orapa-mp__mode-card.is-locked {
+  cursor: default;
 }
 
-.orapa-mp__mode-pill {
-  display: inline-flex;
-  padding: 8px 16px;
-  border-radius: 999px;
-  border: 1px solid var(--om-gold);
-  color: var(--om-gold);
+.orapa-mp__mode-card.is-locked:hover {
+  transform: none;
+}
+
+.orapa-mp__mode-card.is-locked:not(.is-selected) {
+  opacity: 0.5;
+}
+
+.orapa-mp__launch-btn {
+  margin-top: 14px;
+  padding: 14px;
+  border-radius: 12px;
+  border: none;
+  background: var(--om-gold);
+  color: var(--om-surface);
   font-family: "Chakra Petch", sans-serif;
-  font-size: 13px;
-  letter-spacing: 0.1em;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  cursor: pointer;
 }
 
-.orapa-mp__lobby-panel {
-  border-radius: 16px;
-  background: var(--om-panel);
-  border: 1px solid var(--om-border);
-  padding: 26px;
-  max-width: 560px;
+.orapa-mp__launch-btn:disabled {
+  background: var(--om-panel-soft);
+  color: var(--om-text-5);
+  cursor: default;
 }
 
 .orapa-mp__code {
@@ -1739,14 +1796,14 @@ kbd {
 
 .orapa-mp__reflect-panel {
   margin-top: 0.5rem;
-  padding: 14px;
+  padding: 12px 16px;
   border-radius: 12px;
   border: 1px solid var(--om-border-soft);
   background: var(--om-panel-soft);
 }
 
 .orapa-mp__reflect-palette {
-  grid-template-columns: repeat(auto-fill, minmax(50px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(46px, 1fr));
 }
 
 .orapa-mp__reflect-clear {
@@ -2092,6 +2149,19 @@ kbd {
    carnet + proposition complètement à droite ; tirer un rayon et
    interroger une case en dessous du plateau. */
 
+.orapa-play {
+  /* Casse la colonne étroite de `#view-root` (max-width: 1180px) pour
+     utiliser toute la largeur du viewport, comme le bandeau d'en-tête
+     au-dessus — "complètement à gauche/à droite" (retour utilisateur
+     direct), même padding horizontal que l'en-tête pour rester aligné
+     avec lui. */
+  width: 100vw;
+  margin-left: calc(50% - 50vw);
+  margin-right: calc(50% - 50vw);
+  padding: 0 clamp(16px, 4vw, 26px);
+  box-sizing: border-box;
+}
+
 .orapa-play__topbar {
   display: flex;
   align-items: center;
@@ -2115,8 +2185,8 @@ kbd {
 
 .orapa-play__layout {
   display: grid;
-  grid-template-columns: 260px minmax(0, 1fr) 270px;
-  gap: 20px;
+  grid-template-columns: minmax(240px, 300px) minmax(0, 1fr) minmax(240px, 300px);
+  gap: 24px;
   align-items: start;
 }
 
@@ -2127,13 +2197,12 @@ kbd {
   min-width: 0;
 }
 
-/* Pas de bordure/cadre autour du plateau lui-même (retour utilisateur
-   direct) — juste le dégradé qui lui donne un peu de profondeur. */
+/* Pas de fond ni de bordure propres au plateau (retour utilisateur
+   direct) : le canevas est transparent (voir `board-scene.ts`), il
+   laisse voir le même fond que le reste de la page — pas un cadre à
+   part. */
 .orapa-play__canvas {
   height: min(640px, 70vh);
-  border-radius: 18px;
-  overflow: hidden;
-  background: radial-gradient(70% 70% at 50% 10%, var(--om-surface-2) 0%, var(--om-bg-deep) 100%);
 }
 
 .orapa-play__canvas canvas {
@@ -2236,7 +2305,23 @@ kbd {
   height: 110px;
 }
 
+/* "Proposer la disposition" reprend directement les repères déjà posés
+   (voir multiplayer.ts) — plus de second panneau à ouvrir, juste ce
+   bouton + un petit rappel et une ligne de statut. */
+.orapa-play__propose-block {
+  margin-top: auto;
+  padding-top: 4px;
+}
+
+.orapa-play__propose-hint {
+  margin: 0 0 10px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--om-text-4);
+}
+
 .orapa-play__propose {
+  width: 100%;
   padding: 12px;
   border-radius: 12px;
   border: 1px solid rgba(242, 194, 75, 0.5);
@@ -2252,19 +2337,11 @@ kbd {
   background: rgba(242, 194, 75, 0.12);
 }
 
-.orapa-play__cancel-guess {
-  padding: 10px;
-  border: none;
-  background: none;
-  color: var(--om-text-4);
-  font-size: 12px;
-  cursor: pointer;
-  text-decoration: underline;
-  text-underline-offset: 2px;
-}
-
-.orapa-play__cancel-guess:hover {
-  color: var(--om-gold);
+.orapa-play__propose-status {
+  margin: 8px 0 0;
+  font-size: 12.5px;
+  min-height: 1.3em;
+  color: var(--om-text-2);
 }
 
 /* `.orapa-play__side`/`__tools`/`__toggles` déclarent tous un
@@ -2289,10 +2366,10 @@ kbd {
   border-radius: 18px;
   background: var(--om-panel);
   border: 1px solid rgba(242, 194, 75, 0.3);
-  padding: 16px 20px;
+  padding: 12px 22px;
   display: flex;
   align-items: center;
-  gap: 20px;
+  gap: 28px;
 }
 
 .orapa-play__tool {
@@ -2301,14 +2378,14 @@ kbd {
 }
 
 .orapa-play__tool p {
-  margin: 6px 0 0;
+  margin: 4px 0 0;
   font-size: 12.5px;
-  line-height: 1.4;
+  line-height: 1.35;
   color: var(--om-text-3);
 }
 
 .orapa-play__tool-row {
-  margin-top: 10px;
+  margin-top: 8px;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -2424,6 +2501,28 @@ kbd {
   padding: 28px;
   overflow-y: auto;
   max-height: inherit;
+  scrollbar-width: thin;
+  scrollbar-color: var(--om-gold-dark) transparent;
+}
+
+.om-help-dialog__inner::-webkit-scrollbar {
+  width: 9px;
+}
+
+.om-help-dialog__inner::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.om-help-dialog__inner::-webkit-scrollbar-thumb {
+  background: var(--om-gold-dark);
+  border-radius: 999px;
+  border: 2px solid var(--om-panel);
+  background-clip: padding-box;
+}
+
+.om-help-dialog__inner::-webkit-scrollbar-thumb:hover {
+  background: var(--om-gold);
+  background-clip: padding-box;
 }
 
 .om-help-dialog__close {

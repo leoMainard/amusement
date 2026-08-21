@@ -158,11 +158,8 @@ const STEPS: StepDef[] = [
   {
     title: "À toi de jouer",
     body: `
-      <p>Pose tes propres gemmes et tire des rayons librement ci-dessous.</p>
-      <p>Choisis une pièce dans la palette, oriente-la (pivoter/retourner — aussi possible
-      au clavier, touches R et F), puis clique une case pour la poser. <strong>Recliquer une
-      pièce déjà posée la retire</strong> : elle se teinte en rouge au survol pour te le
-      rappeler.</p>
+      <p>Pose tes propres gemmes et tire des rayons librement ci-dessous (bouton « ❔ Aide »
+      ci-dessus pour un rappel du fonctionnement).</p>
     `,
     kind: "free",
     pieces: [],

@@ -17,6 +17,7 @@ import { BoardScene } from "./board-scene";
 import { colorBadgeHtml } from "./color-swatch";
 import { labelForExit } from "./entry-labels";
 import { toContinuousCorner } from "./geometry";
+import { mountHelpDialog } from "./help-panel";
 import { PlacementController } from "./placement-controller";
 import { type RayResult, fireRayPreview } from "./preview-engine";
 import { DEFAULT_DIMENSIONS, EXTENSION_PIECE_PALETTE } from "./types";
@@ -26,15 +27,10 @@ export function mountOrapaMineDemo(root: HTMLElement): () => void {
     <div class="orapa-demo">
       <div class="orapa-demo__canvas"></div>
       <aside class="orapa-demo__panel">
-        <span class="om-eyebrow">Aperçu 3D hors ligne</span>
-        <p class="orapa-demo__hint">
-          Choisis une pièce, oriente-la (touches <kbd>R</kbd> pivoter / <kbd>F</kbd> retourner,
-          en plus des boutons), puis clique une case pour la poser (reclique une pièce posée —
-          elle se teinte en rouge au survol — pour la retirer). Chaque pièce ne peut être posée
-          qu'une fois. Une fois les 5 gemmes de base posées, valide le placement, puis clique une
-          borne du pourtour pour tirer un rayon. Le Diamant et le Corps noir (extensions) sont
-          optionnels.
-        </p>
+        <div class="orapa-demo__panel-head">
+          <span class="om-eyebrow">Aperçu 3D hors ligne</span>
+          <button type="button" class="om-help-btn orapa-demo__help-btn">❔ Aide</button>
+        </div>
         <div class="orapa-place__preview">
           <span class="om-eyebrow">Aperçu</span>
         </div>
@@ -100,6 +96,9 @@ export function mountOrapaMineDemo(root: HTMLElement): () => void {
     });
   let placement: PlacementController | null = makePlacement();
 
+  const helpDialog = mountHelpDialog(root);
+  root.querySelector<HTMLButtonElement>(".orapa-demo__help-btn")!.addEventListener("click", () => helpDialog.open());
+
   scene.onEntryClick = ({ label, entry }) => {
     if (!placement) return;
     let result: RayResult;
@@ -130,6 +129,7 @@ export function mountOrapaMineDemo(root: HTMLElement): () => void {
   return () => {
     placement?.dispose();
     scene.dispose();
+    helpDialog.dispose();
   };
 }
 
