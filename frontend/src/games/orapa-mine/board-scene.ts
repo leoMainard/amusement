@@ -538,18 +538,21 @@ export class BoardScene {
     });
     shape.closePath();
 
-    // Biseau prononcé (bien plus que la maquette) : une bonne partie de
-    // la hauteur devient une couronne à facettes multiples inclinées
-    // autour d'une petite table plate, plutôt qu'un simple chanfrein fin
-    // sur un bloc à faces droites — pour lire comme une vraie gemme
-    // taillée, pas une forme géométrique plate extrudée (retour
-    // utilisateur direct).
+    // Biseau un peu plus marqué que la maquette, mais SANS excès : un
+    // `bevelSize` trop grand par rapport aux petits segments des demi-
+    // cases (la diagonale d'un triangle, par ex.) fait déraper l'offset
+    // de biseau de Three.js sur les arêtes courtes/concaves — ça
+    // produisait de vraies coutures en croix, couleur de la pièce, sous
+    // chaque intersection de case (retour utilisateur direct : un essai
+    // précédent, bien plus agressif, avait ce défaut). Ces valeurs
+    // restent net plus marquées que l'aplat d'origine sans revenir à ce
+    // bug.
     const geometry = new THREE.ExtrudeGeometry(shape, {
       depth: GEM_HEIGHT,
       bevelEnabled: true,
-      bevelThickness: GEM_HEIGHT * 0.32,
-      bevelSize: 0.16,
-      bevelSegments: 3,
+      bevelThickness: 0.1,
+      bevelSize: 0.08,
+      bevelSegments: 2,
     });
 
     const isDiamond = piece.kind === GemKind.DIAMOND;

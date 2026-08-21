@@ -392,13 +392,13 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
                 <button type="button" class="orapa-mp__reflect-toggle">🧩 Placer des repères</button>
               </div>
               <div class="orapa-mp__reflect-panel" hidden>
-                <p class="orapa-demo__hint">Hypothèses personnelles, jamais transmises à l'adversaire — reclique un repère posé pour le retirer.</p>
-                <div class="orapa-demo__palette orapa-mp__reflect-palette"></div>
-                <div class="orapa-mp__reflect-actions">
-                  <button type="button" class="orapa-demo__rotate">⟳ (R)</button>
-                  <button type="button" class="orapa-demo__mirror">⇋ (F)</button>
-                  <button type="button" class="orapa-mp__reflect-clear">Vider mes repères</button>
+                <div class="orapa-mp__reflect-head">
+                  <p class="orapa-demo__hint">Hypothèses personnelles, jamais transmises à l'adversaire — reclique un repère posé pour le retirer.</p>
+                  <button type="button" class="orapa-mp__reflect-clear">Vider</button>
                 </div>
+                <div class="orapa-demo__palette orapa-mp__reflect-palette"></div>
+                <button type="button" class="orapa-demo__rotate">⟳</button>
+                <button type="button" class="orapa-demo__mirror">⇋</button>
                 <p class="orapa-demo__result orapa-mp__reflect-status" aria-live="polite"></p>
               </div>
 

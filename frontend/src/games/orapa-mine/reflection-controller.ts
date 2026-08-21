@@ -71,12 +71,23 @@ export class ReflectionController {
     const unitHost = document.createElement("div");
     unitHost.className = "orapa-demo__palette orapa-mp__reflect-group orapa-mp__reflect-group--units";
 
+    // Pivoter/retourner rejoignent l'intitulé "Gemmes" (déplacés depuis
+    // leur position d'origine dans le document, voir multiplayer.ts) au
+    // lieu d'occuper toute une ligne à eux seuls en bas du panneau —
+    // retour utilisateur direct, ce panneau prenait trop de hauteur.
+    const gemHeadRow = document.createElement("div");
+    gemHeadRow.className = "orapa-mp__reflect-group-head";
     if (showLabels) {
       const gemLabel = document.createElement("span");
       gemLabel.className = "om-eyebrow orapa-mp__reflect-group-label";
       gemLabel.textContent = "Gemmes";
-      options.paletteHost.appendChild(gemLabel);
+      gemHeadRow.appendChild(gemLabel);
     }
+    options.rotateButton.title = "Pivoter (touche R)";
+    options.mirrorButton.title = "Retourner (touche F)";
+    gemHeadRow.appendChild(options.rotateButton);
+    gemHeadRow.appendChild(options.mirrorButton);
+    options.paletteHost.appendChild(gemHeadRow);
     options.paletteHost.appendChild(gemHost);
     if (showLabels) {
       const unitLabel = document.createElement("span");

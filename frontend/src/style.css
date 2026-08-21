@@ -47,6 +47,7 @@
   --om-blue-dark: #1b4288;
   --om-cream: #f7f4ee;
   --om-cream-dark: #cdc4b4;
+  --om-green: #2ecc71;
 }
 
 /* `.am-ticker`/`.orapa-play` s'étendent volontairement en `100vw` pour
@@ -942,14 +943,19 @@ body:has(#app.om-shell) {
   padding: 0;
 }
 
+/* Un vrai bouton (fond doré léger, bordure, coins arrondis), pas un
+   simple lien texte — collé à gauche, comme le reste du contenu
+   (retour utilisateur direct). */
 .om-shell__fiche-link {
-  display: block;
-  max-width: 1180px;
-  margin: 0 auto;
-  padding: 22px clamp(16px, 4vw, 40px) 0;
-  background: none;
-  border: none;
-  color: var(--om-text-3);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 22px 0 0 clamp(16px, 4vw, 40px);
+  padding: 9px 18px;
+  border-radius: 999px;
+  border: 1px solid rgba(242, 194, 75, 0.4);
+  background: rgba(242, 194, 75, 0.1);
+  color: var(--om-gold);
   font-family: "Chakra Petch", sans-serif;
   font-size: 12.5px;
   letter-spacing: 0.06em;
@@ -957,7 +963,8 @@ body:has(#app.om-shell) {
 }
 
 .om-shell__fiche-link:hover {
-  color: var(--om-gold);
+  border-color: var(--om-gold);
+  background: rgba(242, 194, 75, 0.18);
 }
 
 .om-eyebrow {
@@ -1103,8 +1110,22 @@ body:has(#app.om-shell) {
 }
 
 .orapa-demo__swatch:disabled {
-  opacity: 0.35;
   cursor: default;
+}
+
+/* Une pièce "posée" (bouton désactivé, voir placement-controller.ts) :
+   l'icône et le libellé s'estompent, mais pas le statut — "posée"
+   ressort en vert, pas noyé dans le même gris (retour utilisateur
+   direct). Ne concerne que la liste "VOS GEMMES" : les repères de
+   `reflection-controller.ts` ne désactivent jamais leurs boutons. */
+.orapa-demo__swatch:disabled .orapa-demo__swatch-icon,
+.orapa-demo__swatch:disabled .orapa-demo__swatch-label {
+  opacity: 0.35;
+}
+
+.orapa-demo__swatch:disabled .orapa-demo__swatch-status {
+  color: var(--om-green);
+  font-weight: 600;
 }
 
 /* Variante "VOS GEMMES" (liste, pas grille d'icônes) — voir la maquette
@@ -1833,28 +1854,93 @@ kbd {
 
 .orapa-mp__reflect-panel {
   margin-top: 0.5rem;
-  padding: 10px 16px 14px;
+  padding: 10px 16px 12px;
   border-radius: 12px;
   border: 1px solid var(--om-border-soft);
   background: var(--om-panel-soft);
 }
 
+/* Astuce + "Vider" sur la même ligne, en haut du panneau — plus de
+   ligne dédiée à "Vider mes repères" en bas (retour utilisateur direct,
+   ce panneau prenait trop de hauteur). */
+.orapa-mp__reflect-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.orapa-mp__reflect-head .orapa-demo__hint {
+  margin: 0;
+}
+
+.orapa-mp__reflect-clear {
+  flex: none;
+  padding: 5px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--om-border);
+  background: transparent;
+  color: var(--om-text-3);
+  cursor: pointer;
+  font-family: "Chakra Petch", sans-serif;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+}
+
+.orapa-mp__reflect-clear:hover {
+  border-color: var(--om-red);
+  color: var(--om-red);
+}
+
 /* Le conteneur passé à `ReflectionController` (voir reflection-controller.ts)
-   n'est plus lui-même une grille : il n'accueille que l'intitulé de
-   chaque groupe et ses deux sous-grilles. */
+   n'est plus lui-même une grille : il n'accueille que l'en-tête "Gemmes"
+   (+ pivoter/retourner, déplacés ici) et les deux sous-grilles. */
 .orapa-mp__reflect-palette {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  margin-top: 8px;
+}
+
+.orapa-mp__reflect-group-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .orapa-mp__reflect-group-label {
   display: block;
-  margin-top: 6px;
 }
 
-.orapa-mp__reflect-group-label:first-child {
-  margin-top: 0;
+.orapa-mp__reflect-group-head .orapa-mp__reflect-group-label {
+  flex: 1;
+}
+
+/* Pivoter/retourner deviennent deux petites icônes à côté de "Gemmes"
+   plutôt qu'une ligne de boutons à eux seuls en bas du panneau. */
+.orapa-mp__reflect-group-head .orapa-demo__rotate,
+.orapa-mp__reflect-group-head .orapa-demo__mirror {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border-radius: 7px;
+  border: 1px solid var(--om-border);
+  background: transparent;
+  color: var(--om-text-3);
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+}
+
+.orapa-mp__reflect-group-head .orapa-demo__rotate:hover,
+.orapa-mp__reflect-group-head .orapa-demo__mirror:hover {
+  border-color: var(--om-gold);
+  color: var(--om-gold);
+}
+
+.orapa-mp__reflect-group-label:not(:first-child) {
+  margin-top: 6px;
 }
 
 /* Les 5 gemmes majeures tiennent sur une seule ligne (retour utilisateur
@@ -1873,45 +1959,6 @@ kbd {
 
 .orapa-demo__swatch--unit {
   padding: 4px;
-}
-
-/* Pivoter/retourner/vider sur une même ligne (retour utilisateur direct
-   — trois lignes distinctes prenaient trop de hauteur). */
-.orapa-mp__reflect-actions {
-  margin-top: 0.6rem;
-  display: flex;
-  gap: 8px;
-}
-
-.orapa-mp__reflect-actions button {
-  padding: 9px 12px;
-  border-radius: 10px;
-  border: 1px solid var(--om-border);
-  background: transparent;
-  color: var(--om-text-1);
-  cursor: pointer;
-  font-family: "Chakra Petch", sans-serif;
-  font-size: 12.5px;
-}
-
-.orapa-mp__reflect-actions .orapa-demo__rotate,
-.orapa-mp__reflect-actions .orapa-demo__mirror {
-  flex: none;
-}
-
-.orapa-mp__reflect-actions .orapa-demo__rotate:hover,
-.orapa-mp__reflect-actions .orapa-demo__mirror:hover {
-  border-color: var(--om-gold);
-  color: var(--om-gold);
-}
-
-.orapa-mp__reflect-clear {
-  flex: 1;
-}
-
-.orapa-mp__reflect-clear:hover {
-  border-color: var(--om-red);
-  color: var(--om-red);
 }
 
 .orapa-mp__notepad-block {
@@ -2589,6 +2636,12 @@ kbd {
   width: min(640px, calc(100vw - 40px));
   max-height: min(720px, calc(100vh - 40px));
   padding: 0;
+  /* Le `<dialog>` natif est défilable par défaut : sans ce `hidden`, dès
+   * que son contenu approche `max-height`, une DEUXIÈME barre de
+   * défilement (grise, non stylisée) apparaissait à côté de celle,
+   * dorée, posée sur `.om-help-dialog__inner` (retour utilisateur
+   * direct) — seul `.om-help-dialog__inner` doit défiler. */
+  overflow: hidden;
   border: 1px solid var(--om-border);
   border-radius: 18px;
   background: var(--om-panel);
