@@ -9,18 +9,28 @@
  *
  * - jamais envoyé au serveur ni à l'adversaire — purement local, comme
  *   les croix (voir `board-scene.ts:toggleMark`) ;
- * - pas de règles de contact du livret : ces repères peuvent se
- *   chevaucher librement (ce ne sont pas de vraies gemmes), seule la
- *   limite du plateau est respectée (voir `PreviewBoard.placePieceUnchecked`) ;
- * - une entrée de palette reste posable autant de fois qu'on veut : pas
- *   de compteur "X/N" ni de bouton "valider" — juste "vider" pour tout
- *   effacer, jamais désactivée après une pose.
+ * - les repères élémentaires ("unit") peuvent se chevaucher librement
+ *   (ce ne sont pas de vraies gemmes) : seule la limite du plateau est
+ *   respectée (voir `PreviewBoard.placePieceUnchecked`), et une entrée
+ *   reste posable autant de fois qu'on veut ;
+ * - les 5 gemmes majeures/extensions ("gem") sont de vraies hypothèses
+ *   de placement : elles suivent les mêmes règles de contact que le
+ *   livret (`PreviewBoard.placePiece` — retour utilisateur direct, un
+ *   vrai bug permettait de les empiler les unes sur les autres) et
+ *   chacune ne peut être positionnée qu'à un seul endroit à la fois — le
+ *   bouton correspondant se désactive tant qu'elle est posée, comme
+ *   `placement-controller.ts` (mais reste librement déplaçable : la
+ *   retirer du plateau réarme sa case dans la palette).
  */
 
 import type { BoardScene } from "./board-scene";
 import { pieceIconSvg } from "./piece-icon";
 import { PlacementError, PreviewBoard } from "./preview-engine";
 import { GemKind, type Color, type Piece, type PieceShape, type Position } from "./types";
+
+function pieceKey(p: { shape: PieceShape; kind: GemKind; color?: Color }): string {
+  return `${p.shape}:${p.kind}:${p.color ?? ""}`;
+}
 
 export interface ReflectionPaletteEntry {
   shape: PieceShape;
@@ -53,7 +63,18 @@ export class ReflectionController {
   private scene: BoardScene;
   private options: ReflectionControllerOptions;
   private armed: Piece | null = null;
+  /** La pièce actuellement armée est-elle une des 5 gemmes majeures (ou
+   * une extension), plutôt qu'un repère élémentaire ? Détermine quelles
+   * règles de placement s'appliquent (voir `handleCornerClick`/`canPlace`) —
+   * un `Piece` seul ne porte pas cette distinction. */
+  private armedIsGem = false;
   private hoveredCorner: Position | null = null;
+  /** Gemmes majeures/extensions actuellement posées (voir docstring du
+   * module) : une seule à la fois par gemme — son bouton de palette se
+   * désactive tant qu'elle y figure. Les repères élémentaires n'y
+   * figurent jamais (toujours reposables librement). */
+  private usedGemKeys = new Set<string>();
+  private gemSwatchByKey = new Map<string, HTMLButtonElement>();
 
   constructor(options: ReflectionControllerOptions) {
     this.options = options;
@@ -98,6 +119,7 @@ export class ReflectionController {
     for (const entry of options.entries) {
       const kind = entry.kind ?? GemKind.NORMAL;
       const isUnit = entry.variant === "unit";
+      const gemKey = isUnit ? null : pieceKey({ shape: entry.shape, kind, color: entry.color });
       const button = document.createElement("button");
       button.type = "button";
       button.title = entry.label;
@@ -105,16 +127,23 @@ export class ReflectionController {
         button.className = "orapa-demo__swatch orapa-demo__swatch--unit";
         button.innerHTML = pieceIconSvg(entry.shape, entry.color, 26, kind);
       } else {
-        // Liste "VOS GEMMES" : icône + libellé, comme placement-controller.ts
-        // (pas de statut "posée" ici — un repère reste posable autant de
-        // fois qu'on veut, "posée" n'aurait pas de sens).
+        // Liste "VOS GEMMES" : icône + libellé, comme placement-controller.ts.
         button.className = "orapa-demo__swatch";
         button.innerHTML = `
           <span class="orapa-demo__swatch-icon">${pieceIconSvg(entry.shape, entry.color, 32, kind)}</span>
           <span class="orapa-demo__swatch-label">${entry.label}</span>
         `;
+        if (gemKey) this.gemSwatchByKey.set(gemKey, button);
       }
       button.addEventListener("click", () => {
+        if (button.disabled) return;
+        // Recliquer la gemme/le repère déjà armé la désélectionne plutôt
+        // que de la réarmer inutilement (retour utilisateur direct :
+        // aucun moyen de "relâcher" une pièce sans en armer une autre).
+        if (button.classList.contains("is-selected")) {
+          this.disarm();
+          return;
+        }
         this.armed = {
           shape: entry.shape,
           kind,
@@ -123,6 +152,7 @@ export class ReflectionController {
           rotationSteps: 0,
           mirrored: false,
         };
+        this.armedIsGem = !isUnit;
         this.updateSwatchSelection(button);
         this.refreshGhost();
         this.refreshPreview();
@@ -204,31 +234,73 @@ export class ReflectionController {
     if (existing) {
       this.board.removePiece(existing);
       this.scene.removeReflectionPiece(existing);
+      this.freeGemSwatch(existing);
       this.setStatus("");
       return true;
     }
     if (!this.armed) return false;
     const positioned: Piece = { ...this.armed, origin: corner };
+    const isGem = this.armedIsGem;
     try {
-      this.board.placePieceUnchecked(positioned);
+      if (isGem) {
+        // Vraie hypothèse de placement : mêmes règles de contact que le
+        // livret (retour utilisateur direct — un vrai bug permettait de
+        // poser plusieurs gemmes les unes sur les autres).
+        this.board.placePiece(positioned);
+      } else {
+        this.board.placePieceUnchecked(positioned);
+      }
       this.scene.addReflectionPiece(positioned);
       this.setStatus("");
+      if (isGem) {
+        const key = pieceKey(positioned);
+        this.usedGemKeys.add(key);
+        const swatch = this.gemSwatchByKey.get(key);
+        if (swatch) swatch.disabled = true;
+      }
     } catch (error) {
       this.setStatus(error instanceof PlacementError ? error.message : String(error));
     }
-    // Une pièce était armée : le clic visait bien à poser un repère ici,
-    // même si la pose a échoué (message déjà affiché) — pas question de
-    // retomber sur la sélection d'une cible de question à la place.
+    // Une gemme posée (avec succès ou non) se désarme : il n'y en a
+    // qu'une par couleur/forme à la fois, pas question d'en poser une
+    // deuxième par-dessus au clic suivant (retour utilisateur direct).
+    // Un repère élémentaire reste armé pour en poser plusieurs d'affilée
+    // sans repasser par la palette.
+    if (isGem) this.disarm();
     return true;
   }
 
-  private clearAll(): void {
-    for (const piece of this.board.pieces()) this.board.removePiece(piece);
-    this.scene.clearReflectionPieces();
+  /** Repose la sélection après une pose de gemme (voir `handleCornerClick`)
+   * ou un reclic sur une gemme/un repère déjà armé (voir le gestionnaire
+   * de clic des boutons de palette, plus haut). */
+  private disarm(): void {
     this.armed = null;
+    this.armedIsGem = false;
     this.updateSwatchSelection(null);
     this.refreshGhost();
     this.refreshPreview();
+  }
+
+  /** Si `piece` est une des 5 gemmes majeures/extensions actuellement
+   * suivies comme "posée", libère sa case dans `usedGemKeys` et
+   * réactive son bouton de palette — appelé quand on retire un repère
+   * du plateau (voir `handleCornerClick`) ou qu'on vide tout
+   * (`clearAll`). Ne fait rien pour un repère élémentaire (jamais
+   * suivi ici). */
+  private freeGemSwatch(piece: Piece): void {
+    const key = pieceKey(piece);
+    if (!this.usedGemKeys.delete(key)) return;
+    const swatch = this.gemSwatchByKey.get(key);
+    if (swatch) swatch.disabled = false;
+  }
+
+  private clearAll(): void {
+    for (const piece of this.board.pieces()) {
+      this.board.removePiece(piece);
+      this.freeGemSwatch(piece);
+    }
+    this.scene.clearReflectionPieces();
+    this.disarm();
     this.setStatus("");
   }
 
@@ -255,10 +327,12 @@ export class ReflectionController {
     host.innerHTML = `<span class="orapa-place__preview-angle">${angle}°</span>${mirrorBadge}${icon}`;
   }
 
-  /** Seule règle pour un repère de réflexion : rester sur le plateau
-   * (voir `PreviewBoard.placePieceUnchecked` — pas de contrôle de
-   * chevauchement). Sert uniquement au fantôme (vert/rouge au survol). */
+  /** Validité du fantôme (vert/rouge au survol) : les règles complètes
+   * du livret pour une gemme armée (`PreviewBoard.canPlace`, voir
+   * docstring du module), seulement rester sur le plateau pour un
+   * repère élémentaire (pas de contrôle de chevauchement). */
   private canPlace(piece: Piece): boolean {
+    if (this.armedIsGem) return this.board.canPlace(piece);
     const quadrants = this.board.quadrants(piece);
     if (quadrants.size === 0) return false;
     for (const key of quadrants) {

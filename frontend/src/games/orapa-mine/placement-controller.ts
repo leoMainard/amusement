@@ -109,6 +109,16 @@ export class PlacementController {
       button.appendChild(status);
       button.addEventListener("click", () => {
         if (button.disabled) return;
+        // Recliquer la gemme déjà armée la désélectionne plutôt que de la
+        // réarmer inutilement (retour utilisateur direct : aucun moyen de
+        // "relâcher" une pièce sans en armer une autre).
+        if (button.classList.contains("is-selected")) {
+          this.armed = null;
+          this.updateSwatchSelection(null);
+          this.refreshGhost();
+          this.refreshPreview();
+          return;
+        }
         this.armed = {
           shape: entry.shape,
           kind: entry.kind,

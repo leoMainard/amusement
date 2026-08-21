@@ -962,6 +962,18 @@ body:has(#app.om-shell) {
   cursor: pointer;
 }
 
+/* Même bug que `.orapa-play__side`/`.orapa-mp__panel label` etc. (voir
+   plus bas) : `display: inline-flex` ci-dessus l'emporte sur le
+   `display: none` natif de `[hidden]` — ce bouton restait affiché ET
+   cliquable pendant PLACING/PLAYING/FINISHED malgré `hidden = true`
+   (voir multiplayer.ts), ajoutant ~58px de hauteur en trop en haut de
+   la page. Trouvé en creusant pourquoi la page débordait encore
+   verticalement une fois `.orapa-play__side` borné (retour utilisateur
+   direct : "je ne veux pas de bandeau de défilement"). */
+.om-shell__fiche-link[hidden] {
+  display: none;
+}
+
 .om-shell__fiche-link:hover {
   border-color: var(--om-gold);
   background: rgba(242, 194, 75, 0.18);
@@ -1768,6 +1780,19 @@ kbd {
   color: var(--om-text-3);
 }
 
+/* Espace entre "Aperçu", "Vos gemmes", "Tout retirer"/"Au hasard" et
+ * "Je suis prêt" pendant le placement Duel (retour utilisateur direct —
+ * ces blocs se touchaient). `align-items: stretch` (valeur par défaut
+ * d'un conteneur flex) fait aussi que "Je suis prêt" (un simple
+ * <button>, large par défaut selon son seul contenu) s'étire à la même
+ * largeur que les cadres "Aperçu"/"Vos gemmes" juste au-dessus — même
+ * mécanisme que `.orapa-demo__panel` pour l'essai hors ligne. */
+.orapa-mp__game-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
 .orapa-mp__turn {
   font-weight: 600;
   color: var(--om-gold);
@@ -1870,6 +1895,37 @@ kbd {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  /* Absorbe tout le surplus de hauteur dans `.orapa-play__side` (voir sa
+   * docstring) en défilant lui-même plutôt que de pousser "Proposer la
+   * disposition" hors de la page — `min-height: 0` est nécessaire pour
+   * qu'un enfant flex accepte de se laisser déborder/scroller au lieu de
+   * repousser le reste de la colonne (même mécanisme que
+   * `.orapa-play__history-list`). */
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--om-gold-dark) transparent;
+}
+
+.orapa-mp__reflect-panel::-webkit-scrollbar {
+  width: 9px;
+}
+
+.orapa-mp__reflect-panel::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.orapa-mp__reflect-panel::-webkit-scrollbar-thumb {
+  background: var(--om-gold-dark);
+  border-radius: 999px;
+  border: 2px solid var(--om-panel-soft);
+  background-clip: padding-box;
+}
+
+.orapa-mp__reflect-panel::-webkit-scrollbar-thumb:hover {
+  background: var(--om-gold);
+  background-clip: padding-box;
 }
 
 /* Bouton pleine largeur, même style que "Vider le plateau" de
@@ -2277,18 +2333,52 @@ kbd {
   color: var(--om-text-4);
 }
 
+/* `--orapa-play-row-h` borne les trois colonnes à la même hauteur, et
+ * cette hauteur elle-même à ce qui reste réellement visible sous le
+ * chrome de la page (en-tête + fil d'ariane + marge de `#view-root`) —
+ * pas un simple `70vh` qui ignorait ce chrome et laissait la page
+ * déborder verticalement (barre de défilement sur tout le site, retour
+ * utilisateur direct — "placer des repères" en était le déclencheur le
+ * plus visible, mais la vraie cause était que rien ne bornait la
+ * hauteur totale de la mise en page à la fenêtre). Les ~210px
+ * soustraits sont mesurés (en-tête ~63px, fil d'ariane ~47px, marges
+ * verticales de `#view-root` 22+70px) — approximatif mais stable, la
+ * largeur de fenêtre n'y change rien. Chaque colonne gère ensuite son
+ * propre débordement interne (voir `.orapa-play__history-list`,
+ * `.orapa-mp__reflect-panel`) plutôt que de grandir avec son contenu :
+ * une future pièce/gemme en plus n'agrandit jamais la page, seulement
+ * la zone de défilement interne du panneau concerné. */
 .orapa-play__layout {
   display: grid;
   grid-template-columns: minmax(240px, 300px) minmax(0, 1fr) minmax(240px, 300px);
   gap: 24px;
   align-items: start;
+  --orapa-play-row-h: min(640px, calc(100vh - 210px));
 }
 
+/* Plafonnée comme les deux autres colonnes (voir `--orapa-play-row-h`
+ * ci-dessus). "Marquer des cases" et "Tirer un rayon"/"Interroger une
+ * case" gardent leur hauteur naturelle (`flex: none`, voir plus bas) —
+ * variable selon la largeur disponible (leur texte peut passer à la
+ * ligne sur un écran étroit) ; plutôt que de deviner cette hauteur à
+ * l'avance (un nombre de pixels fixe se serait décalé à chaque
+ * changement de largeur), c'est le PLATEAU qui absorbe ce qu'il reste
+ * (`flex: 1 1 auto`) : toujours juste assez grand pour que le total
+ * tienne exactement dans la même hauteur que l'historique/les repères,
+ * quelle que soit la fenêtre. */
 .orapa-play__center {
   display: flex;
   flex-direction: column;
   gap: 14px;
   min-width: 0;
+  /* `height` (pas seulement `max-height`) : le plateau juste en dessous
+   * doit pouvoir calculer "l'espace restant" à occuper (`flex-grow`,
+   * voir `.orapa-play__canvas`) — ça suppose une hauteur de conteneur
+   * déjà déterminée, pas seulement plafonnée (sans quoi le plateau se
+   * réduisait carrément à 0px de haut : un vrai bug rencontré en
+   * testant ce correctif). */
+  height: var(--orapa-play-row-h);
+  overflow: hidden;
 }
 
 /* Pas de fond ni de bordure propres au plateau (retour utilisateur
@@ -2296,7 +2386,8 @@ kbd {
    laisse voir le même fond que le reste de la page — pas un cadre à
    part. */
 .orapa-play__canvas {
-  height: min(640px, 70vh);
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .orapa-play__canvas canvas {
@@ -2314,15 +2405,25 @@ kbd {
 }
 
 .orapa-play__history {
-  max-height: min(640px, 70vh);
+  max-height: var(--orapa-play-row-h);
   display: flex;
   flex-direction: column;
 }
 
+/* Plafonnée à la même hauteur que `.orapa-play__history` (retour
+ * utilisateur direct : "Placer des repères" pouvait dépasser la hauteur
+ * de la page et faire apparaître une barre de défilement sur tout le
+ * site). `.orapa-mp__reflect-panel` ci-dessous absorbe le surplus en
+ * défilant lui-même — solution robuste si la palette grandit plus tard
+ * (plus de gemmes/pièces) plutôt qu'un simple ajustement de taille pour
+ * le contenu d'aujourd'hui ; "Proposer la disposition" reste toujours
+ * visible en bas, jamais caché derrière ce défilement. */
 .orapa-play__side {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  max-height: var(--orapa-play-row-h);
+  overflow: hidden;
 }
 
 .orapa-play__panel-head {
@@ -2474,6 +2575,7 @@ kbd {
 
 .orapa-play__toggles {
   display: flex;
+  flex: none;
   gap: 8px;
 }
 
@@ -2483,6 +2585,7 @@ kbd {
   border: 1px solid rgba(242, 194, 75, 0.3);
   padding: 12px 22px;
   display: flex;
+  flex: none;
   align-items: center;
   gap: 28px;
 }
@@ -2574,10 +2677,21 @@ kbd {
   .orapa-play__layout {
     grid-template-columns: 1fr;
   }
-  .orapa-play__history {
+  .orapa-play__history,
+  .orapa-play__side {
     max-height: none;
+    overflow: visible;
+  }
+  .orapa-mp__reflect-panel {
+    flex: none;
+    overflow-y: visible;
+  }
+  .orapa-play__center {
+    height: auto;
+    overflow: visible;
   }
   .orapa-play__canvas {
+    flex: none;
     height: 420px;
   }
 }
