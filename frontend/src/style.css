@@ -71,21 +71,33 @@ body:has(#app.om-shell) {
 /* Accueil                                                           */
 /* ================================================================ */
 
+/* `#app.am-home` n'a plus de largeur maximale : chaque bandeau (header,
+   hero, ticker, footer) s'étend jusqu'aux bords du viewport (retour
+   utilisateur direct — seul le ticker l'était), et c'est `.am-inner`
+   (repris sur chacun) qui recentre le contenu lisible dans une colonne
+   de 1320px. */
 #app.am-home {
-  max-width: 1320px;
-  margin: 0 auto;
-  padding: 0 0 2rem;
   font-family: "Sora", system-ui, sans-serif;
   color: var(--am-text);
 }
 
+.am-inner {
+  max-width: 1320px;
+  margin: 0 auto;
+  padding: 0 12px;
+}
+
 .am-header {
+  border-bottom: 2px solid var(--am-text);
+}
+
+.am-header__row {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 20px;
-  padding: 22px 12px;
-  border-bottom: 2px solid var(--am-text);
+  padding-top: 22px;
+  padding-bottom: 22px;
 }
 
 .am-header__brand {
@@ -170,8 +182,12 @@ body:has(#app.om-shell) {
 
 .am-hero {
   position: relative;
-  padding: 62px 12px 34px;
   overflow: hidden;
+}
+
+.am-hero__inner {
+  padding-top: 62px;
+  padding-bottom: 34px;
 }
 
 .am-hero__grid {
@@ -258,12 +274,9 @@ body:has(#app.om-shell) {
 }
 
 .am-ticker {
-  /* Plein-bord jusqu'aux bords du viewport (comme la maquette) plutôt
-     que confiné à la colonne `max-width: 1320px` de `#app.am-home` — le
-     seul bandeau de la page à faire ce débordement volontaire. */
-  width: 100vw;
-  margin-left: calc(50% - 50vw);
-  margin-right: calc(50% - 50vw);
+  /* `#app.am-home` n'a plus de largeur maximale (voir plus haut) : ce
+     bandeau s'étend donc déjà tout seul jusqu'aux bords du viewport,
+     comme la maquette. */
   margin-top: 26px;
   padding: 13px 0;
   background: var(--am-text);
@@ -312,8 +325,7 @@ body:has(#app.om-shell) {
 }
 
 .am-table-heading {
-  margin: 0 auto;
-  padding: 54px 12px 20px;
+  padding: 54px 0 20px;
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
@@ -333,10 +345,14 @@ body:has(#app.om-shell) {
   color: var(--am-text-dim);
 }
 
+/* 2 colonnes, pas 3 : avec Monopoly/Jeu de dés retirés, il ne reste
+   qu'Orapa Mine (pleine largeur, span 2) puis Uno + "Votre jeu ici" à
+   se partager une seule deuxième ligne — 3 colonnes laisseraient un
+   trou vide. */
 .am-table {
-  padding: 0 12px 34px;
+  padding: 0 0 34px;
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 22px;
 }
 
@@ -603,7 +619,7 @@ body:has(#app.om-shell) {
 }
 
 .am-steps {
-  padding: 30px 12px 70px;
+  padding: 30px 0 70px;
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 22px;
@@ -651,14 +667,13 @@ body:has(#app.om-shell) {
 }
 
 .am-footer {
-  padding: 34px 12px;
   background: var(--am-text);
   color: var(--am-bg);
-  margin: 0 -12px;
-  border-radius: 0 0 8px 8px;
 }
 
 .am-footer__inner {
+  padding-top: 34px;
+  padding-bottom: 34px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1382,21 +1397,101 @@ kbd {
 }
 
 .orapa-mp__error {
-  grid-column: 1 / -1;
+  margin-top: 12px;
   color: #ff8a80;
   min-height: 1.2em;
 }
 
-.orapa-mp__lobby {
+/* Cartes de mode (Duel/Fouille) en haut de l'écran "Créer une partie"
+   — voir claude_design/Orapa Mine.dc.html ("isLobby"). */
+.orapa-mp__mode-cards {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+  margin-bottom: 22px;
+}
+
+.orapa-mp__mode-card {
+  position: relative;
+  padding: 22px;
+  min-height: 150px;
+  border-radius: 16px;
+  cursor: pointer;
+  text-align: left;
+  background: var(--om-panel-soft);
+  border: 1px solid var(--om-border);
+  color: var(--om-text);
+  font: inherit;
+  transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1), border-color 0.25s ease;
+}
+
+.orapa-mp__mode-card:hover {
+  transform: translateY(-4px);
+  border-color: var(--om-gold);
+}
+
+.orapa-mp__mode-card.is-selected {
+  border-color: var(--om-gold);
+  border-width: 2px;
+  background: rgba(242, 194, 75, 0.09);
+}
+
+.orapa-mp__mode-card-title {
+  display: block;
+  font-family: "Chakra Petch", sans-serif;
+  font-size: 19px;
+  letter-spacing: 0.05em;
+}
+
+.orapa-mp__mode-card p {
+  margin: 8px 28px 0 0;
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--om-text-3);
+}
+
+.orapa-mp__mode-card-tag {
+  position: absolute;
+  right: 18px;
+  bottom: 16px;
+  font-family: "Chakra Petch", sans-serif;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  color: var(--om-text-5);
+}
+
+.orapa-mp__mode-pill {
+  display: inline-flex;
+  padding: 8px 16px;
+  border-radius: 999px;
+  border: 1px solid var(--om-gold);
+  color: var(--om-gold);
+  font-family: "Chakra Petch", sans-serif;
+  font-size: 13px;
+  letter-spacing: 0.1em;
+}
+
+.orapa-mp__lobby-panel {
   border-radius: 16px;
   background: var(--om-panel);
   border: 1px solid var(--om-border);
-  padding: 24px;
-  max-width: 520px;
+  padding: 26px;
+  max-width: 560px;
 }
 
-.orapa-mp__lobby h3 {
-  margin-top: 0;
+.orapa-mp__code {
+  margin-top: 10px;
+  font-family: "Chakra Petch", sans-serif;
+  font-weight: 700;
+  font-size: 38px;
+  letter-spacing: 0.2em;
+  color: var(--om-gold);
+}
+
+.orapa-mp__wait-text {
+  margin-top: 6px;
+  font-size: 13px;
+  color: var(--om-text-4);
 }
 
 .orapa-mp__mode-label,
@@ -1895,4 +1990,351 @@ kbd {
 
 .hidden {
   display: none;
+}
+
+/* ================================================================ */
+/* Partie en cours (plateau grand + panneaux flottants)              */
+/* ================================================================ */
+/* Reprend `claude_design/Orapa Mine.dc.html` (écran "isPlay") : un
+   plateau plein cadre, avec des panneaux "verre" (fond sombre flouté)
+   posés par-dessus plutôt qu'une colonne latérale qui rétrécit le
+   plateau. */
+
+.orapa-play__topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 0 12px;
+}
+
+.orapa-play__mode {
+  font-family: "Chakra Petch", sans-serif;
+  font-size: 13px;
+  letter-spacing: 0.1em;
+  color: var(--om-gold);
+}
+
+.orapa-play__topbar .orapa-mp__turn {
+  margin: 0;
+  font-size: 13px;
+  color: var(--om-text-4);
+}
+
+/* Le panneau "repères de réflexion" (voir reflection-controller.ts,
+   absent de la maquette) flotte au-dessus des outils du bas plutôt que
+   de pousser la mise en page — mêmes styles "verre" que les autres
+   panneaux flottants. */
+.orapa-play__board .orapa-mp__reflect-panel {
+  position: absolute;
+  left: 50%;
+  bottom: 168px;
+  transform: translateX(-50%);
+  z-index: 6;
+  width: min(420px, calc(100% - 36px));
+  max-height: 55%;
+  overflow-y: auto;
+  margin-top: 0;
+}
+
+.orapa-play__board {
+  position: relative;
+  height: min(740px, 78vh);
+  border-radius: 18px;
+  border: 1px solid var(--om-border);
+  background: radial-gradient(70% 70% at 50% 10%, var(--om-surface-2) 0%, var(--om-bg-deep) 100%);
+  overflow: hidden;
+}
+
+.orapa-play__canvas {
+  position: absolute;
+  inset: 0;
+}
+
+.orapa-play__canvas canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.orapa-play__glass {
+  border-radius: 16px;
+  background: rgba(7, 14, 38, 0.84);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--om-border);
+  padding: 18px;
+}
+
+.orapa-play__history,
+.orapa-play__side {
+  position: absolute;
+  top: 18px;
+  z-index: 5;
+  border-radius: 16px;
+  background: rgba(7, 14, 38, 0.84);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--om-border);
+  padding: 16px;
+}
+
+.orapa-play__history {
+  left: 18px;
+  width: 270px;
+  max-height: calc(100% - 36px);
+  display: flex;
+  flex-direction: column;
+}
+
+.orapa-play__side {
+  right: 18px;
+  width: 250px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.orapa-play__panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.orapa-play__panel-head .orapa-play__history-count {
+  font-size: 11.5px;
+  color: var(--om-text-5);
+}
+
+.orapa-play__history-list {
+  margin-top: 10px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.orapa-play__history-empty {
+  padding: 8px 0 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--om-text-5);
+}
+
+.orapa-play__history-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 9px;
+  border-radius: 9px;
+  background: rgba(244, 234, 214, 0.05);
+  border-left: 3px solid var(--om-border);
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--om-text-3);
+}
+
+.orapa-play__answer {
+  padding: 14px;
+  border-radius: 12px;
+  background: var(--om-panel-soft);
+  border: 1px solid var(--om-border-soft);
+}
+
+.orapa-play__answer-body {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--om-text-3);
+}
+
+.orapa-play__answer-swatch {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid var(--om-border);
+}
+
+.orapa-play__notes {
+  padding: 14px;
+  border-radius: 12px;
+  background: var(--om-panel-soft);
+  border: 1px solid var(--om-border-soft);
+}
+
+.orapa-play__notes .orapa-mp__notepad {
+  height: 110px;
+}
+
+.orapa-play__propose {
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(242, 194, 75, 0.5);
+  background: transparent;
+  color: var(--om-gold);
+  font-family: "Chakra Petch", sans-serif;
+  font-size: 12.5px;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+}
+
+.orapa-play__propose:hover {
+  background: rgba(242, 194, 75, 0.12);
+}
+
+.orapa-play__cancel-guess {
+  padding: 10px;
+  border: none;
+  background: none;
+  color: var(--om-text-4);
+  font-size: 12px;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.orapa-play__cancel-guess:hover {
+  color: var(--om-gold);
+}
+
+/* `.orapa-play__side`/`__tools`/`__toggles` déclarent tous un
+   `display: flex` explicite, ce qui — sans cette règle — l'emporterait
+   sur le `display: none` par défaut de l'attribut `hidden` (les styles
+   auteur passent devant la feuille de styles du navigateur, à
+   spécificité égale) : le panneau restait visible ET cliquable malgré
+   `hidden`, un vrai bug repéré en testant le basculement "Proposer la
+   disposition" en jeu. */
+.orapa-play__side[hidden],
+.orapa-play__tools[hidden],
+.orapa-play__toggles[hidden] {
+  display: none;
+}
+
+.orapa-play__toggles {
+  position: absolute;
+  left: 50%;
+  bottom: 160px;
+  transform: translateX(-50%);
+  z-index: 5;
+  display: flex;
+  gap: 8px;
+}
+
+.orapa-play__tools {
+  position: absolute;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  z-index: 5;
+  width: min(640px, calc(100% - 36px));
+  border-radius: 18px;
+  background: rgba(7, 14, 38, 0.88);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(242, 194, 75, 0.3);
+  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.orapa-play__tool {
+  flex: 1;
+  min-width: 0;
+}
+
+.orapa-play__tool p {
+  margin: 6px 0 0;
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: var(--om-text-3);
+}
+
+.orapa-play__tool-row {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.orapa-play__entry-input {
+  width: 110px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(7, 14, 38, 0.8);
+  border: 1px solid var(--om-border);
+  color: var(--om-text);
+  font-family: "Chakra Petch", sans-serif;
+  font-size: 14px;
+  letter-spacing: 0.12em;
+  outline: none;
+}
+
+.orapa-play__entry-input:focus {
+  border-color: var(--om-gold);
+}
+
+.orapa-play__fire-btn,
+.orapa-play__ask-btn {
+  padding: 11px 16px;
+  border-radius: 10px;
+  border: none;
+  background: var(--om-gold);
+  color: var(--om-surface);
+  font-family: "Chakra Petch", sans-serif;
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.orapa-play__fire-btn:hover,
+.orapa-play__ask-btn:hover:not(:disabled) {
+  background: var(--om-gold-hover);
+}
+
+.orapa-play__ask-btn:disabled {
+  background: var(--om-panel-soft);
+  color: var(--om-text-5);
+  cursor: default;
+}
+
+.orapa-play__target-label {
+  flex: 1;
+  font-family: "Chakra Petch", sans-serif;
+  font-size: 20px;
+  letter-spacing: 0.1em;
+  color: var(--om-gold);
+  min-width: 44px;
+}
+
+.orapa-play__tool-divider {
+  align-self: stretch;
+  width: 1px;
+  background: var(--om-border-soft);
+}
+
+@media (max-width: 900px) {
+  .orapa-play__history,
+  .orapa-play__side {
+    position: static;
+    width: auto;
+    margin-bottom: 12px;
+  }
+  .orapa-play__board {
+    height: auto;
+    overflow: visible;
+  }
+  .orapa-play__canvas {
+    position: relative;
+    height: 420px;
+  }
+  .orapa-play__toggles,
+  .orapa-play__tools {
+    position: static;
+    transform: none;
+    width: auto;
+    margin-top: 12px;
+  }
 }

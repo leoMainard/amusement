@@ -2,7 +2,11 @@
  * Écran multijoueur Orapa Mine : créer/rejoindre un salon par lien,
  * lobby, placement (Duel — le vrai paravent est le serveur, qui ne
  * renvoie jamais le plateau adverse en clair), puis prospection
- * (questions + proposition de solution).
+ * (questions + proposition de solution). Mise en page reprise de
+ * `claude_design/Orapa Mine.dc.html` : cartes de mode pour créer une
+ * partie, plateau plein cadre avec panneaux "verre" flottants pendant
+ * la partie (historique à gauche, dernière réponse/carnet/proposition
+ * à droite, outils de question en bas).
  *
  * ⚠️ Contrairement à la démo hors ligne (`demo.ts`), ce module ne
  * contient AUCUNE logique de jeu : chaque action passe par le serveur
@@ -19,8 +23,8 @@
  * construit naturellement une carte de toutes les questions posées.
  */
 
-import { BoardScene } from "./board-scene";
-import { colorBadgeHtml } from "./color-swatch";
+import { BoardScene, RAY_COLOR_HEX } from "./board-scene";
+import { colorBadgeHtml, hexColor } from "./color-swatch";
 import { cellLabel, labelForExit } from "./entry-labels";
 import { PlacementController } from "./placement-controller";
 import { ReflectionController, type ReflectionPaletteEntry } from "./reflection-controller";
@@ -46,11 +50,40 @@ const MODE_LABELS: Record<RoomMode, string> = {
   FOUILLE: "Fouille (plateau généré aléatoirement, tour par tour) — seul ou à plusieurs",
 };
 
+const MODE_NAMES: Record<RoomMode, string> = { DUEL: "Duel", FOUILLE: "Fouille" };
+
+const MODE_CARD_INFO: Record<RoomMode, { desc: string; tag: string }> = {
+  DUEL: {
+    desc: "Chacun place ses 5 gemmes en secret. Les rôles alternent : prospecteur, puis maître du jeu. Une proposition erronée fait perdre immédiatement.",
+    tag: "2 JOUEURS",
+  },
+  FOUILLE: {
+    desc: "Plateau commun généré au hasard. Chacun pose ses questions sur son propre exemplaire, à son rythme — jouable seul ou à plusieurs, tour par tour.",
+    tag: "1 JOUEUR ET +",
+  },
+};
+
 /** Palette du panneau de réflexion : les 5 pièces complètes, les
  * extensions si le salon les autorise, et les repères élémentaires
  * (case/demi-case colorée) — voir `reflection-controller.ts`. */
 function reflectionEntries(extensionsEnabled: boolean): ReflectionPaletteEntry[] {
   return [...BASE_PIECE_PALETTE, ...(extensionsEnabled ? EXTENSION_PIECE_PALETTE : []), ...REFLECTION_UNIT_PALETTE];
+}
+
+function modeCardHtml(mode: RoomMode, selected: RoomMode): string {
+  const info = MODE_CARD_INFO[mode];
+  return `
+    <button type="button" class="orapa-mp__mode-card ${mode === selected ? "is-selected" : ""}" data-mode="${mode}">
+      <span class="orapa-mp__mode-card-title">${MODE_NAMES[mode]}</span>
+      <p>${info.desc}</p>
+      <span class="orapa-mp__mode-card-tag">${info.tag}</span>
+    </button>
+  `;
+}
+
+interface HistoryEntry {
+  html: string;
+  accent: string;
 }
 
 export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
@@ -61,9 +94,8 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
   let reflectionController: ReflectionController | null = null;
   let playerId = "";
   let room: RoomPayload | null = null;
-  let mode: "ask" | "guess" = "ask";
   let lastGameState: GameStatePayload | null = null;
-  const log: string[] = [];
+  const history: HistoryEntry[] = [];
 
   render();
 
@@ -83,82 +115,82 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
 
   function renderSetup(host: HTMLElement): void {
     const prefillCode = new URLSearchParams(location.search).get("room") ?? "";
-    host.innerHTML = `
-      <div class="orapa-mp__setup">
-        <section class="orapa-mp__panel">
-          <h3>Créer une partie</h3>
-          <label>Ton nom <input type="text" class="orapa-mp__create-name" value="Joueur 1" /></label>
-          <label>Mode
-            <select class="orapa-mp__mode">
-              <option value="DUEL">${MODE_LABELS.DUEL}</option>
-              <option value="FOUILLE">${MODE_LABELS.FOUILLE}</option>
-            </select>
-          </label>
-          <label class="orapa-mp__max-players">Nombre de joueurs
-            <input type="number" class="orapa-mp__max-players-input" min="2" max="8" value="2" disabled />
-          </label>
-          <p class="orapa-mp__max-players-hint" hidden>Mets 1 pour jouer seul.</p>
-          <label class="orapa-mp__extensions">
-            <input type="checkbox" class="orapa-mp__extensions-input" />
-            Autoriser les pièces d'extension (Diamant, Corps noir)
-          </label>
-          <p class="orapa-mp__extensions-hint">
-            Fixé pour tout le salon : les deux joueurs auront (ou non) accès à ces pièces en plus des 5 de base.
-          </p>
-          <button type="button" class="orapa-mp__create-btn">Créer et rejoindre</button>
-        </section>
-        <section class="orapa-mp__panel">
-          <h3>Rejoindre une partie</h3>
-          <label>Ton nom <input type="text" class="orapa-mp__join-name" value="Joueur 2" /></label>
-          <label>Code du salon <input type="text" class="orapa-mp__join-code" value="${prefillCode}" maxlength="5" /></label>
-          <button type="button" class="orapa-mp__join-btn">Rejoindre</button>
-        </section>
+    let selectedMode: RoomMode = "DUEL";
+
+    function paint(): void {
+      host.innerHTML = `
+        <div class="orapa-mp__mode-cards">
+          ${modeCardHtml("DUEL", selectedMode)}
+          ${modeCardHtml("FOUILLE", selectedMode)}
+        </div>
+        <div class="orapa-mp__setup">
+          <section class="orapa-mp__panel">
+            <h3>Créer une partie</h3>
+            <label>Ton nom <input type="text" class="orapa-mp__create-name" value="Joueur 1" /></label>
+            <label class="orapa-mp__max-players" ${selectedMode === "DUEL" ? "hidden" : ""}>Nombre de joueurs
+              <input type="number" class="orapa-mp__max-players-input" min="1" max="8" value="1" />
+            </label>
+            <p class="orapa-mp__max-players-hint" ${selectedMode === "DUEL" ? "hidden" : ""}>Mets 1 pour jouer seul.</p>
+            <label class="orapa-mp__extensions">
+              <input type="checkbox" class="orapa-mp__extensions-input" />
+              Autoriser les pièces d'extension (Diamant, Corps noir)
+            </label>
+            <p class="orapa-mp__extensions-hint">
+              Fixé pour tout le salon : les deux joueurs auront (ou non) accès à ces pièces en plus des 5 de base.
+            </p>
+            <button type="button" class="orapa-mp__create-btn">Créer et rejoindre</button>
+          </section>
+          <section class="orapa-mp__panel">
+            <h3>Rejoindre une partie</h3>
+            <label>Ton nom <input type="text" class="orapa-mp__join-name" value="Joueur 2" /></label>
+            <label>Code du salon <input type="text" class="orapa-mp__join-code" value="${prefillCode}" maxlength="5" /></label>
+            <button type="button" class="orapa-mp__join-btn">Rejoindre</button>
+            <p class="orapa-mp__extensions-hint">Le code t'est donné par l'hôte de la partie.</p>
+          </section>
+        </div>
         <p class="orapa-mp__error" aria-live="polite"></p>
-      </div>
-    `;
+      `;
 
-    const modeSelect = host.querySelector<HTMLSelectElement>(".orapa-mp__mode")!;
-    const maxPlayersInput = host.querySelector<HTMLInputElement>(".orapa-mp__max-players-input")!;
-    const maxPlayersHint = host.querySelector<HTMLParagraphElement>(".orapa-mp__max-players-hint")!;
-    modeSelect.addEventListener("change", () => {
-      const isDuel = modeSelect.value === "DUEL";
-      maxPlayersInput.disabled = isDuel;
-      maxPlayersInput.min = isDuel ? "2" : "1";
-      maxPlayersInput.value = "2";
-      maxPlayersHint.hidden = isDuel;
-    });
-
-    const errorHost = host.querySelector<HTMLParagraphElement>(".orapa-mp__error")!;
-
-    const extensionsInput = host.querySelector<HTMLInputElement>(".orapa-mp__extensions-input")!;
-
-    host.querySelector<HTMLButtonElement>(".orapa-mp__create-btn")!.addEventListener("click", async () => {
-      errorHost.textContent = "";
-      const name = host.querySelector<HTMLInputElement>(".orapa-mp__create-name")!.value.trim() || "Joueur";
-      const roomMode = modeSelect.value as RoomMode;
-      const maxPlayers = Number(maxPlayersInput.value) || 2;
-      try {
-        const created = await createRoom(roomMode, maxPlayers, extensionsInput.checked);
-        await connect(created.code, name);
-      } catch (error) {
-        errorHost.textContent = error instanceof Error ? error.message : String(error);
+      for (const card of host.querySelectorAll<HTMLButtonElement>(".orapa-mp__mode-card")) {
+        card.addEventListener("click", () => {
+          selectedMode = card.dataset.mode as RoomMode;
+          paint();
+        });
       }
-    });
 
-    host.querySelector<HTMLButtonElement>(".orapa-mp__join-btn")!.addEventListener("click", async () => {
-      errorHost.textContent = "";
-      const name = host.querySelector<HTMLInputElement>(".orapa-mp__join-name")!.value.trim() || "Joueur";
-      const code = host.querySelector<HTMLInputElement>(".orapa-mp__join-code")!.value.trim();
-      if (!code) {
-        errorHost.textContent = "Indique un code de salon.";
-        return;
-      }
-      try {
-        await connect(code, name);
-      } catch (error) {
-        errorHost.textContent = error instanceof Error ? error.message : String(error);
-      }
-    });
+      const errorHost = host.querySelector<HTMLParagraphElement>(".orapa-mp__error")!;
+      const maxPlayersInput = host.querySelector<HTMLInputElement>(".orapa-mp__max-players-input")!;
+      const extensionsInput = host.querySelector<HTMLInputElement>(".orapa-mp__extensions-input")!;
+
+      host.querySelector<HTMLButtonElement>(".orapa-mp__create-btn")!.addEventListener("click", async () => {
+        errorHost.textContent = "";
+        const name = host.querySelector<HTMLInputElement>(".orapa-mp__create-name")!.value.trim() || "Joueur";
+        const maxPlayers = selectedMode === "DUEL" ? 2 : Number(maxPlayersInput.value) || 1;
+        try {
+          const created = await createRoom(selectedMode, maxPlayers, extensionsInput.checked);
+          await connect(created.code, name);
+        } catch (error) {
+          errorHost.textContent = error instanceof Error ? error.message : String(error);
+        }
+      });
+
+      host.querySelector<HTMLButtonElement>(".orapa-mp__join-btn")!.addEventListener("click", async () => {
+        errorHost.textContent = "";
+        const name = host.querySelector<HTMLInputElement>(".orapa-mp__join-name")!.value.trim() || "Joueur";
+        const code = host.querySelector<HTMLInputElement>(".orapa-mp__join-code")!.value.trim();
+        if (!code) {
+          errorHost.textContent = "Indique un code de salon.";
+          return;
+        }
+        try {
+          await connect(code, name);
+        } catch (error) {
+          errorHost.textContent = error instanceof Error ? error.message : String(error);
+        }
+      });
+    }
+
+    paint();
   }
 
   async function connect(code: string, name: string): Promise<void> {
@@ -174,20 +206,23 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
     if (!room) return;
     const link = `${location.origin}${location.pathname}?room=${room.code}`;
     host.innerHTML = `
-      <div class="orapa-mp__lobby">
-        <h3>Salon ${room.code}</h3>
-        <p class="orapa-mp__mode-label">${MODE_LABELS[room.mode]}</p>
-        <p class="orapa-mp__extensions-label">
-          ${room.extensions_enabled ? "Extensions activées (Diamant, Corps noir)" : "Extensions désactivées (5 gemmes de base uniquement)"}
-        </p>
+      <div class="orapa-mp__mode-cards orapa-mp__mode-cards--static">
+        <span class="orapa-mp__mode-pill">${MODE_NAMES[room.mode]}</span>
+      </div>
+      <div class="orapa-mp__lobby-panel">
+        <span class="om-eyebrow">Code de la partie</span>
+        <div class="orapa-mp__code">${room.code}</div>
         <div class="orapa-mp__share">
           <input type="text" readonly class="orapa-mp__link" value="${link}" />
           <button type="button" class="orapa-mp__copy">Copier le lien</button>
         </div>
+        <p class="orapa-mp__extensions-label">
+          ${room.extensions_enabled ? "Extensions activées (Diamant, Corps noir)" : "Extensions désactivées (5 gemmes de base uniquement)"}
+        </p>
         <ul class="orapa-mp__players">
           ${room.players.map((p) => `<li>${escapeHtml(p.name)}</li>`).join("")}
         </ul>
-        <p>${room.players.length}/${room.max_players} joueurs — en attente...</p>
+        <p class="orapa-mp__wait-text">${room.players.length}/${room.max_players} joueur${room.max_players > 1 ? "s" : ""} — en attente...</p>
       </div>
     `;
     const copyButton = host.querySelector<HTMLButtonElement>(".orapa-mp__copy")!;
@@ -207,6 +242,114 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
 
   function renderGame(host: HTMLElement): void {
     if (!room) return;
+
+    if (room.status === "PLAYING") {
+      host.innerHTML = `
+        <div class="orapa-play">
+          <div class="orapa-play__topbar">
+            <div style="display: flex; align-items: center; gap: 14px;">
+              <div class="orapa-play__mode">${MODE_NAMES[room.mode]}</div>
+              <p class="orapa-mp__turn"></p>
+            </div>
+            <div style="font-size: 12.5px; color: var(--om-text-5);">Glisse pour tourner la vue · molette pour zoomer</div>
+          </div>
+          <div class="orapa-play__board">
+            <div class="orapa-play__canvas"></div>
+
+            <div class="orapa-play__history">
+              <div class="orapa-play__panel-head">
+                <span class="om-eyebrow">Historique</span>
+                <span class="orapa-play__history-count"></span>
+              </div>
+              <div class="orapa-play__history-list"></div>
+            </div>
+
+            <div class="orapa-play__side orapa-play__side--ask">
+              <div class="orapa-play__answer">
+                <span class="om-eyebrow">Dernière réponse</span>
+                <div class="orapa-play__answer-body">Aucune question posée pour l'instant.</div>
+              </div>
+              <div class="orapa-play__notes">
+                <span class="om-eyebrow">Carnet</span>
+                <textarea class="orapa-mp__notepad" placeholder="Note ce que tu veux ici — déductions, cases à retenir..."></textarea>
+              </div>
+              <button type="button" class="orapa-play__propose">Proposer la disposition</button>
+            </div>
+
+            <div class="orapa-play__side orapa-play__side--guess" hidden>
+              <div class="orapa-place__preview"><span class="om-eyebrow">Aperçu</span></div>
+              <div class="orapa-place__preview-box"></div>
+              <div class="orapa-demo__transform">
+                <button type="button" class="orapa-demo__rotate">⟳ Pivoter</button>
+                <button type="button" class="orapa-demo__mirror">⇋ Retourner</button>
+              </div>
+              <span class="om-eyebrow">Ta proposition</span>
+              <div class="orapa-demo__palette"></div>
+              <div class="orapa-demo__bulk-actions">
+                <button type="button" class="orapa-demo__bulk-clear">Tout retirer</button>
+                <button type="button" class="orapa-demo__bulk-random">Au hasard</button>
+              </div>
+              <button type="button" class="orapa-demo__validate" disabled>Proposer cette solution (0/5)</button>
+              <button type="button" class="orapa-play__cancel-guess">← Annuler, revenir aux questions</button>
+              <p class="orapa-demo__result orapa-play__guess-status" aria-live="polite"></p>
+            </div>
+
+            <div class="orapa-play__toggles">
+              <button type="button" class="orapa-mp__mark-toggle">✕ Marquer des cases</button>
+              <button type="button" class="orapa-mp__reflect-toggle">🧩 Placer des repères</button>
+            </div>
+            <div class="orapa-mp__reflect-panel" hidden>
+              <p class="orapa-demo__hint">
+                Pose une gemme entière ou juste un repère (case ou demi-case colorée) comme hypothèse
+                personnelle — visible pendant que tu poses des questions, jamais transmis à
+                l'adversaire. Reclique une pièce posée (elle se teinte en rouge au survol) pour la
+                retirer.
+              </p>
+              <div class="orapa-demo__palette orapa-mp__reflect-palette"></div>
+              <div class="orapa-demo__transform">
+                <button type="button" class="orapa-demo__rotate">⟳ Pivoter</button>
+                <button type="button" class="orapa-demo__mirror">⇋ Retourner</button>
+              </div>
+              <button type="button" class="orapa-mp__reflect-clear">Vider mes repères</button>
+              <p class="orapa-demo__result orapa-mp__reflect-status" aria-live="polite"></p>
+            </div>
+
+            <div class="orapa-play__tools">
+              <div class="orapa-play__tool">
+                <span class="om-eyebrow">Tirer un rayon</span>
+                <p>Clique un point d'entrée du plateau (1–18 ou A–R), ou saisis-le ici.</p>
+                <div class="orapa-play__tool-row">
+                  <input type="text" class="orapa-play__entry-input" placeholder="ex. 7 ou K" maxlength="3" />
+                  <button type="button" class="orapa-play__fire-btn">Envoyer</button>
+                </div>
+              </div>
+              <div class="orapa-play__tool-divider"></div>
+              <div class="orapa-play__tool">
+                <span class="om-eyebrow">Interroger une case</span>
+                <p>Clique une case du plateau : on te dit ce qu'elle contient.</p>
+                <div class="orapa-play__tool-row">
+                  <div class="orapa-play__target-label">—</div>
+                  <button type="button" class="orapa-play__ask-btn" disabled>Demander</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+      const canvasHost = host.querySelector<HTMLDivElement>(".orapa-play__canvas")!;
+      if (!scene) {
+        scene = new BoardScene(canvasHost, DEFAULT_DIMENSIONS);
+      } else {
+        scene.attachTo(canvasHost);
+      }
+      setUpNotepad(host.querySelector<HTMLTextAreaElement>(".orapa-mp__notepad")!);
+      renderHistory();
+      renderPlaying(host);
+      updateTurnIndicator();
+      return;
+    }
+
+    // PLACING / FINISHED : mise en page canvas + panneau latéral.
     host.innerHTML = `
       <div class="orapa-demo">
         <div class="orapa-demo__canvas"></div>
@@ -233,14 +376,11 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
 
     const phaseHost = host.querySelector<HTMLDivElement>(".orapa-mp__phase")!;
     const controlsHost = host.querySelector<HTMLDivElement>(".orapa-mp__game-controls")!;
-    const logHost = host.querySelector<HTMLDivElement>(".orapa-mp__log")!;
-    logHost.innerHTML = log.map((line) => `<div>${line}</div>`).join("");
     setUpNotepad(host.querySelector<HTMLTextAreaElement>(".orapa-mp__notepad")!);
+    renderHistory();
 
     if (room.status === "PLACING") {
       renderPlacing(phaseHost, controlsHost);
-    } else if (room.status === "PLAYING") {
-      renderPlaying(phaseHost, controlsHost);
     } else if (room.status === "FINISHED") {
       renderFinished(phaseHost);
       scene.setGhost(null);
@@ -318,96 +458,40 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
     return turnPlayer === playerId;
   }
 
-  function renderPlaying(phaseHost: HTMLElement, controlsHost: HTMLElement): void {
-    phaseHost.innerHTML = `<p class="orapa-mp__turn"></p>`;
-    controlsHost.innerHTML = `
-      <div class="orapa-mp__mode-toggle">
-        <button type="button" class="orapa-mp__ask-btn">Poser une question</button>
-        <button type="button" class="orapa-mp__guess-btn">Proposer une solution</button>
-      </div>
-      <div class="orapa-mp__ask-panel">
-        <p class="orapa-demo__hint">
-          Clique une borne du pourtour pour tirer un rayon. Les bornes d'entrée et de sortie se
-          colorent durablement selon le résultat — une carte de tes questions posées s'accumule au
-          fil de la partie.
-        </p>
-        <div class="orapa-mp__ask-tools">
-          <button type="button" class="orapa-mp__peek-toggle">❓ Demander une case</button>
-          <button type="button" class="orapa-mp__mark-toggle">✕ Marquer des cases</button>
-          <button type="button" class="orapa-mp__reflect-toggle">🧩 Placer des repères</button>
-        </div>
-        <p class="orapa-demo__hint orapa-mp__peek-hint" hidden>
-          Clique une case pour demander ce qu'elle contient. Reclique ce bouton pour arrêter.
-        </p>
-        <p class="orapa-demo__hint orapa-mp__mark-hint" hidden>
-          Clique une case pour y poser (ou enlever) une croix — usage personnel, jamais transmis
-          à l'adversaire. Reclique ce bouton pour arrêter de marquer.
-        </p>
-        <div class="orapa-mp__reflect-panel" hidden>
-          <p class="orapa-demo__hint">
-            Pose une gemme entière ou juste un repère (case ou demi-case colorée) comme hypothèse
-            personnelle — visible pendant que tu poses des questions, jamais transmis à
-            l'adversaire. Reclique une pièce posée (elle se teinte en rouge au survol) pour la
-            retirer.
-          </p>
-          <div class="orapa-demo__palette orapa-mp__reflect-palette"></div>
-          <div class="orapa-demo__transform">
-            <button type="button" class="orapa-demo__rotate">⟳ Pivoter</button>
-            <button type="button" class="orapa-demo__mirror">⇋ Retourner</button>
-          </div>
-          <button type="button" class="orapa-mp__reflect-clear">Vider mes repères</button>
-          <p class="orapa-demo__result orapa-mp__reflect-status" aria-live="polite"></p>
-        </div>
-      </div>
-      <div class="orapa-mp__guess-panel" hidden>
-        <div class="orapa-place__preview">
-          <span class="om-eyebrow">Aperçu</span>
-        </div>
-        <div class="orapa-place__preview-box"></div>
-        <div class="orapa-demo__transform">
-          <button type="button" class="orapa-demo__rotate">⟳ Pivoter</button>
-          <button type="button" class="orapa-demo__mirror">⇋ Retourner</button>
-        </div>
-        <span class="om-eyebrow">Ta proposition</span>
-        <div class="orapa-demo__palette"></div>
-        <div class="orapa-demo__bulk-actions">
-          <button type="button" class="orapa-demo__bulk-clear">Tout retirer</button>
-          <button type="button" class="orapa-demo__bulk-random">Au hasard</button>
-        </div>
-        <button type="button" class="orapa-demo__validate" disabled>Proposer cette solution (0/5)</button>
-        <p class="orapa-demo__result orapa-mp__guess-status" aria-live="polite"></p>
-      </div>
-    `;
+  // --- Écran "partie en cours" : plateau plein cadre + panneaux flottants --
 
-    const askBtn = controlsHost.querySelector<HTMLButtonElement>(".orapa-mp__ask-btn")!;
-    const guessBtn = controlsHost.querySelector<HTMLButtonElement>(".orapa-mp__guess-btn")!;
-    const askPanel = controlsHost.querySelector<HTMLDivElement>(".orapa-mp__ask-panel")!;
-    const guessPanel = controlsHost.querySelector<HTMLDivElement>(".orapa-mp__guess-panel")!;
-    const peekToggle = controlsHost.querySelector<HTMLButtonElement>(".orapa-mp__peek-toggle")!;
-    const peekHint = controlsHost.querySelector<HTMLParagraphElement>(".orapa-mp__peek-hint")!;
-    const markToggle = controlsHost.querySelector<HTMLButtonElement>(".orapa-mp__mark-toggle")!;
-    const markHint = controlsHost.querySelector<HTMLParagraphElement>(".orapa-mp__mark-hint")!;
-    const reflectToggle = controlsHost.querySelector<HTMLButtonElement>(".orapa-mp__reflect-toggle")!;
-    const reflectPanel = controlsHost.querySelector<HTMLDivElement>(".orapa-mp__reflect-panel")!;
-    // "none" par défaut : un simple clic sur une case ne déclenche plus
-    // rien tant qu'un de ces 3 outils n'est pas explicitement choisi —
-    // corrige un vrai bug où faire tourner la vue à la souris pouvait,
-    // en fin de rotation, poser une question sur la case survolée
-    // (retour utilisateur direct ; voir aussi le correctif clic/glissé
-    // dans board-scene.ts, qui protège même le tir de rayon sur les
-    // bornes). Tirer un rayon reste indépendant de ces 3 outils : les
-    // bornes du pourtour sont des cibles distinctes des cases.
-    let askSubMode: "none" | "peek" | "mark" | "reflect" = "none";
+  function renderPlaying(host: HTMLElement): void {
+    const sideAsk = host.querySelector<HTMLDivElement>(".orapa-play__side--ask")!;
+    const sideGuess = host.querySelector<HTMLDivElement>(".orapa-play__side--guess")!;
+    const toggles = host.querySelector<HTMLDivElement>(".orapa-play__toggles")!;
+    const tools = host.querySelector<HTMLDivElement>(".orapa-play__tools")!;
+    const markToggle = host.querySelector<HTMLButtonElement>(".orapa-mp__mark-toggle")!;
+    const reflectToggle = host.querySelector<HTMLButtonElement>(".orapa-mp__reflect-toggle")!;
+    const reflectPanel = host.querySelector<HTMLDivElement>(".orapa-mp__reflect-panel")!;
+    const entryInput = host.querySelector<HTMLInputElement>(".orapa-play__entry-input")!;
+    const fireBtn = host.querySelector<HTMLButtonElement>(".orapa-play__fire-btn")!;
+    const targetLabelEl = host.querySelector<HTMLDivElement>(".orapa-play__target-label")!;
+    const askBtn = host.querySelector<HTMLButtonElement>(".orapa-play__ask-btn")!;
+    const proposeBtn = host.querySelector<HTMLButtonElement>(".orapa-play__propose")!;
+    const cancelGuessBtn = host.querySelector<HTMLButtonElement>(".orapa-play__cancel-guess")!;
 
-    const setAskSubMode = (next: "none" | "peek" | "mark" | "reflect") => {
+    let proposing = false;
+    // "none" par défaut : un clic simple sur une case la SÉLECTIONNE
+    // juste (voir `askTarget` — le vrai envoi passe par le bouton
+    // "Demander", jamais un clic seul) ; "mark" bascule ce clic en
+    // croix personnelle à la place. Corrige un vrai bug où faire
+    // tourner la vue à la souris pouvait, en fin de rotation, poser à
+    // tort une question sur la case survolée (retour utilisateur
+    // direct) — désormais un simple clic ne déclenche jamais d'envoi.
+    let askSubMode: "none" | "mark" | "reflect" = "none";
+    let askTarget: Position | null = null;
+
+    const setAskSubMode = (next: "none" | "mark" | "reflect") => {
       askSubMode = next;
-      peekToggle.classList.toggle("is-selected", next === "peek");
       markToggle.classList.toggle("is-selected", next === "mark");
       reflectToggle.classList.toggle("is-selected", next === "reflect");
-      peekHint.hidden = next !== "peek";
-      markHint.hidden = next !== "mark";
       reflectPanel.hidden = next !== "reflect";
-      if (!scene) return;
+      if (!scene || proposing) return;
       if (next === "reflect") {
         if (!reflectionController) {
           reflectionController = new ReflectionController({
@@ -428,91 +512,98 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
         // board-scene.ts), seul le contrôleur "lâche" la souris.
         reflectionController?.dispose();
         scene.setGhost(null);
+        scene.onCornerHover = null;
         scene.onCornerClick = ({ corner }) => {
-          // Marquer une case ne dépend jamais du tour : outil personnel,
-          // pas une question posée à l'adversaire (voir board-scene.ts).
           if (askSubMode === "mark") {
+            // Marquer une case ne dépend jamais du tour : outil
+            // personnel, pas une question posée à l'adversaire.
             scene!.toggleMark(corner);
             return;
           }
-          if (askSubMode !== "peek") return; // rien d'armé : clic ignoré
-          if (!isMyTurn()) {
-            pushLog("⚠️ Ce n'est pas ton tour.");
-            return;
-          }
-          sendAskPeek(socket!, corner);
+          askTarget = corner;
+          targetLabelEl.textContent = cellLabel(corner);
+          askBtn.disabled = false;
         };
-        scene.onCornerHover = null;
       }
     };
 
-    peekToggle.addEventListener("click", () => setAskSubMode(askSubMode === "peek" ? "none" : "peek"));
     markToggle.addEventListener("click", () => setAskSubMode(askSubMode === "mark" ? "none" : "mark"));
     reflectToggle.addEventListener("click", () => setAskSubMode(askSubMode === "reflect" ? "none" : "reflect"));
 
-    const setMode = (next: "ask" | "guess") => {
-      mode = next;
-      askBtn.classList.toggle("is-selected", next === "ask");
-      guessBtn.classList.toggle("is-selected", next === "guess");
-      askPanel.hidden = next !== "ask";
-      guessPanel.hidden = next !== "guess";
+    const setProposing = (next: boolean) => {
+      proposing = next;
+      sideAsk.hidden = next;
+      sideGuess.hidden = !next;
+      toggles.hidden = next;
+      tools.hidden = next;
       if (!scene) return;
-      if (next === "ask") {
+      if (next) {
+        reflectionController?.dispose();
+        reflectPanel.hidden = true;
+        if (!guessController) {
+          guessController = new PlacementController({
+            scene,
+            paletteHost: sideGuess.querySelector(".orapa-demo__palette")!,
+            previewHost: sideGuess.querySelector(".orapa-place__preview-box")!,
+            rotateButton: sideGuess.querySelector(".orapa-demo__rotate")!,
+            mirrorButton: sideGuess.querySelector(".orapa-demo__mirror")!,
+            validateButton: sideGuess.querySelector(".orapa-demo__validate")!,
+            clearButton: sideGuess.querySelector(".orapa-demo__bulk-clear")!,
+            randomButton: sideGuess.querySelector(".orapa-demo__bulk-random")!,
+            validateLabel: "Proposer cette solution",
+            statusHost: sideGuess.querySelector(".orapa-play__guess-status")!,
+            extensionPieces: room!.extensions_enabled ? EXTENSION_PIECE_PALETTE : undefined,
+            onValidate: (pieces) => sendSubmitSolution(socket!, pieces),
+          });
+        } else {
+          guessController.activate();
+        }
+      } else {
         guessController?.dispose();
         scene.setPieces([]);
-        // Réapplique le sous-mode courant (question/marquage/réflexion) :
-        // ré-attache les callbacks de la scène, que le mode "proposition"
-        // avait pris (les repères de réflexion déjà posés restent
-        // affichés — groupe séparé, voir board-scene.ts).
         setAskSubMode(askSubMode);
-      } else if (!guessController) {
-        guessController = new PlacementController({
-          scene,
-          paletteHost: guessPanel.querySelector(".orapa-demo__palette")!,
-          previewHost: guessPanel.querySelector(".orapa-place__preview-box")!,
-          rotateButton: guessPanel.querySelector(".orapa-demo__rotate")!,
-          mirrorButton: guessPanel.querySelector(".orapa-demo__mirror")!,
-          validateButton: guessPanel.querySelector(".orapa-demo__validate")!,
-          clearButton: guessPanel.querySelector(".orapa-demo__bulk-clear")!,
-          randomButton: guessPanel.querySelector(".orapa-demo__bulk-random")!,
-          validateLabel: "Proposer cette solution",
-          statusHost: guessPanel.querySelector(".orapa-mp__guess-status")!,
-          extensionPieces: room!.extensions_enabled ? EXTENSION_PIECE_PALETTE : undefined,
-          onValidate: (pieces) => sendSubmitSolution(socket!, pieces),
-        });
-      } else {
-        // Contrôleur déjà construit (proposition en cours) : juste
-        // reprendre la main sur les callbacks de la scène, que le
-        // passage en mode "question" lui avait retirés.
-        guessController.activate();
       }
     };
 
-    askBtn.addEventListener("click", () => setMode("ask"));
-    guessBtn.addEventListener("click", () => setMode("guess"));
-    setMode(mode);
+    proposeBtn.addEventListener("click", () => setProposing(true));
+    cancelGuessBtn.addEventListener("click", () => setProposing(false));
 
+    // Cliquer une borne du pourtour ne tire plus le rayon directement :
+    // ça remplit juste le champ, "Envoyer" (ou Entrée) reste nécessaire
+    // — même logique de confirmation explicite que pour "Demander"
+    // ci-dessous (voir la maquette Claude Design).
     scene!.onEntryClick = ({ label }) => {
+      entryInput.value = label;
+    };
+
+    const fireEntry = () => {
+      const label = entryInput.value.trim().toUpperCase();
+      if (!label) return;
       if (!isMyTurn()) {
-        pushLog("⚠️ Ce n'est pas ton tour.");
+        pushHistory("⚠️ Ce n'est pas ton tour.");
         return;
       }
       sendAskRay(socket!, label);
+      entryInput.value = "";
     };
-    updateTurnIndicator(phaseHost);
-    applyTurnGating(controlsHost);
-  }
+    fireBtn.addEventListener("click", fireEntry);
+    entryInput.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") fireEntry();
+    });
 
-  // Cache : "poser une question" / "proposer une solution" ne sont
-  // cliquables/visibles que si c'est le tour du joueur (retour
-  // utilisateur direct).
-  function applyTurnGating(controlsHost: HTMLElement): void {
-    const askBtn = controlsHost.querySelector<HTMLButtonElement>(".orapa-mp__ask-btn");
-    const guessBtn = controlsHost.querySelector<HTMLButtonElement>(".orapa-mp__guess-btn");
-    if (!askBtn || !guessBtn) return; // pas la phase PLAYING
-    const myTurn = isMyTurn();
-    askBtn.hidden = !myTurn;
-    guessBtn.hidden = !myTurn;
+    askBtn.addEventListener("click", () => {
+      if (!askTarget) return;
+      if (!isMyTurn()) {
+        pushHistory("⚠️ Ce n'est pas ton tour.");
+        return;
+      }
+      sendAskPeek(socket!, askTarget);
+      askTarget = null;
+      targetLabelEl.textContent = "—";
+      askBtn.disabled = true;
+    });
+
+    setAskSubMode(askSubMode);
   }
 
   function renderFinished(phaseHost: HTMLElement): void {
@@ -524,8 +615,8 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
     phaseHost.innerHTML = `<p class="orapa-mp__result-banner">${text}</p>`;
   }
 
-  function updateTurnIndicator(phaseHost: HTMLElement): void {
-    const el = phaseHost.querySelector<HTMLParagraphElement>(".orapa-mp__turn");
+  function updateTurnIndicator(): void {
+    const el = root.querySelector<HTMLParagraphElement>(".orapa-mp__turn");
     if (!el || !room) return;
     const state = lastGameState;
     if (!state) {
@@ -543,11 +634,40 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
     }
   }
 
-  function pushLog(line: string): void {
-    log.push(line);
-    if (log.length > 30) log.shift();
+  // --- Historique (panneau gauche en jeu, journal dans les autres écrans) --
+
+  function pushHistory(html: string, accent: string = "var(--om-border)"): void {
+    history.push({ html, accent });
+    if (history.length > 30) history.shift();
+    renderHistory();
+  }
+
+  function renderHistory(): void {
+    // Écran "partie en cours" : panneau HISTORIQUE dédié (plus récent en
+    // premier, comme la maquette).
+    const list = root.querySelector<HTMLDivElement>(".orapa-play__history-list");
+    if (list) {
+      list.innerHTML = history.length
+        ? [...history]
+            .reverse()
+            .map((h) => `<div class="orapa-play__history-row" style="border-left-color:${h.accent}">${h.html}</div>`)
+            .join("")
+        : `<div class="orapa-play__history-empty">Clique une case pour l'interroger, ou un point du bord pour tirer un rayon.</div>`;
+    }
+    const countEl = root.querySelector<HTMLSpanElement>(".orapa-play__history-count");
+    if (countEl) countEl.textContent = `${history.length} question${history.length === 1 ? "" : "s"}`;
+
+    // Autres écrans (placement/fin) : simple journal chronologique.
     const logHost = root.querySelector<HTMLDivElement>(".orapa-mp__log");
-    if (logHost) logHost.innerHTML = log.map((l) => `<div>${l}</div>`).join("");
+    if (logHost) logHost.innerHTML = history.map((h) => `<div>${h.html}</div>`).join("");
+  }
+
+  function setLastAnswer(titleHtml: string, subText: string, colorHex: string | null): void {
+    const body = root.querySelector<HTMLDivElement>(".orapa-play__answer-body");
+    if (!body) return;
+    body.innerHTML = colorHex
+      ? `<span class="orapa-play__answer-swatch" style="background:${colorHex}"></span><div><div>${titleHtml}</div><div style="font-size:12px;color:var(--om-text-4);margin-top:2px;">${subText}</div></div>`
+      : `<div><div>${titleHtml}</div><div style="font-size:12px;color:var(--om-text-4);margin-top:2px;">${subText}</div></div>`;
   }
 
   // --- câblage des messages serveur ----------------------------------------
@@ -565,12 +685,8 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
     ws.on("game_state", (msg) => {
       lastGameState = msg as unknown as GameStatePayload;
       const phaseHost = root.querySelector<HTMLDivElement>(".orapa-mp__phase");
-      if (phaseHost) {
-        if (room?.status === "FINISHED") renderFinished(phaseHost);
-        else updateTurnIndicator(phaseHost);
-      }
-      const controlsHost = root.querySelector<HTMLDivElement>(".orapa-mp__game-controls");
-      if (controlsHost) applyTurnGating(controlsHost);
+      if (room?.status === "FINISHED" && phaseHost) renderFinished(phaseHost);
+      else updateTurnIndicator();
     });
     ws.on("placement_ack", () => {
       /* la pose optimiste locale a déjà mis à jour l'affichage */
@@ -578,13 +694,21 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
     ws.on("player_ready", (msg) => {
       const id = msg.player_id as string;
       const name = room?.players.find((p) => p.id === id)?.name ?? id;
-      pushLog(`${name} a validé son placement.`);
+      pushHistory(`${name} a validé son placement.`);
     });
     ws.on("ray_result", (msg) => {
       const result = msg.result as RayResultPayload;
       const label = msg.entry_label as string;
-      pushLog(describeRay(label, result));
-      if (scene && mode === "ask") {
+      const colorName = result.absorbed ? "absorbé" : result.color;
+      const hex = hexColor(RAY_COLOR_HEX[colorName] ?? 0x666666);
+      pushHistory(describeRay(label, result), hex);
+      if (result.absorbed) {
+        setLastAnswer("Signal absorbé", `Depuis ${label}`, hex);
+      } else {
+        const exitLabel = labelForExit(result.exit!, result.exit_direction!);
+        setLastAnswer(`Sort en ${exitLabel}`, `Depuis ${label} — ${result.color}`, hex);
+      }
+      if (scene) {
         // Colore durablement les bornes d'entrée/sortie plutôt que de
         // tracer une ligne éphémère (voir `BoardScene.colorEntryMarker`) :
         // un tracé disparaissait au tir suivant, ce qui compliquait la
@@ -592,7 +716,7 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
         // une borne ne peut produire qu'une seule couleur, donc les
         // colorer une à une construit une vraie carte des questions
         // déjà posées.
-        scene.colorEntryMarker(label, result.absorbed ? "absorbé" : result.color);
+        scene.colorEntryMarker(label, colorName);
         if (!result.absorbed && result.exit) {
           const exitLabel = labelForExit(result.exit, result.exit_direction!);
           scene.colorEntryMarker(exitLabel, result.color);
@@ -601,7 +725,12 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
     });
     ws.on("peek_result", (msg) => {
       const position = msg.position as Position;
-      pushLog(`Qu'y a-t-il en ${cellLabel(position)} ? ${colorizePeekResult(msg.result as string)}`);
+      const text = msg.result as string;
+      const label = cellLabel(position);
+      const colorName = extractPeekColorName(text);
+      const hex = colorName ? hexColor(RAY_COLOR_HEX[colorName] ?? 0x666666) : null;
+      pushHistory(`Qu'y a-t-il en ${label} ? ${colorizePeekResult(text)}`, hex ?? "var(--om-border)");
+      setLastAnswer(text, `En ${label}`, hex);
     });
     ws.on("error", (msg) => {
       // ⚠️ Limite connue (voir docs/plan.md) : une pose optimiste que le
@@ -611,7 +740,7 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
       // concernée). En pratique, le moteur TS local (`preview-engine.ts`)
       // applique exactement les mêmes règles que le serveur, donc ce
       // cas ne devrait pas se produire hors bug.
-      pushLog(`⚠️ ${msg.message as string}`);
+      pushHistory(`⚠️ ${msg.message as string}`);
     });
   }
 
@@ -640,6 +769,13 @@ const PEEK_COLOR_WORDS: Record<string, string> = {
   bleue: "bleu",
   blanche: "blanc",
 };
+
+function extractPeekColorName(text: string): string | null {
+  for (const [word, canonical] of Object.entries(PEEK_COLOR_WORDS)) {
+    if (text.endsWith(word)) return canonical;
+  }
+  return null;
+}
 
 function colorizePeekResult(text: string): string {
   for (const [word, canonical] of Object.entries(PEEK_COLOR_WORDS)) {

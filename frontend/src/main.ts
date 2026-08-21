@@ -33,23 +33,15 @@ const STEPS = [
   { n: "3", title: "Jouez", body: "Tout le monde arrive avec le code, la partie démarre. Rien à installer.", color: "var(--am-green)" },
 ];
 
-// Jeux à venir : purement décoratifs (pas dans `GAMES`, rien à ouvrir) —
-// comme dans la maquette elle-même, qui les affiche déjà "Bientôt".
+// Jeux à venir : purement décoratifs (pas dans `GAMES`, rien à ouvrir).
+// Seul Uno reste comme aperçu "Bientôt" (déjà dans la maquette) — Monopoly
+// et Jeu de dés retirés : pas encore construits, pas besoin de les
+// afficher (retour utilisateur direct).
 const STUB_CARDS_HTML = `
   <div class="am-card--stub" style="background: #6c4bf6; color: #f6efe2;">
     <div class="am-card__badge" style="border-color: rgba(246,239,226,.6);">Bientôt</div>
     <h3>Uno</h3>
     <p>Cartes rapides · 2 à 10</p>
-  </div>
-  <div class="am-card--stub" style="background: #17be8c; color: #10241d;">
-    <div class="am-card__badge" style="border-color: rgba(16,36,29,.45);">Bientôt</div>
-    <h3>Monopoly</h3>
-    <p>Gestion · 2 à 6</p>
-  </div>
-  <div class="am-card--stub" style="background: #ffc53d; color: #1b1a22;">
-    <div class="am-card__badge" style="border-color: rgba(27,26,34,.45);">Bientôt</div>
-    <h3>Jeu de dés</h3>
-    <p>Hasard · 2 à 8</p>
   </div>
   <div class="am-card--empty">
     <div class="am-card__badge">En chantier</div>
@@ -91,27 +83,31 @@ function renderHome(): void {
   app.className = "am-home";
   app.innerHTML = `
     <header class="am-header">
-      <div class="am-header__brand">
-        <div class="am-header__logo"></div>
-        <span class="am-header__name">Amusement</span>
+      <div class="am-inner am-header__row">
+        <div class="am-header__brand">
+          <div class="am-header__logo"></div>
+          <span class="am-header__name">Amusement</span>
+        </div>
+        <nav class="am-header__nav">
+          <button type="button" class="am-header__link" data-scroll="table">Les jeux</button>
+          <button type="button" class="am-header__link" data-open-notice>Règles</button>
+          <button type="button" class="am-header__cta" data-open-join>Rejoindre avec un code</button>
+        </nav>
       </div>
-      <nav class="am-header__nav">
-        <button type="button" class="am-header__link" data-scroll="table">Les jeux</button>
-        <button type="button" class="am-header__link" data-open-notice>Règles</button>
-        <button type="button" class="am-header__cta" data-open-join>Rejoindre avec un code</button>
-      </nav>
     </header>
 
     <section class="am-hero">
-      <div class="am-hero__grid">
-        <div>
-          <h1 class="am-hero__title">Sortez un jeu.<br />Trouvez du monde.<br />Jouez, tout de suite.</h1>
-          <p class="am-hero__lede">Une petite table de jeux à partager. Pas de compte, pas d'attente : vous créez un salon, vous envoyez le code, la partie commence.</p>
-        </div>
-        <div class="am-hero__shapes">
-          <div class="am-hero__shape-circle"></div>
-          <div class="am-hero__shape-tri"></div>
-          <div class="am-hero__shape-square"></div>
+      <div class="am-inner am-hero__inner">
+        <div class="am-hero__grid">
+          <div>
+            <h1 class="am-hero__title">Sortez un jeu.<br />Trouvez du monde.<br />Jouez, tout de suite.</h1>
+            <p class="am-hero__lede">Une petite table de jeux à partager. Pas de compte, pas d'attente : vous créez un salon, vous envoyez le code, la partie commence.</p>
+          </div>
+          <div class="am-hero__shapes">
+            <div class="am-hero__shape-circle"></div>
+            <div class="am-hero__shape-tri"></div>
+            <div class="am-hero__shape-square"></div>
+          </div>
         </div>
       </div>
     </section>
@@ -123,17 +119,17 @@ function renderHome(): void {
       </div>
     </div>
 
-    <div class="am-table-heading" id="table">
+    <div class="am-inner am-table-heading" id="table">
       <h2>La table</h2>
       <div class="am-table-heading__meta">${GAMES.length} jeu${GAMES.length > 1 ? "x" : ""} jouable${GAMES.length > 1 ? "s" : ""} · d'autres en préparation</div>
     </div>
 
-    <div class="am-table">
+    <div class="am-inner am-table">
       ${GAMES.map(gameCardHtml).join("\n")}
       ${STUB_CARDS_HTML}
     </div>
 
-    <div class="am-steps">
+    <div class="am-inner am-steps">
       ${STEPS.map((s) => `
         <div class="am-step">
           <div class="am-step__n" style="background: ${s.color};">${s.n}</div>
@@ -143,7 +139,7 @@ function renderHome(): void {
     </div>
 
     <footer class="am-footer">
-      <div class="am-footer__inner">
+      <div class="am-inner am-footer__inner">
         <div class="am-footer__brand">Amusement</div>
         <div class="am-footer__links">
           <button type="button" class="am-header__link" data-open-notice>Règles</button>

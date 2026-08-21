@@ -538,14 +538,18 @@ export class BoardScene {
     });
     shape.closePath();
 
-    // Biseau (comme la maquette) : les pièces ont un vrai profil taillé
-    // plutôt que des arêtes vives — se voit surtout sur les grandes faces.
+    // Biseau prononcé (bien plus que la maquette) : une bonne partie de
+    // la hauteur devient une couronne à facettes multiples inclinées
+    // autour d'une petite table plate, plutôt qu'un simple chanfrein fin
+    // sur un bloc à faces droites — pour lire comme une vraie gemme
+    // taillée, pas une forme géométrique plate extrudée (retour
+    // utilisateur direct).
     const geometry = new THREE.ExtrudeGeometry(shape, {
       depth: GEM_HEIGHT,
       bevelEnabled: true,
-      bevelThickness: 0.06,
-      bevelSize: 0.05,
-      bevelSegments: 2,
+      bevelThickness: GEM_HEIGHT * 0.32,
+      bevelSize: 0.16,
+      bevelSegments: 3,
     });
 
     const isDiamond = piece.kind === GemKind.DIAMOND;
@@ -553,10 +557,16 @@ export class BoardScene {
     const color = isDiamond ? 0xbfe3f0 : isBlackBody ? 0x0b1330 : piece.color ? GEM_DISPLAY_COLOR[piece.color] : 0x999999;
     const transparent = isGhost || isReflection || isDiamond;
     const opacity = isGhost ? GHOST_OPACITY : isReflection ? REFLECTION_OPACITY : isDiamond ? 0.5 : 1;
-    const material = new THREE.MeshStandardMaterial({
+    // `MeshPhysicalMaterial` (pas `MeshStandardMaterial`) : le vernis
+    // ("clearcoat") ajoute un second reflet net par-dessus la couleur de
+    // base, comme le poli d'une vraie gemme taillée — le corps noir
+    // reste volontairement mat (aucun intérêt à briller).
+    const material = new THREE.MeshPhysicalMaterial({
       color,
-      roughness: isDiamond ? 0.15 : isBlackBody ? 0.6 : 0.22,
-      metalness: 0.28,
+      roughness: isDiamond ? 0.05 : isBlackBody ? 0.65 : 0.15,
+      metalness: isBlackBody ? 0.1 : 0.25,
+      clearcoat: isBlackBody ? 0 : isDiamond ? 0.9 : 0.65,
+      clearcoatRoughness: 0.12,
       flatShading: true,
       transparent,
       opacity,
