@@ -182,6 +182,14 @@ function mountFor(game: GameDescriptor, view: ViewKind): MountView {
   }
 }
 
+// Notice et Guide partagent une fiche (carte "JOUER" + formes
+// décoratives à gauche, contenu à onglets à droite — 2 onglets
+// seulement, comme la maquette). Essayer/Jouer n'en font pas partie :
+// on y accède depuis le bouton "Jouer" (ou le lien secondaire "Essayer
+// le plateau", ajout hors maquette pour ne pas perdre cette fonction),
+// et ces deux écrans s'affichent seuls, en pleine largeur.
+const INFO_VIEWS: ReadonlySet<ViewKind> = new Set(["notice", "guide"]);
+
 function showView(gameId: string, view: ViewKind): void {
   const game = GAMES.find((g) => g.id === gameId);
   if (!app || !game) return;
@@ -189,6 +197,7 @@ function showView(gameId: string, view: ViewKind): void {
   disposeCurrentView = null;
 
   app.className = "om-shell";
+  const isInfoView = INFO_VIEWS.has(view);
   app.innerHTML = `
     <div class="om-shell__header">
       <button type="button" class="om-shell__brand" data-go-home>
@@ -200,16 +209,42 @@ function showView(gameId: string, view: ViewKind): void {
         <div class="om-shell__crumb">${VIEW_LABELS[view].toUpperCase()}</div>
       </div>
     </div>
-    <div class="om-shell__tabs">
-      ${(Object.keys(VIEW_LABELS) as ViewKind[]).map((v) => `<button type="button" data-view="${v}" class="${v === view ? "is-selected" : ""}">${VIEW_LABELS[v]}</button>`).join("")}
-    </div>
-    <div id="view-root"></div>
+    ${
+      isInfoView
+        ? `
+      <div class="om-shell__info-layout">
+        <aside class="om-shell__info-card">
+          <div class="om-shell__info-card-header">${game.title}</div>
+          <div class="om-shell__info-card-icon" aria-hidden="true">
+            <span class="game-card__icon-shape game-card__icon-shape--tri-a"></span>
+            <span class="game-card__icon-shape game-card__icon-shape--tri-b"></span>
+            <span class="game-card__icon-shape game-card__icon-shape--para"></span>
+          </div>
+          <button type="button" class="om-shell__play-btn" data-view="play">Jouer</button>
+          <button type="button" class="om-shell__try-link" data-view="try">Essayer le plateau hors ligne →</button>
+          <div class="om-shell__info-tags">
+            <span>2 joueurs et +</span>
+            <span>~30 min</span>
+          </div>
+        </aside>
+        <div class="om-shell__info-content">
+          <div class="om-shell__tabs om-shell__tabs--info">
+            <button type="button" data-view="notice" class="${view === "notice" ? "is-selected" : ""}">Notice</button>
+            <button type="button" data-view="guide" class="${view === "guide" ? "is-selected" : ""}">Guide de jeu</button>
+          </div>
+          <div id="view-root"></div>
+        </div>
+      </div>`
+        : `
+      <button type="button" class="om-shell__fiche-link" data-view="notice">← Fiche du jeu</button>
+      <div id="view-root"></div>`
+    }
   `;
 
   for (const button of app.querySelectorAll<HTMLButtonElement>("[data-go-home]")) {
     button.addEventListener("click", renderHome);
   }
-  for (const button of app.querySelectorAll<HTMLButtonElement>(".om-shell__tabs button")) {
+  for (const button of app.querySelectorAll<HTMLButtonElement>("[data-view]")) {
     button.addEventListener("click", () => showView(gameId, button.dataset.view as ViewKind));
   }
 

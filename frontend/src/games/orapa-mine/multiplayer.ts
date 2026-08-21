@@ -270,10 +270,19 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
         plus des boutons), puis clique une case pour la poser. Reclique une pièce déjà posée —
         elle se teinte en rouge au survol — pour la retirer.
       </p>
-      <div class="orapa-demo__palette"></div>
+      <div class="orapa-place__preview">
+        <span class="om-eyebrow">Aperçu</span>
+      </div>
+      <div class="orapa-place__preview-box"></div>
       <div class="orapa-demo__transform">
         <button type="button" class="orapa-demo__rotate">⟳ Pivoter</button>
         <button type="button" class="orapa-demo__mirror">⇋ Retourner</button>
+      </div>
+      <span class="om-eyebrow">Vos gemmes</span>
+      <div class="orapa-demo__palette"></div>
+      <div class="orapa-demo__bulk-actions">
+        <button type="button" class="orapa-demo__bulk-clear">Tout retirer</button>
+        <button type="button" class="orapa-demo__bulk-random">Au hasard</button>
       </div>
       <button type="button" class="orapa-demo__validate" disabled>Valider le placement (0/5)</button>
       <p class="orapa-demo__result orapa-mp__placement-status" aria-live="polite"></p>
@@ -284,9 +293,12 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
     placementController = new PlacementController({
       scene,
       paletteHost: controlsHost.querySelector(".orapa-demo__palette")!,
+      previewHost: controlsHost.querySelector(".orapa-place__preview-box")!,
       rotateButton: controlsHost.querySelector(".orapa-demo__rotate")!,
       mirrorButton: controlsHost.querySelector(".orapa-demo__mirror")!,
       validateButton: controlsHost.querySelector(".orapa-demo__validate")!,
+      clearButton: controlsHost.querySelector(".orapa-demo__bulk-clear")!,
+      randomButton: controlsHost.querySelector(".orapa-demo__bulk-random")!,
       statusHost: controlsHost.querySelector(".orapa-mp__placement-status")!,
       extensionPieces: room!.extensions_enabled ? EXTENSION_PIECE_PALETTE : undefined,
       onPlace: (piece) => sendPlacePiece(socket!, piece),
@@ -348,10 +360,19 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
         </div>
       </div>
       <div class="orapa-mp__guess-panel" hidden>
-        <div class="orapa-demo__palette"></div>
+        <div class="orapa-place__preview">
+          <span class="om-eyebrow">Aperçu</span>
+        </div>
+        <div class="orapa-place__preview-box"></div>
         <div class="orapa-demo__transform">
           <button type="button" class="orapa-demo__rotate">⟳ Pivoter</button>
           <button type="button" class="orapa-demo__mirror">⇋ Retourner</button>
+        </div>
+        <span class="om-eyebrow">Ta proposition</span>
+        <div class="orapa-demo__palette"></div>
+        <div class="orapa-demo__bulk-actions">
+          <button type="button" class="orapa-demo__bulk-clear">Tout retirer</button>
+          <button type="button" class="orapa-demo__bulk-random">Au hasard</button>
         </div>
         <button type="button" class="orapa-demo__validate" disabled>Proposer cette solution (0/5)</button>
         <p class="orapa-demo__result orapa-mp__guess-status" aria-live="polite"></p>
@@ -448,9 +469,13 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
         guessController = new PlacementController({
           scene,
           paletteHost: guessPanel.querySelector(".orapa-demo__palette")!,
+          previewHost: guessPanel.querySelector(".orapa-place__preview-box")!,
           rotateButton: guessPanel.querySelector(".orapa-demo__rotate")!,
           mirrorButton: guessPanel.querySelector(".orapa-demo__mirror")!,
           validateButton: guessPanel.querySelector(".orapa-demo__validate")!,
+          clearButton: guessPanel.querySelector(".orapa-demo__bulk-clear")!,
+          randomButton: guessPanel.querySelector(".orapa-demo__bulk-random")!,
+          validateLabel: "Proposer cette solution",
           statusHost: guessPanel.querySelector(".orapa-mp__guess-status")!,
           extensionPieces: room!.extensions_enabled ? EXTENSION_PIECE_PALETTE : undefined,
           onValidate: (pieces) => sendSubmitSolution(socket!, pieces),

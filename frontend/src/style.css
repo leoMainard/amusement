@@ -805,6 +805,136 @@ body:has(#app.om-shell) {
   padding: 22px clamp(16px, 4vw, 40px) 70px;
 }
 
+/* Fiche du jeu (Notice/Guide) : carte "Jouer" à gauche + contenu à
+   onglets à droite — voir la maquette Claude Design. */
+.om-shell__info-layout {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+  align-items: start;
+  gap: 28px;
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 22px clamp(16px, 4vw, 40px) 70px;
+}
+
+@media (max-width: 780px) {
+  .om-shell__info-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.om-shell__info-card {
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid var(--om-border);
+  background: var(--om-panel);
+  display: flex;
+  flex-direction: column;
+}
+
+.om-shell__info-card-header {
+  padding: 16px 18px;
+  background: #ecdfc2;
+  color: #1b1a22;
+  font-family: "Chakra Petch", sans-serif;
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: 0.06em;
+  text-align: center;
+}
+
+.om-shell__info-card-icon {
+  position: relative;
+  height: 190px;
+  margin: 16px 16px 0;
+  border-radius: 14px;
+  background: var(--om-bg-deep);
+  overflow: hidden;
+}
+
+.om-shell__play-btn {
+  margin: 16px 16px 0;
+  padding: 13px;
+  border-radius: 10px;
+  border: none;
+  background: var(--om-gold);
+  color: var(--om-surface);
+  font-family: "Chakra Petch", sans-serif;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+}
+
+.om-shell__play-btn:hover {
+  background: var(--om-gold-hover);
+}
+
+.om-shell__try-link {
+  margin: 10px 16px 0;
+  align-self: flex-start;
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--om-text-4);
+  font-size: 12px;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.om-shell__try-link:hover {
+  color: var(--om-gold);
+}
+
+.om-shell__info-tags {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 14px 16px 18px;
+}
+
+.om-shell__info-tags span {
+  padding: 6px 11px;
+  border-radius: 999px;
+  border: 1px solid var(--om-border);
+  font-size: 11.5px;
+  color: var(--om-text-3);
+}
+
+.om-shell__info-content {
+  min-width: 0;
+}
+
+.om-shell__tabs--info {
+  max-width: none;
+  margin: 0 0 18px;
+  padding: 0;
+}
+
+.om-shell__info-content #view-root {
+  max-width: none;
+  margin: 0;
+  padding: 0;
+}
+
+.om-shell__fiche-link {
+  display: block;
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 22px clamp(16px, 4vw, 40px) 0;
+  background: none;
+  border: none;
+  color: var(--om-text-3);
+  font-family: "Chakra Petch", sans-serif;
+  font-size: 12.5px;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+}
+
+.om-shell__fiche-link:hover {
+  color: var(--om-gold);
+}
+
 .om-eyebrow {
   display: block;
   font-family: "Chakra Petch", sans-serif;
@@ -941,6 +1071,85 @@ body:has(#app.om-shell) {
   cursor: default;
 }
 
+/* Variante "VOS GEMMES" (liste, pas grille d'icônes) — voir la maquette
+   Claude Design ; ajoutée par `placement-controller.ts` sur son propre
+   `paletteHost`, sans toucher la grille d'icônes de
+   `reflection-controller.ts` qui garde `.orapa-demo__palette` seule. */
+.orapa-demo__palette--list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.orapa-demo__palette--list .orapa-demo__swatch {
+  justify-content: flex-start;
+  padding: 9px 12px;
+  gap: 10px;
+}
+
+.orapa-demo__swatch-icon {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+}
+
+.orapa-demo__swatch-label {
+  flex: 1;
+  text-align: left;
+  font-size: 13.5px;
+  color: var(--om-text-1);
+}
+
+.orapa-demo__swatch-status {
+  flex: none;
+  font-family: "Chakra Petch", sans-serif;
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--om-text-5);
+}
+
+.orapa-demo__swatch.is-selected .orapa-demo__swatch-status {
+  color: var(--om-gold);
+}
+
+.orapa-demo__bulk-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.orapa-demo__bulk-clear,
+.orapa-demo__bulk-random {
+  flex: 1;
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid var(--om-border);
+  background: transparent;
+  color: var(--om-text-1);
+  font-family: "Chakra Petch", sans-serif;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  transition: border-color 0.2s ease, color 0.2s ease;
+}
+
+.orapa-demo__bulk-clear:hover:not(:disabled) {
+  border-color: var(--om-red);
+  color: var(--om-red);
+}
+
+.orapa-demo__bulk-random:hover:not(:disabled) {
+  border-color: var(--om-gold);
+  color: var(--om-gold);
+}
+
+.orapa-demo__bulk-clear:disabled,
+.orapa-demo__bulk-random:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
 .orapa-demo__transform {
   display: flex;
   gap: 8px;
@@ -1048,16 +1257,34 @@ kbd {
 }
 
 .orapa-place__preview-box {
+  position: relative;
   margin-top: 10px;
   height: 92px;
   display: flex;
   align-items: center;
   justify-content: center;
   border-radius: 10px;
+  border: 1px solid var(--om-border);
   background:
     repeating-linear-gradient(0deg, rgba(143, 164, 216, 0.12) 0 1px, transparent 1px 22px),
     repeating-linear-gradient(90deg, rgba(143, 164, 216, 0.12) 0 1px, transparent 1px 22px),
     rgba(7, 14, 38, 0.5);
+}
+
+.orapa-place__preview-angle {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  font-family: "Chakra Petch", sans-serif;
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  color: var(--om-text-4);
+}
+
+.orapa-place__preview-angle--mirror {
+  right: auto;
+  left: 10px;
+  color: var(--om-gold);
 }
 
 .orapa-place__preview-box svg {

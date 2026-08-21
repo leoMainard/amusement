@@ -304,10 +304,19 @@ export function mountOrapaMineGuide(root: HTMLElement): () => void {
     stage.innerHTML = `
       <div class="guide__canvas"></div>
       <div class="orapa-demo__panel">
-        <div class="orapa-demo__palette"></div>
+        <div class="orapa-place__preview">
+          <span class="om-eyebrow">Aperçu</span>
+        </div>
+        <div class="orapa-place__preview-box"></div>
         <div class="orapa-demo__transform">
           <button type="button" class="orapa-demo__rotate">⟳ Pivoter 90°</button>
           <button type="button" class="orapa-demo__mirror">⇋ Retourner</button>
+        </div>
+        <span class="om-eyebrow">Ta proposition</span>
+        <div class="orapa-demo__palette"></div>
+        <div class="orapa-demo__bulk-actions">
+          <button type="button" class="orapa-demo__bulk-clear">Tout retirer</button>
+          <button type="button" class="orapa-demo__bulk-random">Au hasard</button>
         </div>
         <button type="button" class="orapa-demo__validate" disabled>Proposer cette solution (0/2)</button>
         <div class="orapa-demo__result" aria-live="polite"></div>
@@ -316,8 +325,11 @@ export function mountOrapaMineGuide(root: HTMLElement): () => void {
     const canvasHost = stage.querySelector<HTMLDivElement>(".guide__canvas")!;
     scene = new BoardScene(canvasHost, DEFAULT_DIMENSIONS);
     const paletteHost = stage.querySelector<HTMLDivElement>(".orapa-demo__palette")!;
+    const previewHost = stage.querySelector<HTMLDivElement>(".orapa-place__preview-box")!;
     const rotateButton = stage.querySelector<HTMLButtonElement>(".orapa-demo__rotate")!;
     const mirrorButton = stage.querySelector<HTMLButtonElement>(".orapa-demo__mirror")!;
+    const clearButton = stage.querySelector<HTMLButtonElement>(".orapa-demo__bulk-clear")!;
+    const randomButton = stage.querySelector<HTMLButtonElement>(".orapa-demo__bulk-random")!;
     const validateButton = stage.querySelector<HTMLButtonElement>(".orapa-demo__validate")!;
     const resultHost = stage.querySelector<HTMLDivElement>(".orapa-demo__result")!;
 
@@ -331,9 +343,13 @@ export function mountOrapaMineGuide(root: HTMLElement): () => void {
     const controller = new PlacementController({
       scene,
       paletteHost,
+      previewHost,
       rotateButton,
       mirrorButton,
       validateButton,
+      clearButton,
+      randomButton,
+      validateLabel: "Proposer cette solution",
       statusHost: resultHost,
       pieces: SOLUTION_PALETTE,
       onValidate: (guessPieces) => {

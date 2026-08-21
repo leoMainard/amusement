@@ -450,6 +450,8 @@ export class BoardScene {
     const halfH = height / 2;
     const tileGeometry = new THREE.BoxGeometry(0.94, 0.14, 0.94);
 
+    this.buildBoardBody(width, height);
+
     for (let row = 0; row < height; row++) {
       for (let col = 0; col < width; col++) {
         const dark = (col + row) % 2 === 0;
@@ -468,6 +470,30 @@ export class BoardScene {
         this.scene.add(tile);
       }
     }
+  }
+
+  /** Corps épais du plateau sous les cases : une dalle sombre puis un
+   * pied plus large et plus clair (comme un vrai plateau de jeu posé sur
+   * un socle), plutôt qu'une grille plate sans épaisseur visible —
+   * retour utilisateur direct. Purement décoratif (aucune interaction),
+   * ajouté directement à `this.scene` une seule fois à la construction. */
+  private buildBoardBody(width: number, height: number): void {
+    const slabTopY = TILE_BASE_Y - 0.07; // sous la face inférieure des cases
+    const slabHeight = 0.5;
+    const slab = new THREE.Mesh(
+      new THREE.BoxGeometry(width + 0.3, slabHeight, height + 0.3),
+      new THREE.MeshStandardMaterial({ color: 0x0a1230, roughness: 0.55, metalness: 0.35, flatShading: true }),
+    );
+    slab.position.set(0, slabTopY - slabHeight / 2, 0);
+    this.scene.add(slab);
+
+    const baseHeight = 0.34;
+    const base = new THREE.Mesh(
+      new THREE.BoxGeometry(width + 0.9, baseHeight, height + 0.9),
+      new THREE.MeshStandardMaterial({ color: 0x2c3a63, roughness: 0.6, metalness: 0.25, flatShading: true }),
+    );
+    base.position.set(0, slabTopY - slabHeight - baseHeight / 2, 0);
+    this.scene.add(base);
   }
 
   private buildEntryMarkers(): void {

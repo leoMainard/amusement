@@ -4,9 +4,13 @@
  * le jeu multijoueur (Duel/Fouille, Phase 4) — voir `preview-engine.ts`
  * pour la mise en garde sur la logique de jeu utilisée ici.
  *
- * Le placement lui-même (palette, pose, retrait, validation) est géré
- * par `placement-controller.ts`, partagé avec l'écran de placement Duel
- * en multijoueur — voir ce module pour cette logique.
+ * Le placement lui-même (aperçu, palette, rotation/miroir, pose,
+ * retrait, placement aléatoire, validation) est géré par
+ * `placement-controller.ts`, partagé avec l'écran de placement Duel en
+ * multijoueur — voir ce module pour cette logique. "Tout retirer" (dans
+ * le panneau, avant validation) vient de ce contrôleur ; "Vider le
+ * plateau" (bouton séparé ci-dessous) reconstruit tout le contrôleur —
+ * seul moyen de recommencer après avoir déjà validé un placement.
  */
 
 import { BoardScene } from "./board-scene";
@@ -31,10 +35,19 @@ export function mountOrapaMineDemo(root: HTMLElement): () => void {
           borne du pourtour pour tirer un rayon. Le Diamant et le Corps noir (extensions) sont
           optionnels.
         </p>
-        <div class="orapa-demo__palette"></div>
+        <div class="orapa-place__preview">
+          <span class="om-eyebrow">Aperçu</span>
+        </div>
+        <div class="orapa-place__preview-box"></div>
         <div class="orapa-demo__transform">
           <button type="button" class="orapa-demo__rotate">⟳ Pivoter 90°</button>
           <button type="button" class="orapa-demo__mirror">⇋ Retourner</button>
+        </div>
+        <span class="om-eyebrow">Vos gemmes</span>
+        <div class="orapa-demo__palette"></div>
+        <div class="orapa-demo__bulk-actions">
+          <button type="button" class="orapa-demo__bulk-clear">Tout retirer</button>
+          <button type="button" class="orapa-demo__bulk-random">Au hasard</button>
         </div>
         <button type="button" class="orapa-demo__validate" disabled>Valider le placement (0/5)</button>
         <button type="button" class="orapa-demo__clear">Vider le plateau</button>
@@ -45,28 +58,47 @@ export function mountOrapaMineDemo(root: HTMLElement): () => void {
 
   const canvasHost = root.querySelector<HTMLDivElement>(".orapa-demo__canvas");
   const paletteHost = root.querySelector<HTMLDivElement>(".orapa-demo__palette");
+  const previewHost = root.querySelector<HTMLDivElement>(".orapa-place__preview-box");
   const resultHost = root.querySelector<HTMLDivElement>(".orapa-demo__result");
   const clearButton = root.querySelector<HTMLButtonElement>(".orapa-demo__clear");
+  const bulkClearButton = root.querySelector<HTMLButtonElement>(".orapa-demo__bulk-clear");
+  const bulkRandomButton = root.querySelector<HTMLButtonElement>(".orapa-demo__bulk-random");
   const rotateButton = root.querySelector<HTMLButtonElement>(".orapa-demo__rotate");
   const mirrorButton = root.querySelector<HTMLButtonElement>(".orapa-demo__mirror");
   const validateButton = root.querySelector<HTMLButtonElement>(".orapa-demo__validate");
-  if (!canvasHost || !paletteHost || !resultHost || !clearButton || !rotateButton || !mirrorButton || !validateButton) {
+  if (
+    !canvasHost ||
+    !paletteHost ||
+    !previewHost ||
+    !resultHost ||
+    !clearButton ||
+    !bulkClearButton ||
+    !bulkRandomButton ||
+    !rotateButton ||
+    !mirrorButton ||
+    !validateButton
+  ) {
     throw new Error("Gabarit de la démo Orapa Mine incomplet.");
   }
 
   const scene = new BoardScene(canvasHost, DEFAULT_DIMENSIONS);
-  let placement: PlacementController | null = new PlacementController({
-    scene,
-    paletteHost,
-    rotateButton,
-    mirrorButton,
-    validateButton,
-    statusHost: resultHost,
-    extensionPieces: EXTENSION_PIECE_PALETTE,
-    onValidate: () => {
-      resultHost.textContent = "Placement validé — clique une borne du pourtour pour tirer un rayon.";
-    },
-  });
+  const makePlacement = () =>
+    new PlacementController({
+      scene,
+      paletteHost,
+      previewHost,
+      rotateButton,
+      mirrorButton,
+      validateButton,
+      clearButton: bulkClearButton,
+      randomButton: bulkRandomButton,
+      statusHost: resultHost,
+      extensionPieces: EXTENSION_PIECE_PALETTE,
+      onValidate: () => {
+        resultHost.textContent = "Placement validé — clique une borne du pourtour pour tirer un rayon.";
+      },
+    });
+  let placement: PlacementController | null = makePlacement();
 
   scene.onEntryClick = ({ label, entry }) => {
     if (!placement) return;
@@ -87,22 +119,12 @@ export function mountOrapaMineDemo(root: HTMLElement): () => void {
   clearButton.addEventListener("click", () => {
     placement?.dispose();
     paletteHost.innerHTML = "";
+    paletteHost.classList.remove("orapa-demo__palette--list");
     scene.setPieces([]);
     scene.setGhost(null);
     scene.clearRay();
     resultHost.textContent = "";
-    placement = new PlacementController({
-      scene,
-      paletteHost,
-      rotateButton,
-      mirrorButton,
-      validateButton,
-      statusHost: resultHost,
-      extensionPieces: EXTENSION_PIECE_PALETTE,
-      onValidate: () => {
-        resultHost.textContent = "Placement validé — clique une borne du pourtour pour tirer un rayon.";
-      },
-    });
+    placement = makePlacement();
   });
 
   return () => {

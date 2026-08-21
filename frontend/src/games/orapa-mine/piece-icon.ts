@@ -21,8 +21,15 @@ const FILL_BY_KIND: Partial<Record<GemKind, string>> = {
   [GemKind.BLACK_BODY]: "#0b1330",
 };
 
-export function pieceIconSvg(shape: PieceShape, color: string | undefined, size: number = 44, kind: GemKind = GemKind.NORMAL): string {
-  const verts = placeShape(shape, [0, 0]);
+export function pieceIconSvg(
+  shape: PieceShape,
+  color: string | undefined,
+  size: number = 44,
+  kind: GemKind = GemKind.NORMAL,
+  rotationSteps: number = 0,
+  mirrored: boolean = false,
+): string {
+  const verts = placeShape(shape, [0, 0], rotationSteps, mirrored);
   const xs = verts.map(([x]) => x);
   const ys = verts.map(([, y]) => y);
   const minX = Math.min(...xs);
