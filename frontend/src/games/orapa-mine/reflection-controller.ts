@@ -3,9 +3,9 @@
  * complète, ou juste une case/demi-case colorée — voir
  * `types.ts:REFLECTION_UNIT_PALETTE`) que le joueur peut poser librement
  * pendant la phase de question, pour noter ses hypothèses avant de
- * proposer une solution. Interaction calquée sur
- * `placement-controller.ts` (palette, fantôme au survol, pivoter/
- * retourner, clic pour poser/retirer, raccourcis clavier R/F), mais :
+ * proposer une solution. Même présentation que `placement-controller.ts`
+ * (aperçu, pivoter/retourner, liste "Vos gemmes", vider — retour
+ * utilisateur direct : les deux doivent se ressembler), mais :
  *
  * - jamais envoyé au serveur ni à l'adversaire — purement local, comme
  *   les croix (voir `board-scene.ts:toggleMark`) ;
@@ -14,7 +14,7 @@
  *   limite du plateau est respectée (voir `PreviewBoard.placePieceUnchecked`) ;
  * - une entrée de palette reste posable autant de fois qu'on veut : pas
  *   de compteur "X/N" ni de bouton "valider" — juste "vider" pour tout
- *   effacer.
+ *   effacer, jamais désactivée après une pose.
  */
 
 import type { BoardScene } from "./board-scene";
@@ -41,6 +41,9 @@ export interface ReflectionControllerOptions {
   rotateButton: HTMLButtonElement;
   mirrorButton: HTMLButtonElement;
   clearButton: HTMLButtonElement;
+  /** Cadre "APERÇU" (voir `placement-controller.ts`) : optionnel,
+   * absent si non fourni. */
+  previewHost?: HTMLElement;
   statusHost?: HTMLElement;
   entries: ReadonlyArray<ReflectionPaletteEntry>;
 }
@@ -58,38 +61,25 @@ export class ReflectionController {
     this.board = new PreviewBoard(this.scene.dimensions);
 
     // Deux groupes distincts plutôt qu'une seule grille (retour
-    // utilisateur direct) : les 5 gemmes majeures (+ extensions) d'un
-    // côté, les petits repères élémentaires de l'autre — chacun dans sa
-    // propre sous-grille, avec son propre intitulé si les deux sont
-    // présents.
+    // utilisateur direct) : les 5 gemmes majeures (+ extensions), en
+    // liste façon "VOS GEMMES" (même style que `placement-controller.ts`),
+    // et les petits repères élémentaires à part, en grille compacte.
     const gemEntries = options.entries.filter((e) => (e.variant ?? "gem") === "gem");
     const unitEntries = options.entries.filter((e) => e.variant === "unit");
-    const showLabels = gemEntries.length > 0 && unitEntries.length > 0;
 
     const gemHost = document.createElement("div");
-    gemHost.className = "orapa-demo__palette orapa-mp__reflect-group orapa-mp__reflect-group--gems";
+    gemHost.className = "orapa-demo__palette orapa-demo__palette--list orapa-mp__reflect-group orapa-mp__reflect-group--gems";
     const unitHost = document.createElement("div");
     unitHost.className = "orapa-demo__palette orapa-mp__reflect-group orapa-mp__reflect-group--units";
 
-    // Pivoter/retourner rejoignent l'intitulé "Gemmes" (déplacés depuis
-    // leur position d'origine dans le document, voir multiplayer.ts) au
-    // lieu d'occuper toute une ligne à eux seuls en bas du panneau —
-    // retour utilisateur direct, ce panneau prenait trop de hauteur.
-    const gemHeadRow = document.createElement("div");
-    gemHeadRow.className = "orapa-mp__reflect-group-head";
-    if (showLabels) {
+    if (gemEntries.length > 0) {
       const gemLabel = document.createElement("span");
       gemLabel.className = "om-eyebrow orapa-mp__reflect-group-label";
-      gemLabel.textContent = "Gemmes";
-      gemHeadRow.appendChild(gemLabel);
+      gemLabel.textContent = "Vos gemmes";
+      options.paletteHost.appendChild(gemLabel);
     }
-    options.rotateButton.title = "Pivoter (touche R)";
-    options.mirrorButton.title = "Retourner (touche F)";
-    gemHeadRow.appendChild(options.rotateButton);
-    gemHeadRow.appendChild(options.mirrorButton);
-    options.paletteHost.appendChild(gemHeadRow);
     options.paletteHost.appendChild(gemHost);
-    if (showLabels) {
+    if (unitEntries.length > 0) {
       const unitLabel = document.createElement("span");
       unitLabel.className = "om-eyebrow orapa-mp__reflect-group-label";
       unitLabel.textContent = "Repères simples";
@@ -102,9 +92,20 @@ export class ReflectionController {
       const isUnit = entry.variant === "unit";
       const button = document.createElement("button");
       button.type = "button";
-      button.className = isUnit ? "orapa-demo__swatch orapa-demo__swatch--unit" : "orapa-demo__swatch";
       button.title = entry.label;
-      button.innerHTML = pieceIconSvg(entry.shape, entry.color, isUnit ? 26 : 38, kind);
+      if (isUnit) {
+        button.className = "orapa-demo__swatch orapa-demo__swatch--unit";
+        button.innerHTML = pieceIconSvg(entry.shape, entry.color, 26, kind);
+      } else {
+        // Liste "VOS GEMMES" : icône + libellé, comme placement-controller.ts
+        // (pas de statut "posée" ici — un repère reste posable autant de
+        // fois qu'on veut, "posée" n'aurait pas de sens).
+        button.className = "orapa-demo__swatch";
+        button.innerHTML = `
+          <span class="orapa-demo__swatch-icon">${pieceIconSvg(entry.shape, entry.color, 32, kind)}</span>
+          <span class="orapa-demo__swatch-label">${entry.label}</span>
+        `;
+      }
       button.addEventListener("click", () => {
         this.armed = {
           shape: entry.shape,
@@ -116,6 +117,7 @@ export class ReflectionController {
         };
         this.updateSwatchSelection(button);
         this.refreshGhost();
+        this.refreshPreview();
       });
       (isUnit ? unitHost : gemHost).appendChild(button);
     }
@@ -123,13 +125,19 @@ export class ReflectionController {
     options.rotateButton.addEventListener("click", () => this.rotateArmed());
     options.mirrorButton.addEventListener("click", () => this.mirrorArmed());
     options.clearButton.addEventListener("click", () => this.clearAll());
-    document.addEventListener("keydown", this.handleKeyDown);
 
     this.activate();
+    this.refreshPreview();
   }
 
   /** (Ré)attache ce contrôleur aux callbacks de la scène — même besoin
-   * que `PlacementController.activate`, voir sa docstring. */
+   * que `PlacementController.activate`, voir sa docstring. Réattache
+   * aussi le raccourci clavier R/F : sans ça, après un premier aller-
+   * retour `dispose()`/`activate()` (voir `multiplayer.ts`, à chaque
+   * bascule du bouton "Placer des repères"), les touches R/F cessaient
+   * de fonctionner — `dispose()` retirait l'écouteur mais rien ne le
+   * reposait (vrai bug, signalé par un retour utilisateur : "parfois,
+   * sans raison"). */
   activate(): void {
     this.scene.onCornerHover = (corner) => {
       this.hoveredCorner = corner;
@@ -138,6 +146,7 @@ export class ReflectionController {
       this.scene.setRemoveHighlight(existing ?? null);
     };
     this.scene.onCornerClick = ({ corner }) => this.handleCornerClick(corner);
+    document.addEventListener("keydown", this.handleKeyDown);
     this.refreshGhost();
   }
 
@@ -152,12 +161,14 @@ export class ReflectionController {
     if (!this.armed) return;
     this.armed = { ...this.armed, rotationSteps: (this.armed.rotationSteps + 1) % 4 };
     this.refreshGhost();
+    this.refreshPreview();
   }
 
   private mirrorArmed(): void {
     if (!this.armed) return;
     this.armed = { ...this.armed, mirrored: !this.armed.mirrored };
     this.refreshGhost();
+    this.refreshPreview();
   }
 
   private handleKeyDown = (event: KeyboardEvent): void => {
@@ -194,6 +205,7 @@ export class ReflectionController {
     this.armed = null;
     this.updateSwatchSelection(null);
     this.refreshGhost();
+    this.refreshPreview();
     this.setStatus("");
   }
 
@@ -204,6 +216,20 @@ export class ReflectionController {
     }
     const positioned: Piece = { ...this.armed, origin: this.hoveredCorner ?? this.armed.origin };
     this.scene.setGhost(positioned, this.canPlace(positioned));
+  }
+
+  /** Cadre "APERÇU" (voir docstring de `previewHost`). */
+  private refreshPreview(): void {
+    const host = this.options.previewHost;
+    if (!host) return;
+    if (!this.armed) {
+      host.innerHTML = `<span class="orapa-place__preview-empty">Aucune gemme sélectionnée</span>`;
+      return;
+    }
+    const icon = pieceIconSvg(this.armed.shape, this.armed.color, 76, this.armed.kind, this.armed.rotationSteps, this.armed.mirrored);
+    const angle = (this.armed.rotationSteps * 90) % 360;
+    const mirrorBadge = this.armed.mirrored ? `<span class="orapa-place__preview-angle orapa-place__preview-angle--mirror">⇋</span>` : "";
+    host.innerHTML = `<span class="orapa-place__preview-angle">${angle}°</span>${mirrorBadge}${icon}`;
   }
 
   /** Seule règle pour un repère de réflexion : rester sur le plateau

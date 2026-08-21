@@ -478,10 +478,17 @@ export class BoardScene {
    * retour utilisateur direct. Purement décoratif (aucune interaction),
    * ajouté directement à `this.scene` une seule fois à la construction. */
   private buildBoardBody(width: number, height: number): void {
+    // Les bornes d'entrée (1-18, A-R) sont centrées à 0,5 unité au-delà
+    // du bord des cases (voir `cornerAverageWorld`/`buildEntryMarkers`)
+    // et ont elles-mêmes jusqu'à 0,22 de rayon : il leur faut au moins
+    // ~0,72 de débord pour reposer entièrement sur le support plutôt que
+    // de dépasser dans le vide (retour utilisateur direct). Marge prise
+    // largement pour qu'elles soient clairement "posées" dessus, pas
+    // juste effleurées au bord.
     const slabTopY = TILE_BASE_Y - 0.07; // sous la face inférieure des cases
     const slabHeight = 0.5;
     const slab = new THREE.Mesh(
-      new THREE.BoxGeometry(width + 0.3, slabHeight, height + 0.3),
+      new THREE.BoxGeometry(width + 1.8, slabHeight, height + 1.8),
       new THREE.MeshStandardMaterial({ color: 0x0a1230, roughness: 0.55, metalness: 0.35, flatShading: true }),
     );
     slab.position.set(0, slabTopY - slabHeight / 2, 0);
@@ -489,7 +496,7 @@ export class BoardScene {
 
     const baseHeight = 0.34;
     const base = new THREE.Mesh(
-      new THREE.BoxGeometry(width + 0.9, baseHeight, height + 0.9),
+      new THREE.BoxGeometry(width + 2.6, baseHeight, height + 2.6),
       new THREE.MeshStandardMaterial({ color: 0x2c3a63, roughness: 0.6, metalness: 0.25, flatShading: true }),
     );
     base.position.set(0, slabTopY - slabHeight - baseHeight / 2, 0);

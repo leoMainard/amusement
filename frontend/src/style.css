@@ -1852,39 +1852,34 @@ kbd {
   margin-top: 0;
 }
 
+/* Même présentation que le panneau de placement de `demo.ts` (aperçu,
+   pivoter/retourner, liste "Vos gemmes", vider — retour utilisateur
+   direct), déplacée dans la colonne de droite plutôt que sous le
+   plateau : voir `multiplayer.ts`, entre "Carnet" et "Proposer". */
 .orapa-mp__reflect-panel {
   margin-top: 0.5rem;
-  padding: 10px 16px 12px;
+  padding: 14px 16px 16px;
   border-radius: 12px;
   border: 1px solid var(--om-border-soft);
   background: var(--om-panel-soft);
-}
-
-/* Astuce + "Vider" sur la même ligne, en haut du panneau — plus de
-   ligne dédiée à "Vider mes repères" en bas (retour utilisateur direct,
-   ce panneau prenait trop de hauteur). */
-.orapa-mp__reflect-head {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
+  flex-direction: column;
   gap: 10px;
 }
 
-.orapa-mp__reflect-head .orapa-demo__hint {
-  margin: 0;
-}
-
+/* Bouton pleine largeur, même style que "Vider le plateau" de
+   `demo.ts` (`.orapa-demo__clear`), plutôt que le petit bouton
+   compact en coin de l'ancienne disposition sous le plateau. */
 .orapa-mp__reflect-clear {
-  flex: none;
-  padding: 5px 10px;
-  border-radius: 8px;
+  padding: 10px;
+  border-radius: 10px;
   border: 1px solid var(--om-border);
   background: transparent;
-  color: var(--om-text-3);
-  cursor: pointer;
+  color: var(--om-text-1);
   font-family: "Chakra Petch", sans-serif;
-  font-size: 11px;
-  letter-spacing: 0.06em;
+  font-size: 12.5px;
+  letter-spacing: 0.1em;
+  cursor: pointer;
 }
 
 .orapa-mp__reflect-clear:hover {
@@ -1893,65 +1888,22 @@ kbd {
 }
 
 /* Le conteneur passé à `ReflectionController` (voir reflection-controller.ts)
-   n'est plus lui-même une grille : il n'accueille que l'en-tête "Gemmes"
-   (+ pivoter/retourner, déplacés ici) et les deux sous-grilles. */
+   n'est plus lui-même une grille : il n'accueille que les libellés
+   "Vos gemmes" / "Repères simples" et les deux sous-groupes. */
 .orapa-mp__reflect-palette {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  margin-top: 8px;
-}
-
-.orapa-mp__reflect-group-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.orapa-mp__reflect-group-label {
-  display: block;
-}
-
-.orapa-mp__reflect-group-head .orapa-mp__reflect-group-label {
-  flex: 1;
-}
-
-/* Pivoter/retourner deviennent deux petites icônes à côté de "Gemmes"
-   plutôt qu'une ligne de boutons à eux seuls en bas du panneau. */
-.orapa-mp__reflect-group-head .orapa-demo__rotate,
-.orapa-mp__reflect-group-head .orapa-demo__mirror {
-  flex: none;
-  width: 26px;
-  height: 26px;
-  padding: 0;
-  border-radius: 7px;
-  border: 1px solid var(--om-border);
-  background: transparent;
-  color: var(--om-text-3);
-  cursor: pointer;
-  font-size: 13px;
-  line-height: 1;
-}
-
-.orapa-mp__reflect-group-head .orapa-demo__rotate:hover,
-.orapa-mp__reflect-group-head .orapa-demo__mirror:hover {
-  border-color: var(--om-gold);
-  color: var(--om-gold);
+  gap: 6px;
 }
 
 .orapa-mp__reflect-group-label:not(:first-child) {
   margin-top: 6px;
 }
 
-/* Les 5 gemmes majeures tiennent sur une seule ligne (retour utilisateur
-   direct — les distinguer des petits repères, pas les mélanger dans une
-   même grille) ; les repères élémentaires, plus nombreux mais plus
-   petits, se resserrent dans une grille plus dense pour rester bas. */
-.orapa-mp__reflect-group--gems {
-  grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
-  gap: 6px;
-}
-
+/* Les 5 gemmes majeures reprennent la liste "VOS GEMMES" du placement
+   réel (icône + libellé, voir `.orapa-demo__palette--list`) ; les
+   repères élémentaires, plus nombreux mais plus petits, restent en
+   grille compacte pour rester lisibles sans prendre trop de hauteur. */
 .orapa-mp__reflect-group--units {
   grid-template-columns: repeat(auto-fill, minmax(34px, 1fr));
   gap: 5px;

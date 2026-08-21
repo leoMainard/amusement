@@ -130,7 +130,6 @@ export class PlacementController {
     options.mirrorButton.addEventListener("click", () => this.mirrorArmed());
     options.clearButton?.addEventListener("click", () => this.clearAll());
     options.randomButton?.addEventListener("click", () => this.placeRandomly());
-    document.addEventListener("keydown", this.handleKeyDown);
     options.validateButton.addEventListener("click", () => {
       if (this.requiredUsedCount() < this.requiredCount || this.locked) return;
       this.locked = true;
@@ -150,7 +149,11 @@ export class PlacementController {
   /** (Ré)attache ce contrôleur aux callbacks de la scène — nécessaire
    * après qu'un autre contrôleur (ou un mode "question") les ait pris,
    * par exemple en repassant du mode "question" au mode "proposition"
-   * sur le même `BoardScene` (voir `multiplayer.ts`). */
+   * sur le même `BoardScene` (voir `multiplayer.ts`). Réattache aussi le
+   * raccourci clavier R/F : un `dispose()` le retire, donc sans ce
+   * réattachement il resterait mort après un premier aller-retour
+   * dispose/activate sur la même instance (même bug déjà corrigé dans
+   * `reflection-controller.ts`, voir sa docstring). */
   activate(): void {
     this.scene.onCornerHover = (corner) => {
       this.hoveredCorner = corner;
@@ -162,6 +165,7 @@ export class PlacementController {
       this.scene.setRemoveHighlight(this.locked ? null : (existing ?? null));
     };
     this.scene.onCornerClick = ({ corner }) => this.handleCornerClick(corner);
+    document.addEventListener("keydown", this.handleKeyDown);
     this.scene.setPieces(this.board.pieces());
     this.refreshGhost();
   }
