@@ -1187,6 +1187,7 @@ body:has(#app.om-shell) {
   font-family: "Chakra Petch", sans-serif;
   font-size: 12px;
   letter-spacing: 0.08em;
+  text-transform: uppercase;
   cursor: pointer;
   transition: border-color 0.2s ease, color 0.2s ease;
 }
@@ -1222,6 +1223,7 @@ body:has(#app.om-shell) {
   font-family: "Chakra Petch", sans-serif;
   font-size: 12.5px;
   letter-spacing: 0.1em;
+  text-transform: uppercase;
   cursor: pointer;
   transition: border-color 0.2s ease, color 0.2s ease;
 }
@@ -1247,6 +1249,7 @@ body:has(#app.om-shell) {
   font-family: "Chakra Petch", sans-serif;
   font-weight: 700;
   letter-spacing: 0.1em;
+  text-transform: uppercase;
   cursor: pointer;
 }
 
@@ -1264,6 +1267,7 @@ body:has(#app.om-shell) {
   font-family: "Chakra Petch", sans-serif;
   font-size: 12.5px;
   letter-spacing: 0.1em;
+  text-transform: uppercase;
   cursor: pointer;
 }
 
@@ -1304,18 +1308,28 @@ kbd {
   }
 }
 
-/* --- Placement panel (cadre "aperçu" + pivoter/retourner) ---------- */
+/* --- Placement panel (cadres "Aperçu" / "Vos gemmes") --------------- */
 
-.orapa-place__preview {
+/* Cadre commun aux deux blocs du panneau de placement — repris à
+   l'identique partout où on pose une pièce (essai hors ligne, guide,
+   placement Duel, repères en jeu) : fond un peu plus sombre que le
+   fond de page, et pour "Aperçu" seul un contour or (retour
+   utilisateur direct — bien distinguer les deux zones du panneau). */
+.orapa-demo__group {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px 14px;
+  border-radius: 12px;
+  background: rgba(2, 6, 20, 0.35);
+}
+
+.orapa-demo__group--preview {
+  border: 1px solid var(--om-gold);
 }
 
 .orapa-place__preview-box {
   position: relative;
-  margin-top: 10px;
   height: 92px;
   display: flex;
   align-items: center;
@@ -1815,8 +1829,7 @@ kbd {
 }
 
 .orapa-mp__peek-toggle,
-.orapa-mp__mark-toggle,
-.orapa-mp__reflect-toggle {
+.orapa-mp__mark-toggle {
   padding: 8px 12px;
   border-radius: 10px;
   border: 1px solid var(--om-border);
@@ -1840,24 +1853,16 @@ kbd {
   font-weight: 600;
 }
 
-.orapa-mp__reflect-toggle.is-selected {
-  border-color: #8a5fc0;
-  border-width: 2px;
-  color: #b899e0;
-  font-weight: 600;
-}
-
 .orapa-mp__peek-hint,
 .orapa-mp__mark-hint {
   margin-top: 0;
 }
 
-/* Même présentation que le panneau de placement de `demo.ts` (aperçu,
-   pivoter/retourner, liste "Vos gemmes", vider — retour utilisateur
-   direct), déplacée dans la colonne de droite plutôt que sous le
-   plateau : voir `multiplayer.ts`, entre "Carnet" et "Proposer". */
+/* Même présentation que le panneau de placement de `demo.ts` (cadres
+   "Aperçu"/"Vos gemmes", vider — retour utilisateur direct), affichée en
+   permanence dans la colonne de droite plutôt que sous le plateau
+   derrière un bouton à activer : voir `multiplayer.ts`. */
 .orapa-mp__reflect-panel {
-  margin-top: 0.5rem;
   padding: 14px 16px 16px;
   border-radius: 12px;
   border: 1px solid var(--om-border-soft);
@@ -1879,6 +1884,7 @@ kbd {
   font-family: "Chakra Petch", sans-serif;
   font-size: 12.5px;
   letter-spacing: 0.1em;
+  text-transform: uppercase;
   cursor: pointer;
 }
 
@@ -1888,16 +1894,13 @@ kbd {
 }
 
 /* Le conteneur passé à `ReflectionController` (voir reflection-controller.ts)
-   n'est plus lui-même une grille : il n'accueille que les libellés
-   "Vos gemmes" / "Repères simples" et les deux sous-groupes. */
+   n'est plus lui-même une grille : il n'accueille que les deux cadres
+   "Vos gemmes" / "Repères simples" (mêmes blocs sombres que "Aperçu",
+   voir `.orapa-demo__group`). */
 .orapa-mp__reflect-palette {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-}
-
-.orapa-mp__reflect-group-label:not(:first-child) {
-  margin-top: 6px;
+  gap: 10px;
 }
 
 /* Les 5 gemmes majeures reprennent la liste "VOS GEMMES" du placement
@@ -2336,9 +2339,42 @@ kbd {
 .orapa-play__history-list {
   margin-top: 10px;
   overflow-y: auto;
+  /* Partage l'espace disponible avec "Carnet" en dessous (voir
+   * `.orapa-play__notes` plus bas — déplacé ici, sous l'historique,
+   * retour utilisateur direct) plutôt que de grandir avec son contenu :
+   * `min-height: 0` est nécessaire pour qu'un enfant flex accepte de se
+   * faire déborder/scroller au lieu de repousser le reste de la colonne. */
+  flex: 1 1 auto;
+  min-height: 120px;
   display: flex;
   flex-direction: column;
   gap: 6px;
+  /* Même barre de défilement dorée que le panneau d'aide
+   * (`.om-help-dialog__inner`) plutôt que la barre blanche par défaut du
+   * navigateur (retour utilisateur direct — "l'historique est assez
+   * grand" pour que ça se voie). */
+  scrollbar-width: thin;
+  scrollbar-color: var(--om-gold-dark) transparent;
+}
+
+.orapa-play__history-list::-webkit-scrollbar {
+  width: 9px;
+}
+
+.orapa-play__history-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.orapa-play__history-list::-webkit-scrollbar-thumb {
+  background: var(--om-gold-dark);
+  border-radius: 999px;
+  border: 2px solid var(--om-panel);
+  background-clip: padding-box;
+}
+
+.orapa-play__history-list::-webkit-scrollbar-thumb:hover {
+  background: var(--om-gold);
+  background-clip: padding-box;
 }
 
 .orapa-play__history-empty {
@@ -2361,31 +2397,13 @@ kbd {
   color: var(--om-text-3);
 }
 
-.orapa-play__answer {
-  padding: 14px;
-  border-radius: 12px;
-  background: var(--om-panel-soft);
-  border: 1px solid var(--om-border-soft);
-}
-
-.orapa-play__answer-body {
-  margin-top: 10px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 13px;
-  color: var(--om-text-3);
-}
-
-.orapa-play__answer-swatch {
-  flex: none;
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
-  border: 1px solid var(--om-border);
-}
-
+/* Sous l'historique, dans la même colonne gauche (retour utilisateur
+   direct — "Dernière réponse" retiré, l'historique suffit ; le carnet
+   descend à sa place) : `flex: none` pour garder une hauteur fixe,
+   `.orapa-play__history-list` ci-dessus se charge d'occuper le reste. */
 .orapa-play__notes {
+  flex: none;
+  margin-top: 12px;
   padding: 14px;
   border-radius: 12px;
   background: var(--om-panel-soft);

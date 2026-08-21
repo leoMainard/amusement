@@ -382,6 +382,11 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
                 <span class="orapa-play__history-count"></span>
               </div>
               <div class="orapa-play__history-list"></div>
+
+              <div class="orapa-play__notes">
+                <span class="om-eyebrow">Carnet</span>
+                <textarea class="orapa-mp__notepad" placeholder="Note ce que tu veux ici — déductions, cases à retenir..."></textarea>
+              </div>
             </div>
 
             <div class="orapa-play__center">
@@ -389,7 +394,6 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
 
               <div class="orapa-play__toggles">
                 <button type="button" class="orapa-mp__mark-toggle">✕ Marquer des cases</button>
-                <button type="button" class="orapa-mp__reflect-toggle">🧩 Placer des repères</button>
               </div>
 
               <div class="orapa-play__tools">
@@ -414,36 +418,27 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
             </div>
 
             <div class="orapa-play__side orapa-play__side--ask">
-              <div class="orapa-play__answer">
-                <span class="om-eyebrow">Dernière réponse</span>
-                <div class="orapa-play__answer-body">Aucune question posée pour l'instant.</div>
-              </div>
-              <div class="orapa-play__notes">
-                <span class="om-eyebrow">Carnet</span>
-                <textarea class="orapa-mp__notepad" placeholder="Note ce que tu veux ici — déductions, cases à retenir..."></textarea>
-              </div>
-
-              <div class="orapa-mp__reflect-panel" hidden>
+              <div class="orapa-mp__reflect-panel">
                 <div class="orapa-mp__reflect-head">
                   <span class="om-eyebrow">Placer des repères</span>
                 </div>
                 <p class="orapa-demo__hint">Hypothèses personnelles, jamais transmises à l'adversaire — reclique un repère posé pour le retirer.</p>
-                <div class="orapa-place__preview">
+                <div class="orapa-demo__group orapa-demo__group--preview">
                   <span class="om-eyebrow">Aperçu</span>
+                  <div class="orapa-place__preview-box"></div>
+                  <div class="orapa-demo__transform">
+                    <button type="button" class="orapa-demo__rotate">⟳ Pivoter 90°</button>
+                    <button type="button" class="orapa-demo__mirror">⇋ Retourner</button>
+                  </div>
                 </div>
-                <div class="orapa-place__preview-box"></div>
-                <div class="orapa-demo__transform">
-                  <button type="button" class="orapa-demo__rotate">⟳ Pivoter 90°</button>
-                  <button type="button" class="orapa-demo__mirror">⇋ Retourner</button>
-                </div>
-                <div class="orapa-demo__palette orapa-mp__reflect-palette"></div>
+                <div class="orapa-mp__reflect-palette"></div>
                 <button type="button" class="orapa-mp__reflect-clear">Vider le plateau</button>
                 <p class="orapa-demo__result orapa-mp__reflect-status" aria-live="polite"></p>
               </div>
 
               <div class="orapa-play__propose-block">
                 <p class="orapa-play__propose-hint">
-                  Positionne tes 5 gemmes avec « 🧩 Placer des repères », puis propose cette
+                  Positionne tes 5 gemmes avec « Placer des repères » ci-dessus, puis propose cette
                   disposition — inutile de tout replacer ailleurs.
                 </p>
                 <button type="button" class="orapa-play__propose">Proposer la disposition</button>
@@ -475,7 +470,10 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
       return;
     }
 
-    // PLACING / FINISHED : mise en page canvas + panneau latéral.
+    // PLACING / FINISHED : mise en page canvas + panneau latéral. Pas de
+    // bloc-notes pendant PLACING (retour utilisateur direct — inutile
+    // tant qu'on ne fait que poser ses propres gemmes, rien à déduire
+    // encore) ; il réapparaît en FINISHED comme avant.
     host.innerHTML = `
       <div class="orapa-demo">
         <div class="orapa-demo__canvas"></div>
@@ -487,10 +485,15 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
           <div class="orapa-mp__phase"></div>
           <div class="orapa-mp__game-controls"></div>
           <div class="orapa-demo__result orapa-mp__log" aria-live="polite"></div>
+          ${
+            room.status === "PLACING"
+              ? ""
+              : `
           <details class="orapa-mp__notepad-block">
             <summary>Bloc-notes (personnel, non partagé)</summary>
             <textarea class="orapa-mp__notepad" placeholder="Note ce que tu veux ici — déductions, cases à retenir..."></textarea>
-          </details>
+          </details>`
+          }
         </aside>
       </div>
     `;
@@ -505,7 +508,8 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
 
     const phaseHost = host.querySelector<HTMLDivElement>(".orapa-mp__phase")!;
     const controlsHost = host.querySelector<HTMLDivElement>(".orapa-mp__game-controls")!;
-    setUpNotepad(host.querySelector<HTMLTextAreaElement>(".orapa-mp__notepad")!);
+    const notepadEl = host.querySelector<HTMLTextAreaElement>(".orapa-mp__notepad");
+    if (notepadEl) setUpNotepad(notepadEl);
     renderHistory();
     const placingHelpDialog = mountHelpDialog(host);
     host.querySelector<HTMLButtonElement>(".orapa-mp__help-btn")!.addEventListener("click", () => placingHelpDialog.open());
@@ -536,21 +540,23 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
   function renderPlacing(phaseHost: HTMLElement, controlsHost: HTMLElement): void {
     phaseHost.innerHTML = `<p>Place tes 5 gemmes sur <strong>ton</strong> plateau, à l'abri des regards.</p>`;
     controlsHost.innerHTML = `
-      <div class="orapa-place__preview">
+      <div class="orapa-demo__group orapa-demo__group--preview">
         <span class="om-eyebrow">Aperçu</span>
+        <div class="orapa-place__preview-box"></div>
+        <div class="orapa-demo__transform">
+          <button type="button" class="orapa-demo__rotate">⟳ Pivoter (R)</button>
+          <button type="button" class="orapa-demo__mirror">⇋ Retourner (F)</button>
+        </div>
       </div>
-      <div class="orapa-place__preview-box"></div>
-      <div class="orapa-demo__transform">
-        <button type="button" class="orapa-demo__rotate">⟳ Pivoter (R)</button>
-        <button type="button" class="orapa-demo__mirror">⇋ Retourner (F)</button>
+      <div class="orapa-demo__group orapa-demo__group--gems">
+        <span class="om-eyebrow">Vos gemmes</span>
+        <div class="orapa-demo__palette"></div>
       </div>
-      <span class="om-eyebrow">Vos gemmes</span>
-      <div class="orapa-demo__palette"></div>
       <div class="orapa-demo__bulk-actions">
         <button type="button" class="orapa-demo__bulk-clear">Tout retirer</button>
         <button type="button" class="orapa-demo__bulk-random">Au hasard</button>
       </div>
-      <button type="button" class="orapa-demo__validate" disabled>Valider le placement (0/5)</button>
+      <button type="button" class="orapa-demo__validate" disabled>Je suis prêt (0/5)</button>
       <p class="orapa-demo__result orapa-mp__placement-status" aria-live="polite"></p>
       <p class="orapa-mp__wait"></p>
     `;
@@ -567,6 +573,11 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
       randomButton: controlsHost.querySelector(".orapa-demo__bulk-random")!,
       statusHost: controlsHost.querySelector(".orapa-mp__placement-status")!,
       extensionPieces: room!.extensions_enabled ? EXTENSION_PIECE_PALETTE : undefined,
+      // "Je suis prêt" plutôt que "Valider le placement" en Duel (retour
+      // utilisateur direct) : `renderPlacing` n'est appelé que pour ce
+      // mode, PLACING n'existant pas côté serveur pour Fouille (plateau
+      // généré, pas de pose manuelle — voir rooms/room.py).
+      validateLabel: "Je suis prêt",
       onPlace: (piece) => sendPlacePiece(socket!, piece),
       onRemove: (piece) => sendRemovePiece(socket!, piece.origin),
       onValidate: () => {
@@ -588,7 +599,6 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
 
   function renderPlaying(host: HTMLElement): void {
     const markToggle = host.querySelector<HTMLButtonElement>(".orapa-mp__mark-toggle")!;
-    const reflectToggle = host.querySelector<HTMLButtonElement>(".orapa-mp__reflect-toggle")!;
     const reflectPanel = host.querySelector<HTMLDivElement>(".orapa-mp__reflect-panel")!;
     const entryInput = host.querySelector<HTMLInputElement>(".orapa-play__entry-input")!;
     const fireBtn = host.querySelector<HTMLButtonElement>(".orapa-play__fire-btn")!;
@@ -597,14 +607,16 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
     const proposeBtn = host.querySelector<HTMLButtonElement>(".orapa-play__propose")!;
     const proposeStatus = host.querySelector<HTMLParagraphElement>(".orapa-play__propose-status")!;
 
-    // "none" par défaut : un clic simple sur une case la SÉLECTIONNE
-    // juste (voir `askTarget` — le vrai envoi passe par le bouton
-    // "Demander", jamais un clic seul) ; "mark" bascule ce clic en
-    // croix personnelle à la place. Corrige un vrai bug où faire
-    // tourner la vue à la souris pouvait, en fin de rotation, poser à
-    // tort une question sur la case survolée (retour utilisateur
-    // direct) — désormais un simple clic ne déclenche jamais d'envoi.
-    let askSubMode: "none" | "mark" | "reflect" = "none";
+    // "Placer des repères" reste affiché en permanence désormais (plus
+    // de bouton pour l'activer, retour utilisateur direct) : un simple
+    // clic sur le plateau sert donc, dans l'ordre, à retirer/poser un
+    // repère si une pièce est armée (voir `ReflectionController.handleClick`),
+    // sinon à basculer une croix si "Marquer des cases" est actif, sinon
+    // à sélectionner une cible pour "Interroger une case" (le vrai envoi
+    // passe par "Demander", jamais un clic seul — corrige un vrai bug où
+    // faire tourner la vue à la souris pouvait, en fin de rotation, poser
+    // à tort une question sur la case survolée).
+    let markMode = false;
     let askTarget: Position | null = null;
 
     // Tirer un rayon / interroger une case / proposer une disposition
@@ -621,50 +633,36 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
     };
     refreshTurnGating = refreshGating;
 
-    const setAskSubMode = (next: "none" | "mark" | "reflect") => {
-      askSubMode = next;
-      markToggle.classList.toggle("is-selected", next === "mark");
-      reflectToggle.classList.toggle("is-selected", next === "reflect");
-      reflectPanel.hidden = next !== "reflect";
-      if (!scene) return;
-      if (next === "reflect") {
-        if (!reflectionController) {
-          reflectionController = new ReflectionController({
-            scene,
-            paletteHost: reflectPanel.querySelector(".orapa-mp__reflect-palette")!,
-            previewHost: reflectPanel.querySelector(".orapa-place__preview-box")!,
-            rotateButton: reflectPanel.querySelector(".orapa-demo__rotate")!,
-            mirrorButton: reflectPanel.querySelector(".orapa-demo__mirror")!,
-            clearButton: reflectPanel.querySelector(".orapa-mp__reflect-clear")!,
-            statusHost: reflectPanel.querySelector(".orapa-mp__reflect-status")!,
-            entries: reflectionEntries(room?.extensions_enabled ?? false),
-          });
-        } else {
-          reflectionController.activate();
+    if (scene) {
+      reflectionController?.dispose();
+      reflectionController = new ReflectionController({
+        scene,
+        paletteHost: reflectPanel.querySelector(".orapa-mp__reflect-palette")!,
+        previewHost: reflectPanel.querySelector(".orapa-place__preview-box")!,
+        rotateButton: reflectPanel.querySelector(".orapa-demo__rotate")!,
+        mirrorButton: reflectPanel.querySelector(".orapa-demo__mirror")!,
+        clearButton: reflectPanel.querySelector(".orapa-mp__reflect-clear")!,
+        statusHost: reflectPanel.querySelector(".orapa-mp__reflect-status")!,
+        entries: reflectionEntries(room?.extensions_enabled ?? false),
+      });
+      scene.onCornerClick = ({ corner }) => {
+        if (markMode) {
+          // Marquer une case ne dépend jamais du tour : outil personnel,
+          // pas une question posée à l'adversaire.
+          scene!.toggleMark(corner);
+          return;
         }
-      } else {
-        // Ne fait que rendre la main sur les callbacks de la scène : les
-        // repères déjà posés restent affichés (groupe séparé, voir
-        // board-scene.ts), seul le contrôleur "lâche" la souris.
-        reflectionController?.dispose();
-        scene.setGhost(null);
-        scene.onCornerHover = null;
-        scene.onCornerClick = ({ corner }) => {
-          if (askSubMode === "mark") {
-            // Marquer une case ne dépend jamais du tour : outil
-            // personnel, pas une question posée à l'adversaire.
-            scene!.toggleMark(corner);
-            return;
-          }
-          askTarget = corner;
-          targetLabelEl.textContent = cellLabel(corner);
-          refreshGating();
-        };
-      }
-    };
+        if (reflectionController!.handleClick(corner)) return;
+        askTarget = corner;
+        targetLabelEl.textContent = cellLabel(corner);
+        refreshGating();
+      };
+    }
 
-    markToggle.addEventListener("click", () => setAskSubMode(askSubMode === "mark" ? "none" : "mark"));
-    reflectToggle.addEventListener("click", () => setAskSubMode(askSubMode === "reflect" ? "none" : "reflect"));
+    markToggle.addEventListener("click", () => {
+      markMode = !markMode;
+      markToggle.classList.toggle("is-selected", markMode);
+    });
 
     // "Proposer la disposition" ne rouvre plus un plateau à repositionner
     // de zéro : elle reprend directement les repères (gemmes complètes,
@@ -729,7 +727,6 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
       refreshGating();
     });
 
-    setAskSubMode(askSubMode);
     refreshGating();
   }
 
@@ -790,14 +787,6 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
     if (logHost) logHost.innerHTML = history.map((h) => `<div>${h.html}</div>`).join("");
   }
 
-  function setLastAnswer(titleHtml: string, subText: string, colorHex: string | null): void {
-    const body = root.querySelector<HTMLDivElement>(".orapa-play__answer-body");
-    if (!body) return;
-    body.innerHTML = colorHex
-      ? `<span class="orapa-play__answer-swatch" style="background:${colorHex}"></span><div><div>${titleHtml}</div><div style="font-size:12px;color:var(--om-text-4);margin-top:2px;">${subText}</div></div>`
-      : `<div><div>${titleHtml}</div><div style="font-size:12px;color:var(--om-text-4);margin-top:2px;">${subText}</div></div>`;
-  }
-
   // --- câblage des messages serveur ----------------------------------------
 
   function wireSocket(ws: RoomSocket): void {
@@ -830,12 +819,6 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
       const colorName = result.absorbed ? "absorbé" : result.color;
       const hex = hexColor(RAY_COLOR_HEX[colorName] ?? 0x666666);
       pushHistory(describeRay(label, result), hex);
-      if (result.absorbed) {
-        setLastAnswer("Signal absorbé", `Depuis ${label}`, hex);
-      } else {
-        const exitLabel = labelForExit(result.exit!, result.exit_direction!);
-        setLastAnswer(`Sort en ${exitLabel}`, `Depuis ${label} — ${result.color}`, hex);
-      }
       if (scene) {
         // Colore durablement les bornes d'entrée/sortie plutôt que de
         // tracer une ligne éphémère (voir `BoardScene.colorEntryMarker`) :
@@ -858,7 +841,6 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
       const colorName = extractPeekColorName(text);
       const hex = colorName ? hexColor(RAY_COLOR_HEX[colorName] ?? 0x666666) : null;
       pushHistory(`Qu'y a-t-il en ${label} ? ${colorizePeekResult(text)}`, hex ?? "var(--om-border)");
-      setLastAnswer(text, `En ${label}`, hex);
     });
     ws.on("error", (msg) => {
       // ⚠️ Limite connue (voir docs/plan.md) : une pose optimiste que le

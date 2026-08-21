@@ -68,24 +68,32 @@ export class ReflectionController {
     const unitEntries = options.entries.filter((e) => e.variant === "unit");
 
     const gemHost = document.createElement("div");
-    gemHost.className = "orapa-demo__palette orapa-demo__palette--list orapa-mp__reflect-group orapa-mp__reflect-group--gems";
+    gemHost.className = "orapa-demo__palette orapa-demo__palette--list";
     const unitHost = document.createElement("div");
-    unitHost.className = "orapa-demo__palette orapa-mp__reflect-group orapa-mp__reflect-group--units";
+    unitHost.className = "orapa-demo__palette orapa-mp__reflect-group--units";
 
+    // Même cadre "bloc sombre" que "Vos gemmes"/"Aperçu" partout ailleurs
+    // (voir placement-controller.ts / demo.ts / multiplayer.ts) — retour
+    // utilisateur direct, pour que ce panneau se distingue clairement du
+    // fond de page comme les autres.
     if (gemEntries.length > 0) {
+      const gemGroup = document.createElement("div");
+      gemGroup.className = "orapa-demo__group orapa-demo__group--gems";
       const gemLabel = document.createElement("span");
-      gemLabel.className = "om-eyebrow orapa-mp__reflect-group-label";
+      gemLabel.className = "om-eyebrow";
       gemLabel.textContent = "Vos gemmes";
-      options.paletteHost.appendChild(gemLabel);
+      gemGroup.append(gemLabel, gemHost);
+      options.paletteHost.appendChild(gemGroup);
     }
-    options.paletteHost.appendChild(gemHost);
     if (unitEntries.length > 0) {
+      const unitGroup = document.createElement("div");
+      unitGroup.className = "orapa-demo__group orapa-demo__group--units";
       const unitLabel = document.createElement("span");
-      unitLabel.className = "om-eyebrow orapa-mp__reflect-group-label";
+      unitLabel.className = "om-eyebrow";
       unitLabel.textContent = "Repères simples";
-      options.paletteHost.appendChild(unitLabel);
+      unitGroup.append(unitLabel, unitHost);
+      options.paletteHost.appendChild(unitGroup);
     }
-    options.paletteHost.appendChild(unitHost);
 
     for (const entry of options.entries) {
       const kind = entry.kind ?? GemKind.NORMAL;
@@ -130,14 +138,16 @@ export class ReflectionController {
     this.refreshPreview();
   }
 
-  /** (Ré)attache ce contrôleur aux callbacks de la scène — même besoin
-   * que `PlacementController.activate`, voir sa docstring. Réattache
-   * aussi le raccourci clavier R/F : sans ça, après un premier aller-
-   * retour `dispose()`/`activate()` (voir `multiplayer.ts`, à chaque
-   * bascule du bouton "Placer des repères"), les touches R/F cessaient
-   * de fonctionner — `dispose()` retirait l'écouteur mais rien ne le
-   * reposait (vrai bug, signalé par un retour utilisateur : "parfois,
-   * sans raison"). */
+  /** (Ré)attache le survol (fantôme + surbrillance de retrait) et le
+   * raccourci clavier R/F. Depuis que "Placer des repères" reste affiché
+   * en permanence (retour utilisateur direct — plus de bouton pour
+   * l'activer), c'est `multiplayer.ts` qui possède seul
+   * `scene.onCornerClick` et arbitre entre marquer une case, placer un
+   * repère (voir `handleClick`) ou sélectionner une cible de question ;
+   * cette classe ne le pose donc plus elle-même ici. Réattacher R/F à
+   * chaque `activate()` reste nécessaire : `dispose()` retire l'écouteur
+   * et rien d'autre ne le reposerait sinon (même bug déjà corrigé dans
+   * `placement-controller.ts`, voir sa docstring). */
   activate(): void {
     this.scene.onCornerHover = (corner) => {
       this.hoveredCorner = corner;
@@ -145,14 +155,23 @@ export class ReflectionController {
       const existing = corner ? this.board.pieceAtCell(corner) : undefined;
       this.scene.setRemoveHighlight(existing ?? null);
     };
-    this.scene.onCornerClick = ({ corner }) => this.handleCornerClick(corner);
     document.addEventListener("keydown", this.handleKeyDown);
     this.refreshGhost();
   }
 
+  /** Traite un clic sur `corner` pour le compte de l'appelant (voir
+   * docstring d'`activate`). Retourne `true` si une pièce armée a été
+   * posée (ou une pièce déjà posée retirée) — le clic est alors
+   * "consommé", l'appelant n'a rien d'autre à faire. Retourne `false`
+   * si rien n'était armé sur une case vide : l'appelant reste libre
+   * d'interpréter ce clic autrement (ex. sélectionner une cible pour
+   * "Interroger une case"). */
+  handleClick(corner: Position): boolean {
+    return this.handleCornerClick(corner);
+  }
+
   dispose(): void {
     this.scene.onCornerHover = null;
-    this.scene.onCornerClick = null;
     this.scene.setRemoveHighlight(null);
     document.removeEventListener("keydown", this.handleKeyDown);
   }
@@ -178,7 +197,7 @@ export class ReflectionController {
     else if (event.key === "f" || event.key === "F") this.mirrorArmed();
   };
 
-  private handleCornerClick(corner: Position): void {
+  private handleCornerClick(corner: Position): boolean {
     // Cliquer une case déjà occupée par un repère le retire, qu'un
     // repère soit armé ou non — même logique que le placement réel.
     const existing = this.board.pieceAtCell(corner);
@@ -186,9 +205,9 @@ export class ReflectionController {
       this.board.removePiece(existing);
       this.scene.removeReflectionPiece(existing);
       this.setStatus("");
-      return;
+      return true;
     }
-    if (!this.armed) return;
+    if (!this.armed) return false;
     const positioned: Piece = { ...this.armed, origin: corner };
     try {
       this.board.placePieceUnchecked(positioned);
@@ -197,6 +216,10 @@ export class ReflectionController {
     } catch (error) {
       this.setStatus(error instanceof PlacementError ? error.message : String(error));
     }
+    // Une pièce était armée : le clic visait bien à poser un repère ici,
+    // même si la pose a échoué (message déjà affiché) — pas question de
+    // retomber sur la sélection d'une cible de question à la place.
+    return true;
   }
 
   private clearAll(): void {

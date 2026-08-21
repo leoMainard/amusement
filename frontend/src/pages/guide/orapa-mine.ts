@@ -302,28 +302,39 @@ export function mountOrapaMineGuide(root: HTMLElement): () => void {
   }
 
   function mountSolutionStage(stage: HTMLElement): void {
+    // Même forme que le pas suivant, "À toi de jouer" (voir
+    // `mountOrapaMineDemo` ci-dessus) — retour utilisateur direct :
+    // `.orapa-demo`/`.orapa-demo__canvas` plutôt que `.guide__canvas`,
+    // mêmes cadres "Aperçu"/"Vos gemmes".
     stage.innerHTML = `
-      <div class="guide__canvas"></div>
-      <div class="orapa-demo__panel">
-        <div class="orapa-place__preview">
-          <span class="om-eyebrow">Aperçu</span>
-        </div>
-        <div class="orapa-place__preview-box"></div>
-        <div class="orapa-demo__transform">
-          <button type="button" class="orapa-demo__rotate">⟳ Pivoter 90° (R)</button>
-          <button type="button" class="orapa-demo__mirror">⇋ Retourner (F)</button>
-        </div>
-        <span class="om-eyebrow">Ta proposition</span>
-        <div class="orapa-demo__palette"></div>
-        <div class="orapa-demo__bulk-actions">
-          <button type="button" class="orapa-demo__bulk-clear">Tout retirer</button>
-          <button type="button" class="orapa-demo__bulk-random">Au hasard</button>
-        </div>
-        <button type="button" class="orapa-demo__validate" disabled>Proposer cette solution (0/2)</button>
-        <div class="orapa-demo__result" aria-live="polite"></div>
+      <div class="orapa-demo">
+        <div class="orapa-demo__canvas"></div>
+        <aside class="orapa-demo__panel">
+          <div class="orapa-demo__panel-head">
+            <span class="om-eyebrow">Ta proposition</span>
+          </div>
+          <div class="orapa-demo__group orapa-demo__group--preview">
+            <span class="om-eyebrow">Aperçu</span>
+            <div class="orapa-place__preview-box"></div>
+            <div class="orapa-demo__transform">
+              <button type="button" class="orapa-demo__rotate">⟳ Pivoter 90° (R)</button>
+              <button type="button" class="orapa-demo__mirror">⇋ Retourner (F)</button>
+            </div>
+          </div>
+          <div class="orapa-demo__group orapa-demo__group--gems">
+            <span class="om-eyebrow">Vos gemmes</span>
+            <div class="orapa-demo__palette"></div>
+          </div>
+          <div class="orapa-demo__bulk-actions">
+            <button type="button" class="orapa-demo__bulk-clear">Tout retirer</button>
+            <button type="button" class="orapa-demo__bulk-random">Au hasard</button>
+          </div>
+          <button type="button" class="orapa-demo__validate" disabled>Proposer cette solution (0/2)</button>
+          <div class="orapa-demo__result" aria-live="polite"></div>
+        </aside>
       </div>
     `;
-    const canvasHost = stage.querySelector<HTMLDivElement>(".guide__canvas")!;
+    const canvasHost = stage.querySelector<HTMLDivElement>(".orapa-demo__canvas")!;
     scene = new BoardScene(canvasHost, DEFAULT_DIMENSIONS);
     const paletteHost = stage.querySelector<HTMLDivElement>(".orapa-demo__palette")!;
     const previewHost = stage.querySelector<HTMLDivElement>(".orapa-place__preview-box")!;

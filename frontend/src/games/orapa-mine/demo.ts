@@ -31,16 +31,18 @@ export function mountOrapaMineDemo(root: HTMLElement): () => void {
           <span class="om-eyebrow">Aperçu 3D hors ligne</span>
           <button type="button" class="om-help-btn orapa-demo__help-btn">❔ Aide</button>
         </div>
-        <div class="orapa-place__preview">
+        <div class="orapa-demo__group orapa-demo__group--preview">
           <span class="om-eyebrow">Aperçu</span>
+          <div class="orapa-place__preview-box"></div>
+          <div class="orapa-demo__transform">
+            <button type="button" class="orapa-demo__rotate">⟳ Pivoter 90° (R)</button>
+            <button type="button" class="orapa-demo__mirror">⇋ Retourner (F)</button>
+          </div>
         </div>
-        <div class="orapa-place__preview-box"></div>
-        <div class="orapa-demo__transform">
-          <button type="button" class="orapa-demo__rotate">⟳ Pivoter 90° (R)</button>
-          <button type="button" class="orapa-demo__mirror">⇋ Retourner (F)</button>
+        <div class="orapa-demo__group orapa-demo__group--gems">
+          <span class="om-eyebrow">Vos gemmes</span>
+          <div class="orapa-demo__palette"></div>
         </div>
-        <span class="om-eyebrow">Vos gemmes</span>
-        <div class="orapa-demo__palette"></div>
         <div class="orapa-demo__bulk-actions">
           <button type="button" class="orapa-demo__bulk-clear">Tout retirer</button>
           <button type="button" class="orapa-demo__bulk-random">Au hasard</button>
