@@ -288,7 +288,10 @@ export class BoardScene {
    * faire ici. */
   setAutoRotate(enabled: boolean): void {
     this.controls.autoRotate = enabled;
-    this.controls.autoRotateSpeed = 1.6;
+    // Nettement plus lent que le défaut de OrbitControls (2.0 ≈ un tour
+    // en 30s à 60 IPS) — retour utilisateur direct : "le plateau tourne
+    // beaucoup trop vite", alors qu'il ne doit que "tourner légèrement".
+    this.controls.autoRotateSpeed = 0.4;
   }
 
   /** Affiche (ou met à jour) une pièce fantôme semi-transparente — la

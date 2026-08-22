@@ -69,6 +69,12 @@ def game_state_payload(session: OrapaMineSession) -> dict:
             "finished": game.finished,
             "winner": game.winner,
             "draw": game.draw,
+            # Deux essais avant d'être éliminé, comme en Fouille (voir
+            # duel.py) — le client indique clairement quand une
+            # proposition a échoué et combien d'essais il reste (retour
+            # utilisateur direct : "rien ne m'indique que ma proposition
+            # n'est pas bonne").
+            "eliminated": list(game.eliminated),
             # Horodatage Unix (secondes) de fin du tour en cours, `None`
             # si non chronométré (voir `OrapaMineSession.turn_deadline`)
             # — le client calcule lui-même le compte à rebours affiché.

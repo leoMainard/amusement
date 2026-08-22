@@ -1800,6 +1800,13 @@ kbd {
   color: var(--om-gold);
   cursor: pointer;
   transition: background 0.2s ease;
+  /* Un `<button>` n'autorise pas la sélection de son texte par défaut
+   * dans la plupart des navigateurs (retour utilisateur direct : "le
+   * copier-coller du code ne fonctionne pas" — un clic copie déjà tout
+   * seul, mais une sélection manuelle à la souris restait impossible en
+   * repli). */
+  user-select: all;
+  -webkit-user-select: all;
 }
 
 .orapa-mp__code:hover:not(:disabled) {
@@ -1911,57 +1918,71 @@ kbd {
 
 /* --- Écran de résultats (retour utilisateur direct) ----------------- */
 /* Plein cadre, à part de la mise en page canvas+panneau latéral de
- * PLACING (voir `renderResults` dans multiplayer.ts) : le plateau y est
- * bien plus grand, rien à poser à côté. */
+ * PLACING (voir `renderResults` dans multiplayer.ts) — repris de
+ * claude_design/Orapa Mine.dc (1).html ("Fin de partie") : en-tête
+ * centré (kicker/titre/sous-titre), le plateau en dessous, les pièces
+ * trouvées/manquées encore en dessous, les boutons d'action en bas. */
 
 .orapa-results {
-  max-width: 980px;
+  max-width: 1060px;
   margin: 0 auto;
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
+  padding-bottom: 24px;
 }
 
 .orapa-results__topbar {
   text-align: center;
 }
 
+.orapa-results__kicker {
+  font-family: "Chakra Petch", sans-serif;
+  font-size: 12px;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--om-text-4);
+}
+
 .orapa-results__title {
-  margin: 0;
+  margin: 12px 0 0;
   font-family: "Chakra Petch", sans-serif;
   font-weight: 700;
-  font-size: 26px;
+  font-size: 40px;
   letter-spacing: 0.03em;
+}
+
+.orapa-results__subtitle {
+  margin: 10px 0 0;
+  color: var(--om-text-2);
+  font-size: 16px;
+}
+
+.orapa-results__outcome {
+  margin: 6px 0 0;
   color: var(--om-gold);
+  font-family: "Chakra Petch", sans-serif;
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: 0.02em;
 }
 
-.orapa-results__layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1.3fr) minmax(240px, 1fr);
-  gap: 22px;
-  align-items: start;
-}
-
-@media (max-width: 760px) {
-  .orapa-results__layout {
-    grid-template-columns: 1fr;
-  }
-}
-
-.orapa-results__board-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-/* Non manipulable (retour utilisateur direct — voir `BoardScene.setInteractive`) :
- * tourne tout seul, rien à faire dessus, donc pas de curseur "grab" ni de
- * survol interactif contrairement au plateau en jeu. */
-.orapa-results__board {
-  height: min(480px, 60vh);
-  border-radius: 16px;
+/* Le plateau lui-même — non manipulable (retour utilisateur direct, voir
+ * `BoardScene.setInteractive`), tourne légèrement tout seul. Les
+ * boutons de vue (Plateau adverse/Mon plateau/Afficher ma proposition)
+ * flottent EN HAUT du cadre, par-dessus le plateau (retour utilisateur
+ * direct), comme le badge de statut de la maquette. */
+.orapa-results__board-frame {
+  position: relative;
+  margin-top: 26px;
+  height: min(470px, 60vh);
+  border-radius: 18px;
   overflow: hidden;
+  border: 1px solid rgba(242, 194, 75, 0.28);
+  background: radial-gradient(80% 70% at 50% 0%, var(--om-surface-2) 0%, var(--om-bg-deep) 100%);
   cursor: default;
+}
+
+.orapa-results__board {
+  width: 100%;
+  height: 100%;
 }
 
 .orapa-results__board canvas {
@@ -1971,10 +1992,15 @@ kbd {
 }
 
 .orapa-results__board-controls {
+  position: absolute;
+  left: 16px;
+  top: 16px;
+  right: 16px;
+  z-index: 2;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
 }
 
 .orapa-results__board-switch {
@@ -1984,13 +2010,15 @@ kbd {
 
 .orapa-results__board-btn,
 .orapa-results__guess-toggle {
-  padding: 9px 16px;
-  border-radius: 10px;
-  border: 1px solid var(--om-border);
-  background: var(--om-panel-soft);
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(242, 194, 75, 0.3);
+  background: rgba(7, 14, 38, 0.85);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   color: var(--om-text-2);
   font-family: "Chakra Petch", sans-serif;
-  font-size: 12px;
+  font-size: 11.5px;
   letter-spacing: 0.06em;
   cursor: pointer;
 }
@@ -2007,24 +2035,26 @@ kbd {
   color: var(--om-surface);
 }
 
-.orapa-results__side {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  border-radius: 16px;
-  background: var(--om-panel);
-  border: 1px solid var(--om-border);
-  padding: 16px;
+/* Pièces trouvées/manquées (retour utilisateur direct — "n'ajoute pas de
+ * couleurs verte ou rouge" SUR LES PIÈCES : la distinction reste sur ce
+ * bloc 2D, pas sur le plateau 3D, voir `applyResultsBoard`). */
+.orapa-results__pieces {
+  margin-top: 18px;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 12px;
 }
 
-.orapa-results__pieces {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-  gap: 10px;
+@media (max-width: 640px) {
+  .orapa-results__pieces {
+    grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  }
 }
 
 .orapa-results__loading {
+  grid-column: 1 / -1;
   margin: 0;
+  text-align: center;
   color: var(--om-text-4);
   font-size: 13px;
 }
@@ -2033,27 +2063,29 @@ kbd {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
-  padding: 10px;
-  border-radius: 10px;
-  background: var(--om-panel-soft);
-  border: 1px solid var(--om-border-soft);
+  gap: 8px;
+  padding: 14px 10px;
+  border-radius: 14px;
+  background: var(--om-panel);
+  border: 1px solid var(--om-border);
 }
 
+/* Cette carte 2D (légende, pas le plateau 3D — voir `applyResultsBoard`)
+ * garde vert/rouge, repris de la maquette : la consigne "pas de vert/
+ * rouge sur les pièces" visait les pièces DU PLATEAU, en couleur normale
+ * comme en jeu. */
 .orapa-results__piece.is-found {
-  border-color: rgba(46, 204, 113, 0.5);
-  background: rgba(46, 204, 113, 0.08);
+  border-color: rgba(123, 191, 138, 0.5);
 }
 
 .orapa-results__piece.is-missed {
-  border-color: rgba(231, 76, 60, 0.5);
-  background: rgba(231, 76, 60, 0.08);
+  border-color: rgba(216, 68, 60, 0.5);
 }
 
 .orapa-results__piece-label {
   font-family: "Chakra Petch", sans-serif;
   font-size: 11px;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
@@ -2066,27 +2098,46 @@ kbd {
 }
 
 .orapa-results__counts {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  font-size: 13px;
+  margin-top: 16px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.orapa-results__counts p {
+  margin: 0;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: var(--om-panel-soft);
+  border: 1px solid var(--om-border-soft);
+  font-size: 13.5px;
   color: var(--om-text-3);
-  padding-top: 12px;
-  border-top: 1px solid var(--om-border-soft);
 }
 
 .orapa-results__counts strong {
   color: var(--om-text);
 }
 
+/* Le joueur (ou l'équipe) qui a trouvé le plus de gemmes ressort en or —
+ * pas forcément le "gagnant" au sens strict (Fouille à plusieurs), juste
+ * qui s'en est le mieux sorti. */
+.orapa-results__counts p.is-best {
+  background: linear-gradient(180deg, rgba(242, 194, 75, 0.16) 0%, rgba(11, 19, 48, 0.6) 100%);
+  border-color: rgba(242, 194, 75, 0.4);
+}
+
+.orapa-results__counts p.is-best strong {
+  color: var(--om-gold);
+}
+
 /* Trois boutons en majuscules (retour utilisateur direct) — celui du
  * milieu ("Rejouer") ressort en or, les deux autres restent neutres. */
 .orapa-results__actions {
+  margin-top: 22px;
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
   gap: 14px;
-  padding-bottom: 24px;
 }
 
 .orapa-results__actions button {

@@ -83,6 +83,7 @@ def test_duel_results_payload_after_win() -> None:
     assert results["mode"] == "DUEL"
     assert results["winner"] == alice.id
     assert not results["draw"]
+    assert results["questions"] == 0  # aucun ask_ray/ask_peek dans ce test
     assert {p["id"] for p in results["players"]} == {alice.id, bob.id}
 
     bob_board = results["boards"][bob.id]  # le plateau de bob, qu'alice devait trouver
@@ -263,6 +264,7 @@ def test_fouille_results_payload_after_win() -> None:
     results = session.results_payload()
     assert results["mode"] == "FOUILLE"
     assert results["winner"] == bob.id
+    assert results["questions"] == 0  # aucun ask_ray/ask_peek dans ce test
     assert len(results["board"]) == 5
     assert results["results"][bob.id]["guess"] == correct_guess
     assert results["results"][bob.id]["found"] == [True] * 5

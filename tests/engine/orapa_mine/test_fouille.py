@@ -139,6 +139,18 @@ def test_only_one_question_per_turn() -> None:
     game.ask_ray("a", "1")  # ne lève plus, nouveau tour
 
 
+def test_questions_asked_counts_rays_and_peeks() -> None:
+    # Affiché sur l'écran de résultats ("X questions") — voir
+    # `OrapaMineSession.results_payload`.
+    board = make_board()
+    game = FouilleGame(board=board, players=("a", "b"))
+    assert game.questions_asked == 0
+    game.ask_ray("a", "1")
+    game.pass_turn("a")
+    game.ask_peek("b", (0, 0))
+    assert game.questions_asked == 2
+
+
 def test_pass_turn_out_of_turn_raises() -> None:
     board = make_board()
     game = FouilleGame(board=board, players=("a", "b"))

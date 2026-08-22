@@ -183,6 +183,15 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
   // `renderPlaying` (voir plus bas), rappelé à chaque `game_state` reçu
   // (voir `updateTurnIndicator`). `null` en dehors de la phase PLAYING.
   let refreshTurnGating: (() => void) | null = null;
+  // Retour utilisateur direct : "si ma proposition n'est pas bonne, rien
+  // ne me l'indique". `true` juste après avoir envoyé une proposition,
+  // le temps que le `game_state` qui en découle arrive — voir le
+  // gestionnaire de `proposeBtn` et `updateTurnIndicator`, qui l'utilise
+  // pour savoir SI le `game_state` reçu doit déclencher un message de
+  // résultat (et pas, par exemple, une simple mise à jour du tour suite
+  // à une action de l'adversaire).
+  let awaitingProposalResult = false;
+  let updateProposeStatusFromState: (() => void) | null = null;
 
   render();
 
@@ -331,7 +340,14 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
         const originalCodeLabel = codeButton.textContent ?? currentCode;
         codeButton.addEventListener("click", async () => {
           const copied = await copyToClipboard(currentCode, codeFallbackInput);
-          codeButton.textContent = copied ? "Copié !" : originalCodeLabel;
+          // Retour utilisateur direct : "le copier-coller du code ne
+          // fonctionne pas" — en échec, la version précédente réaffichait
+          // silencieusement le code sans rien indiquer (contrairement au
+          // bouton "Copier le lien", qui a toujours eu ce filet de
+          // sécurité). Même filet ici : le code reste sélectionné dans
+          // `codeFallbackInput` (déjà fait par `copyToClipboard`), un
+          // Ctrl+C manuel fonctionne donc tout de suite après ce message.
+          codeButton.textContent = copied ? "Copié !" : "Sélectionné — Ctrl+C pour copier";
           setTimeout(() => {
             codeButton.textContent = originalCodeLabel;
           }, 2000);
@@ -540,6 +556,12 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
       } else {
         scene.attachTo(canvasHost);
       }
+      // Remet à zéro ce que l'écran de résultats a pu régler (retour
+      // utilisateur direct — la rotation automatique continuait sur
+      // l'écran de placement/jeu après un "Rejouer") : la scène est
+      // réutilisée d'un écran à l'autre, ces réglages ne le sont pas.
+      scene.setInteractive(true);
+      scene.setAutoRotate(false);
       // La scène est réutilisée d'une phase à l'autre (voir `attachTo`
       // ci-dessus) : sans ce vidage, les gemmes qu'on vient de poser
       // pendant PLACING restaient visibles pendant PLAYING (retour
@@ -621,6 +643,10 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
       // garde son état interne, seul son <canvas> doit être ré-attaché.
       scene.attachTo(canvasHost);
     }
+    // Voir le même réglage pour PLAYING : annule ce que l'écran de
+    // résultats a pu régler avant un "Rejouer".
+    scene.setInteractive(true);
+    scene.setAutoRotate(false);
 
     const phaseHost = host.querySelector<HTMLDivElement>(".orapa-mp__phase")!;
     const controlsHost = host.querySelector<HTMLDivElement>(".orapa-mp__game-controls")!;
@@ -714,6 +740,25 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
     const askBtn = host.querySelector<HTMLButtonElement>(".orapa-play__ask-btn")!;
     const proposeBtn = host.querySelector<HTMLButtonElement>(".orapa-play__propose")!;
     const proposeStatus = host.querySelector<HTMLParagraphElement>(".orapa-play__propose-status")!;
+    // Retour utilisateur direct : message clair une fois le résultat de
+    // la proposition connu (juste, fausse — combien d'essais restants —,
+    // ou plus aucun essai). `updateTurnIndicator` l'appelle dès que le
+    // `game_state` qui suit un envoi arrive (voir `awaitingProposalResult`).
+    updateProposeStatusFromState = () => {
+      const state = lastGameState;
+      if (!state) return;
+      const iAmEliminated = state.eliminated?.includes(playerId) ?? false;
+      if (state.finished) {
+        if (state.winner === playerId) proposeStatus.textContent = "🎉 Proposition correcte — tu as gagné !";
+        else if (state.draw) proposeStatus.textContent = "Match nul : personne n'a trouvé la solution.";
+        else if (state.winner) proposeStatus.textContent = "❌ Proposition incorrecte.";
+        else proposeStatus.textContent = "❌ Proposition incorrecte — personne n'a trouvé la solution.";
+        return;
+      }
+      proposeStatus.textContent = iAmEliminated
+        ? "❌ Proposition incorrecte. Tu as utilisé tes deux essais : tu ne peux plus proposer, mais la partie continue."
+        : "❌ Proposition incorrecte. Il te reste un essai.";
+    };
     const endTurnBtn = host.querySelector<HTMLButtonElement>(".orapa-play__end-turn-btn")!;
     const endTurnTool = host.querySelector<HTMLDivElement>(".orapa-play__tool--end-turn")!;
     const endTurnDivider = host.querySelector<HTMLDivElement>(".orapa-play__tool-divider--end-turn")!;
@@ -758,7 +803,12 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
       fireBtn.disabled = !canAsk;
       entryInput.disabled = !canAsk;
       askBtn.disabled = !canAsk || !askTarget;
-      proposeBtn.disabled = !myTurn;
+      // Défensif : une fois éliminé (deux essais ratés), `isMyTurn()`
+      // ne redevient normalement plus jamais vrai (le moteur saute
+      // directement au joueur suivant, voir duel.py/fouille.py), mais
+      // le bouton reste explicitement désactivé au cas où.
+      const eliminated = lastGameState?.eliminated?.includes(playerId) ?? false;
+      proposeBtn.disabled = !myTurn || eliminated;
       endTurnBtn.disabled = !myTurn;
     };
     refreshTurnGating = refreshGating;
@@ -842,6 +892,7 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
         return;
       }
       proposeStatus.textContent = "Proposition envoyée...";
+      awaitingProposalResult = true;
       const guess = BASE_PIECE_PALETTE.map((entry) => matched.get(entry.label)!);
       sendSubmitSolution(socket!, guess);
     });
@@ -907,9 +958,12 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
   // optionnelle de la proposition en face. Fouille : un seul plateau
   // partagé, bascule entre les propositions de chaque joueur.
 
-  function resultsWinnerText(): string {
+  /** Petite phrase de résultat (retour utilisateur direct — le titre
+   * "Gisement percé" lui-même reste neutre, cette phrase donne l'issue
+   * réelle : gagné/perdu/nul). */
+  function resultsOutcomeText(): string {
     const results = lastGameResults;
-    if (!results) return "Partie terminée.";
+    if (!results) return "";
     if (results.mode === "DUEL" && results.draw) return "Match nul !";
     if (results.winner === playerId) return "🎉 Tu as gagné !";
     if (results.winner) {
@@ -923,18 +977,17 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
     host.innerHTML = `
       <div class="orapa-results">
         <div class="orapa-results__topbar">
-          <h2 class="orapa-results__title"></h2>
+          <div class="orapa-results__kicker">Partie terminée</div>
+          <h2 class="orapa-results__title">Gisement percé</h2>
+          <p class="orapa-results__subtitle"></p>
+          <p class="orapa-results__outcome"></p>
         </div>
-        <div class="orapa-results__layout">
-          <div class="orapa-results__board-panel">
-            <div class="orapa-results__board"></div>
-            <div class="orapa-results__board-controls"></div>
-          </div>
-          <div class="orapa-results__side">
-            <div class="orapa-results__pieces"></div>
-            <div class="orapa-results__counts"></div>
-          </div>
+        <div class="orapa-results__board-frame">
+          <div class="orapa-results__board"></div>
+          <div class="orapa-results__board-controls"></div>
         </div>
+        <div class="orapa-results__pieces"></div>
+        <div class="orapa-results__counts"></div>
         <div class="orapa-results__actions">
           <button type="button" class="orapa-results__reveal">Revoir la révélation</button>
           <button type="button" class="orapa-results__rematch">Rejouer</button>
@@ -949,6 +1002,9 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
     } else {
       scene.attachTo(boardHost);
     }
+    // Non manipulable, tourne légèrement toute seule (retour utilisateur
+    // direct) — remis à zéro en quittant cet écran (voir `renderPlacing`/
+    // le montage PLAYING, la scène est réutilisée d'un écran à l'autre).
     scene.setInteractive(false);
     scene.setAutoRotate(true);
     scene.setGhost(null);
@@ -956,7 +1012,7 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
     scene.clearMarkerColors();
     scene.clearRay();
 
-    host.querySelector<HTMLHeadingElement>(".orapa-results__title")!.textContent = resultsWinnerText();
+    host.querySelector<HTMLParagraphElement>(".orapa-results__outcome")!.textContent = resultsOutcomeText();
 
     host.querySelector<HTMLButtonElement>(".orapa-results__reveal")!.addEventListener("click", () => {
       // Rejoue simplement l'apparition des pièces (retour utilisateur
@@ -1001,6 +1057,12 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
       return;
     }
 
+    const subtitleEl = host.querySelector<HTMLParagraphElement>(".orapa-results__subtitle");
+    if (subtitleEl) {
+      const questionWord = results.questions === 1 ? "question" : "questions";
+      subtitleEl.textContent = `${results.questions} ${questionWord} · ${MODE_NAMES[results.mode]}`;
+    }
+
     const nameOf = (id: string) => results.players.find((p) => p.id === id)?.name ?? id;
 
     if (results.mode === "DUEL" && results.boards) {
@@ -1032,14 +1094,14 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
         renderResultsView(host);
       });
 
-      applyResultsBoard(view.board, view.found, resultsShowGuessOverlay ? view.guess : null);
+      applyResultsBoard(view.board, resultsShowGuessOverlay ? view.guess : null);
       renderResultsPieceList(piecesHost, view.board, view.found);
 
       const aView = results.boards[a!.id]!;
       const bView = results.boards[b!.id]!;
       countsHost.innerHTML = `
-        <p><strong>${escapeHtml(nameOf(b!.id))}</strong> a trouvé ${aView.found_count}/5 des gemmes de ${escapeHtml(nameOf(a!.id))}.</p>
-        <p><strong>${escapeHtml(nameOf(a!.id))}</strong> a trouvé ${bView.found_count}/5 des gemmes de ${escapeHtml(nameOf(b!.id))}.</p>
+        <p class="${results.winner === b!.id ? "is-best" : ""}"><strong>${escapeHtml(nameOf(b!.id))}</strong> a trouvé ${aView.found_count}/5 des gemmes de ${escapeHtml(nameOf(a!.id))}.</p>
+        <p class="${results.winner === a!.id ? "is-best" : ""}"><strong>${escapeHtml(nameOf(a!.id))}</strong> a trouvé ${bView.found_count}/5 des gemmes de ${escapeHtml(nameOf(b!.id))}.</p>
       `;
       return;
     }
@@ -1060,24 +1122,28 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
         });
       }
 
-      applyResultsBoard(results.board, active?.found ?? results.board.map(() => false), active?.guess ?? null);
+      applyResultsBoard(results.board, active?.guess ?? null);
       renderResultsPieceList(piecesHost, results.board, active?.found ?? results.board.map(() => false));
 
       countsHost.innerHTML = results.players
-        .map((p) => `<p><strong>${escapeHtml(p.name)}</strong> a trouvé ${results.results![p.id]?.found_count ?? 0}/5 gemmes.</p>`)
+        .map(
+          (p) =>
+            `<p class="${p.id === results.winner ? "is-best" : ""}"><strong>${escapeHtml(p.name)}</strong> a trouvé ${results.results![p.id]?.found_count ?? 0}/5 gemmes.</p>`,
+        )
         .join("");
     }
   }
 
-  /** Affiche `boardPayload` (plateau réel) sur `scene`, teinté vert/rouge
-   * selon `found`, avec `guessPayload` en surimpression semi-transparente
-   * si fourni (voir `BoardScene.addReflectionPiece`, déjà conçu pour ça). */
-  function applyResultsBoard(boardPayload: Record<string, unknown>[], found: boolean[], guessPayload: Record<string, unknown>[] | null): void {
+  /** Affiche `boardPayload` (plateau réel) sur `scene`, dans leurs
+   * couleurs normales — pas de vert/rouge sur les pièces elles-mêmes
+   * (retour utilisateur direct, voir `renderResultsPieceList` pour le
+   * trouvé/manqué). `guessPayload`, si fourni, se superpose en
+   * légèrement transparent pour se distinguer des vraies pièces (voir
+   * `BoardScene.addReflectionPiece`, déjà conçu pour ça). */
+  function applyResultsBoard(boardPayload: Record<string, unknown>[], guessPayload: Record<string, unknown>[] | null): void {
     if (!scene) return;
     const pieces = boardPayload.map((p) => pieceFromPayload(p));
-    const foundMap = new Map<Piece, boolean>();
-    pieces.forEach((piece, i) => foundMap.set(piece, found[i] ?? false));
-    scene.setPieces(pieces, foundMap);
+    scene.setPieces(pieces);
     scene.clearReflectionPieces();
     if (guessPayload) {
       for (const payload of guessPayload) scene.addReflectionPiece(pieceFromPayload(payload));
@@ -1117,6 +1183,10 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
     renderTimers();
     refreshTurnGating?.();
     updateOwnBoardPanel();
+    if (awaitingProposalResult) {
+      awaitingProposalResult = false;
+      updateProposeStatusFromState?.();
+    }
   }
 
   /** Message sous "VOTRE GISEMENT" (Duel seulement, retour utilisateur

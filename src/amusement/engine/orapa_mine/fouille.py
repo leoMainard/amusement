@@ -52,6 +52,9 @@ class FouilleGame:
     # résultats, `OrapaMineSession.results_payload`) — écrasée à chaque
     # nouvel essai, seule la plus récente compte pour l'affichage.
     last_guess: dict[str, list[Piece]] = field(default_factory=dict, init=False)
+    # Nombre total de questions posées (rayon + case), tous joueurs
+    # confondus — affiché sur l'écran de résultats ("X questions").
+    questions_asked: int = field(default=0, init=False)
     # Une seule question par tour (voir docstring du module) — remis à
     # `False` à chaque vrai changement de tour, voir `_advance_turn`.
     asked_this_turn: bool = field(default=False, init=False)
@@ -93,6 +96,7 @@ class FouilleGame:
         entry = self.label_scheme.entry_for_label(entry_label)
         result = fire_ray(self.board, entry.position, entry.direction)
         self.asked_this_turn = True
+        self.questions_asked += 1
         return result
 
     def ask_peek(self, player: str, position: Position) -> str:
@@ -100,6 +104,7 @@ class FouilleGame:
         self._require_question_available()
         result = peek(self.board, position)
         self.asked_this_turn = True
+        self.questions_asked += 1
         return result
 
     def pass_turn(self, player: str) -> None:

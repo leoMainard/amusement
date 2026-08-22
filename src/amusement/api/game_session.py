@@ -238,6 +238,7 @@ class OrapaMineSession:
                 "winner": game.winner,
                 "draw": game.draw,
                 "boards": boards,
+                "questions": len(game.log),
             }
 
         game = self.fouille
@@ -257,6 +258,7 @@ class OrapaMineSession:
             "winner": game.winner,
             "board": [piece_to_payload(p) for p in game.board.pieces()],
             "results": players_results,
+            "questions": game.questions_asked,
         }
 
     def end_turn(self, player_id: str) -> None:

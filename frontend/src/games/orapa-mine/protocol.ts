@@ -31,8 +31,11 @@ export interface GameStatePayload {
   draw?: boolean;
   // Fouille
   current_turn_player?: string | null;
+  // communs — Duel et Fouille appliquent tous deux la règle des deux
+  // essais (retour utilisateur direct, voir duel.py/fouille.py) : la
+  // liste des joueurs qui ont épuisé leurs deux essais et ne peuvent
+  // plus gagner (mais la partie continue pour les autres).
   eliminated?: string[];
-  // communs
   finished?: boolean;
   winner?: string | null;
   /** Horodatage Unix (secondes, éventuellement fractionnaires) de fin du
@@ -55,6 +58,9 @@ export interface GameResultsPayload {
   mode: RoomMode;
   players: RoomPlayer[];
   winner: string | null;
+  /** Nombre total de questions (rayon + case) posées pendant la partie,
+   * tous joueurs confondus. */
+  questions: number;
   /** Duel seulement. */
   draw?: boolean;
   /** Duel seulement : `boards[playerId]` décrit le plateau RÉEL de
