@@ -1089,27 +1089,23 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
 
       controlsHost.innerHTML = `
         <div class="orapa-results__board-switch">
-          <button type="button" class="orapa-results__board-btn" data-owner="${escapeHtml(opponentId)}">Plateau adverse</button>
-          <button type="button" class="orapa-results__board-btn" data-owner="${escapeHtml(playerId)}">Mon plateau</button>
+          <button type="button" class="orapa-results__board-btn" data-owner="${escapeHtml(opponentId)}">Votre cible</button>
+          <button type="button" class="orapa-results__board-btn" data-owner="${escapeHtml(playerId)}">Votre gisement</button>
         </div>
-        <button type="button" class="orapa-results__guess-toggle">
-          ${resultsShowGuessOverlay ? "Masquer" : "Afficher"} ${isMine ? "sa proposition" : "ma proposition"}
-        </button>
+        ${eyeToggleButtonHtml()}
       `;
       for (const btn of controlsHost.querySelectorAll<HTMLButtonElement>(".orapa-results__board-btn")) {
         btn.classList.toggle("is-selected", btn.dataset.owner === ownerId);
         btn.addEventListener("click", () => {
+          if (btn.dataset.owner === ownerId) return;
           resultsBoardOwner = btn.dataset.owner!;
           resultsShowGuessOverlay = false;
           renderResultsView(host);
         });
       }
-      controlsHost.querySelector<HTMLButtonElement>(".orapa-results__guess-toggle")!.addEventListener("click", () => {
-        resultsShowGuessOverlay = !resultsShowGuessOverlay;
-        renderResultsView(host);
-      });
+      wireEyeToggle(controlsHost, view.guess, isMine ? "sa proposition" : "ta proposition");
 
-      applyResultsBoard(view.board, resultsShowGuessOverlay ? view.guess : null);
+      applyResultsBoard(view.board);
       renderResultsPieceList(piecesHost, view.board, view.found);
 
       const aView = results.boards[a!.id]!;
@@ -1124,25 +1120,57 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
       if (!resultsFouillePlayer) resultsFouillePlayer = results.players[0]?.id ?? null;
       const activeId = resultsFouillePlayer!;
       const active = results.results[activeId];
+      const isMine = activeId === playerId;
 
-      controlsHost.innerHTML = results.players
-        .map((p) => `<button type="button" class="orapa-results__board-btn" data-player="${escapeHtml(p.id)}">${escapeHtml(p.name)}</button>`)
-        .join("");
+      controlsHost.innerHTML =
+        results.players
+          .map((p) => `<button type="button" class="orapa-results__board-btn" data-player="${escapeHtml(p.id)}">${escapeHtml(p.name)}</button>`)
+          .join("") + eyeToggleButtonHtml();
       for (const btn of controlsHost.querySelectorAll<HTMLButtonElement>(".orapa-results__board-btn")) {
         btn.classList.toggle("is-selected", btn.dataset.player === activeId);
         btn.addEventListener("click", () => {
+          if (btn.dataset.player === activeId) return;
           resultsFouillePlayer = btn.dataset.player!;
+          resultsShowGuessOverlay = false;
           renderResultsView(host);
         });
       }
+      wireEyeToggle(controlsHost, active?.guess ?? null, isMine ? "ta proposition" : "sa proposition");
 
-      applyResultsBoard(results.board, active?.guess ?? null);
+      applyResultsBoard(results.board);
       renderResultsPieceList(piecesHost, results.board, active?.found ?? results.board.map(() => false));
 
       countsHost.innerHTML = results.players
         .map((p) => resultsCountRowHtml(p.name, results.results![p.id]?.found_count ?? 0, p.id === playerId, p.id === results.winner))
         .join("");
     }
+  }
+
+  function eyeToggleButtonHtml(): string {
+    return `<button type="button" class="orapa-results__eye-toggle">👁</button>`;
+  }
+
+  /** Branche le bouton œil déjà présent dans `controlsHost` (voir
+   * `eyeToggleButtonHtml`) : bascule la superposition de `guessPayload`
+   * sans jamais rejouer la chute des vraies pièces (retour utilisateur
+   * direct — "un bouton icône œil affiche sans rejouer l'animation mes
+   * pièces en transparent"), pour comparer facilement la proposition à
+   * ce qui a été réellement trouvé. Désactivé si personne n'a rien
+   * proposé contre ce plateau. `labelWhenActive` complète "Afficher"/
+   * "Masquer" (ex. "ta proposition"/"sa proposition" selon le plateau). */
+  function wireEyeToggle(controlsHost: HTMLElement, guessPayload: Record<string, unknown>[] | null, labelWhenActive: string): void {
+    const btn = controlsHost.querySelector<HTMLButtonElement>(".orapa-results__eye-toggle")!;
+    btn.disabled = !guessPayload || guessPayload.length === 0;
+    const applyState = () => {
+      btn.classList.toggle("is-selected", resultsShowGuessOverlay);
+      btn.title = `${resultsShowGuessOverlay ? "Masquer" : "Afficher"} ${labelWhenActive}`;
+      applyGuessOverlay(resultsShowGuessOverlay ? guessPayload : null);
+    };
+    applyState();
+    btn.addEventListener("click", () => {
+      resultsShowGuessOverlay = !resultsShowGuessOverlay;
+      applyState();
+    });
   }
 
   /** Une ligne du récapitulatif des scores (retour utilisateur direct —
@@ -1160,40 +1188,34 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
     `;
   }
 
-  // Incrémenté à chaque appel d'`applyResultsBoard` : annule le repli
-  // différé qui superpose la proposition (`setTimeout` ci-dessous) si on
-  // rebascule de vue avant qu'il se déclenche — sans ce garde-fou, un
-  // ancien réglage pourrait s'appliquer après la nouvelle vue et
-  // mélanger les deux plateaux. La chute des pièces elle-même n'a pas
-  // besoin de ce garde-fou : `BoardScene.setPiecesWithDropAnimation`
-  // vide ses propres animations en vol à chaque appel.
-  let resultsRevealGeneration = 0;
-
   /** Affiche `boardPayload` (plateau réel) sur `scene`, dans leurs
    * couleurs normales — pas de vert/rouge sur les pièces elles-mêmes
    * (retour utilisateur direct, voir `renderResultsPieceList` pour le
    * trouvé/manqué) — tombant du ciel jusqu'à leur position plutôt que
    * d'apparaître déjà posées (retour utilisateur direct, voir
-   * `BoardScene.setPiecesWithDropAnimation`). `guessPayload`, si fourni,
-   * se superpose ensuite, en flottant nettement au-dessus du plateau
-   * (voir `BoardScene`, style "reflection") pour bien se distinguer des
-   * vraies pièces, posées au ras des cases. */
-  function applyResultsBoard(boardPayload: Record<string, unknown>[], guessPayload: Record<string, unknown>[] | null): void {
+   * `BoardScene.setPiecesWithDropAnimation`). N'affiche plus jamais la
+   * proposition en même temps (voir `applyGuessOverlay`, indépendant) :
+   * un changement de plateau efface toujours l'ancienne superposition,
+   * la nouvelle reste cachée tant qu'on ne la redemande pas via l'œil. */
+  function applyResultsBoard(boardPayload: Record<string, unknown>[]): void {
     if (!scene) return;
     const pieces = boardPayload.map((p) => pieceFromPayload(p));
-    const myGeneration = ++resultsRevealGeneration;
     scene.setPiecesWithDropAnimation(pieces);
     scene.clearReflectionPieces();
+  }
+
+  /** Affiche/masque `guessPayload` en surimpression, flottant nettement
+   * au-dessus du plateau (voir `BoardScene`, style "reflection") pour
+   * bien se distinguer des vraies pièces posées au ras des cases —
+   * indépendant d'`applyResultsBoard` (retour utilisateur direct : "un
+   * bouton icône œil affiche sans rejouer l'animation mes pièces en
+   * transparent") : ne touche jamais aux vraies pièces ni à leur chute,
+   * juste le groupe de réflexion. */
+  function applyGuessOverlay(guessPayload: Record<string, unknown>[] | null): void {
+    if (!scene) return;
+    scene.clearReflectionPieces();
     if (guessPayload) {
-      const DROP_STAGGER_MS = 160;
-      const DROP_DURATION_MS = 650;
-      setTimeout(
-        () => {
-          if (myGeneration !== resultsRevealGeneration || !scene) return;
-          for (const payload of guessPayload) scene.addReflectionPiece(pieceFromPayload(payload));
-        },
-        pieces.length * DROP_STAGGER_MS + DROP_DURATION_MS,
-      );
+      for (const payload of guessPayload) scene.addReflectionPiece(pieceFromPayload(payload));
     }
   }
 

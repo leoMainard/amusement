@@ -1959,9 +1959,9 @@ kbd {
 
 /* Le plateau lui-même — non manipulable (retour utilisateur direct, voir
  * `BoardScene.setInteractive`), tourne légèrement tout seul. Les
- * boutons de vue (Plateau adverse/Mon plateau/Afficher ma proposition)
- * flottent EN HAUT du cadre, par-dessus le plateau (retour utilisateur
- * direct), comme le badge de statut de la maquette. */
+ * boutons de vue (Votre cible/Votre gisement + l'icône œil) flottent EN
+ * HAUT du cadre, par-dessus le plateau (retour utilisateur direct),
+ * comme le badge de statut de la maquette. */
 .orapa-results__board-frame {
   position: relative;
   margin-top: 26px;
@@ -2028,8 +2028,7 @@ kbd {
   color: var(--om-text);
 }
 
-.orapa-results__board-btn,
-.orapa-results__guess-toggle {
+.orapa-results__board-btn {
   padding: 8px 14px;
   border-radius: 999px;
   border: 1px solid rgba(242, 194, 75, 0.3);
@@ -2043,8 +2042,7 @@ kbd {
   cursor: pointer;
 }
 
-.orapa-results__board-btn:hover,
-.orapa-results__guess-toggle:hover {
+.orapa-results__board-btn:hover {
   border-color: var(--om-gold);
   color: var(--om-text);
 }
@@ -2053,6 +2051,48 @@ kbd {
   background: var(--om-gold);
   border-color: var(--om-gold);
   color: var(--om-surface);
+}
+
+/* Icône œil (retour utilisateur direct — "un bouton (icon oeil) affiche
+ * sans rejouer l'animation mes pièces en transparent") : bascule
+ * `applyGuessOverlay` seule, jamais `applyResultsBoard` — voir
+ * `wireEyeToggle`. Grisée/inactive quand ce joueur n'a rien proposé
+ * (ex. Fouille, aucune tentative). */
+.orapa-results__eye-toggle {
+  flex-shrink: 0;
+  margin-left: auto;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px solid rgba(242, 194, 75, 0.3);
+  background: rgba(7, 14, 38, 0.85);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  color: var(--om-text-2);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.orapa-results__eye-toggle:hover {
+  border-color: var(--om-gold);
+  color: var(--om-text);
+}
+
+.orapa-results__eye-toggle.is-selected {
+  background: var(--om-gold);
+  border-color: var(--om-gold);
+  color: var(--om-surface);
+}
+
+.orapa-results__eye-toggle:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.orapa-results__eye-toggle:disabled:hover {
+  border-color: rgba(242, 194, 75, 0.3);
+  color: var(--om-text-2);
 }
 
 /* Pièces trouvées/manquées (retour utilisateur direct — "n'ajoute pas de
