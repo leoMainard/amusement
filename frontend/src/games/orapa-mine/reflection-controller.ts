@@ -243,14 +243,16 @@ export class ReflectionController {
     if (!this.armed) return;
     this.armed = { ...this.armed, rotationSteps: (this.armed.rotationSteps + 1) % 4 };
     this.refreshGhost();
-    this.refreshPreview();
+    this.refreshPreview("rotate");
+    this.scene.spinGhost("rotate");
   }
 
   private mirrorArmed(): void {
     if (!this.armed) return;
     this.armed = { ...this.armed, mirrored: !this.armed.mirrored };
     this.refreshGhost();
-    this.refreshPreview();
+    this.refreshPreview("mirror");
+    this.scene.spinGhost("mirror");
   }
 
   private handleKeyDown = (event: KeyboardEvent): void => {
@@ -353,8 +355,10 @@ export class ReflectionController {
     this.scene.setGhost(positioned, this.canPlace(positioned));
   }
 
-  /** Cadre "APERÇU" (voir docstring de `previewHost`). */
-  private refreshPreview(): void {
+  /** Cadre "APERÇU" (voir docstring de `previewHost`). `spin`, voir
+   * `placement-controller.ts:refreshPreview` (même mécanique, retour
+   * utilisateur direct — "une petite animation... sur l'aperçu"). */
+  private refreshPreview(spin?: "rotate" | "mirror"): void {
     const host = this.options.previewHost;
     if (!host) return;
     if (!this.armed) {
@@ -364,7 +368,8 @@ export class ReflectionController {
     const icon = pieceIconSvg(this.armed.shape, this.armed.color, 76, this.armed.kind, this.armed.rotationSteps, this.armed.mirrored);
     const angle = (this.armed.rotationSteps * 90) % 360;
     const mirrorBadge = this.armed.mirrored ? `<span class="orapa-place__preview-angle orapa-place__preview-angle--mirror">⇋</span>` : "";
-    host.innerHTML = `<span class="orapa-place__preview-angle">${angle}°</span>${mirrorBadge}${icon}`;
+    const spinClass = spin ? ` orapa-place__preview-icon-wrap--spin-${spin}` : "";
+    host.innerHTML = `<span class="orapa-place__preview-angle">${angle}°</span>${mirrorBadge}<span class="orapa-place__preview-icon-wrap${spinClass}">${icon}</span>`;
   }
 
   /** Validité du fantôme (vert/rouge au survol) : les règles complètes

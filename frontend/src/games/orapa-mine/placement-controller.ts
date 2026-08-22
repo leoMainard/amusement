@@ -206,14 +206,16 @@ export class PlacementController {
     if (!this.armed || this.locked) return;
     this.armed = { ...this.armed, rotationSteps: (this.armed.rotationSteps + 1) % 4 };
     this.refreshGhost();
-    this.refreshPreview();
+    this.refreshPreview("rotate");
+    this.scene.spinGhost("rotate");
   }
 
   private mirrorArmed(): void {
     if (!this.armed || this.locked) return;
     this.armed = { ...this.armed, mirrored: !this.armed.mirrored };
     this.refreshGhost();
-    this.refreshPreview();
+    this.refreshPreview("mirror");
+    this.scene.spinGhost("mirror");
   }
 
   // Raccourcis clavier optionnels (R = pivoter, F = retourner, Échap =
@@ -336,8 +338,13 @@ export class PlacementController {
 
   /** Cadre "APERÇU" (voir docstring de `previewHost`) : icône 2D plus
    * grande de la pièce armée, orientation courante comprise (badge
-   * d'angle + indicateur miroir, comme la maquette). */
-  private refreshPreview(): void {
+   * d'angle + indicateur miroir, comme la maquette). `spin`, passé par
+   * `rotateArmed`/`mirrorArmed` uniquement, anime l'icône fraîchement
+   * réinsérée (retour utilisateur direct — "une petite animation... sur
+   * l'aperçu" ; voir le CSS `.orapa-place__preview-icon-wrap--spin-*`).
+   * L'icône SVG elle-même est déjà dans la bonne orientation (voir
+   * `pieceIconSvg`) : l'animation ne fait que l'y faire "arriver". */
+  private refreshPreview(spin?: "rotate" | "mirror"): void {
     const host = this.options.previewHost;
     if (!host) return;
     if (!this.armed) {
@@ -347,7 +354,8 @@ export class PlacementController {
     const icon = pieceIconSvg(this.armed.shape, this.armed.color, 76, this.armed.kind, this.armed.rotationSteps, this.armed.mirrored);
     const angle = (this.armed.rotationSteps * 90) % 360;
     const mirrorBadge = this.armed.mirrored ? `<span class="orapa-place__preview-angle orapa-place__preview-angle--mirror">⇋</span>` : "";
-    host.innerHTML = `<span class="orapa-place__preview-angle">${angle}°</span>${mirrorBadge}${icon}`;
+    const spinClass = spin ? ` orapa-place__preview-icon-wrap--spin-${spin}` : "";
+    host.innerHTML = `<span class="orapa-place__preview-angle">${angle}°</span>${mirrorBadge}<span class="orapa-place__preview-icon-wrap${spinClass}">${icon}</span>`;
   }
 
   private updateSwatchSelection(active: HTMLButtonElement | null): void {

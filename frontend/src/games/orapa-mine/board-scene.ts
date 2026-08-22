@@ -34,6 +34,18 @@ import {
 import { vertices as pieceVertices } from "./piece-render";
 
 const GEM_HEIGHT = 0.5;
+// `ExtrudeGeometry` avec biseau étend la géométrie de `-bevelThickness` à
+// `depth + bevelThickness` (pas seulement `[0, depth]`) — son dessous
+// biseauté s'enfonce donc de `PIECE_BEVEL_THICKNESS` sous y=0 une fois la
+// pièce couchée à plat (`mesh.rotation.x = -90°`), à l'intérieur même de
+// la case au lieu d'affleurer sa surface (retour utilisateur direct :
+// "les pièces ne sont pas vraiment sur le plateau, il y'a un léger
+// décalage"). `PIECE_REST_LIFT` compense exactement ce creux — voir
+// `buildPieceMesh`. Nommée séparément de `bevelThickness` (passé tel
+// quel à `ExtrudeGeometry`, voir plus bas) pour que les deux ne puissent
+// pas diverger silencieusement.
+const PIECE_BEVEL_THICKNESS = 0.1;
+const PIECE_REST_LIFT = PIECE_BEVEL_THICKNESS;
 const GHOST_OPACITY = 0.55;
 const REFLECTION_OPACITY = 0.7;
 const RAY_HEIGHT = 0.32;
@@ -48,8 +60,16 @@ const TILE_EMISSIVE_IDLE = 0x0a1b3d;
 const TILE_EMISSIVE_HOVER = 0xf2c24b;
 const TILE_BASE_Y = -0.07;
 const TILE_HOVER_Y = -0.02;
-const ENTRY_BASE_Y = 0.06;
-const ENTRY_HOVER_Y = 0.18;
+// Les bornes reposent sur le SOCLE (voir `buildBoardBody`), pas sur les
+// cases : son dessus est nettement plus bas que celui des cases (plateau
+// surélevé façon vrai plateau de jeu). `ENTRY_BASE_Y` cale le dessous de
+// la borne pile sur ce socle (son dessus arrive alors à y=0, au ras des
+// cases) — l'ancienne valeur (0.06) la faisait flotter à vide au-dessus
+// du socle, sans le toucher (retour utilisateur direct : "les boutons ne
+// sont pas vraiment sur le plateau, il y'a un léger décalage"). Voir
+// `buildBoardBody` pour le calcul de `slabTopY`.
+const ENTRY_BASE_Y = -0.07;
+const ENTRY_HOVER_Y = 0.05;
 const HOVER_LERP_SPEED = 0.22;
 // Distance entre le bord des cases et le centre d'une borne d'entrée
 // (voir `continuousToWorld`) : assez petite pour que la borne touche
@@ -135,6 +155,21 @@ export class BoardScene {
   private dropAnimations: DropAnimation[] = [];
   private ghostMesh: THREE.Mesh | null = null;
   private ghostValid = true;
+  // Pivot dédié au fantôme (voir `setGhost`) : recentré sur le CENTRE
+  // DE LA PIÈCE (pas l'origine locale du maillage, qui est le centre du
+  // PLATEAU — les sommets encodent une position absolue sur celui-ci,
+  // voir `buildPieceMesh`) pour que la petite animation de pivot/miroir
+  // (`spinGhost`/`tick`) tourne la pièce sur elle-même plutôt que de la
+  // faire orbiter autour du centre du plateau (retour utilisateur direct
+  // — "lorsque je pivote ou retourne une pièce, je souhaite avoir une
+  // petite animation").
+  private ghostPivot = new THREE.Group();
+  private ghostSpinAnim: { axis: "x" | "y" | "z"; from: number; startTime: number; duration: number } | null = null;
+  // Hauteur de repos du pivot (voir `setGhost`) : le petit flottement du
+  // fantôme (`tick`) l'anime autour de cette valeur plutôt que de la
+  // position du maillage lui-même, désormais recentré sur la pièce (voir
+  // docstring de `ghostPivot`).
+  private ghostRestY = 0;
   private rayGroup = new THREE.Group();
   // Tracé du rayon : tube + point lumineux animé le long de son
   // parcours (voir `animateRay`/`tick`, style repris de la maquette).
@@ -238,6 +273,7 @@ export class BoardScene {
     this.buildGrid();
     this.buildEntryMarkers();
     this.scene.add(this.pieceGroup);
+    this.pieceGroup.add(this.ghostPivot);
     this.scene.add(this.rayGroup);
     this.scene.add(this.markGroup);
     this.scene.add(this.reflectionGroup);
@@ -358,17 +394,52 @@ export class BoardScene {
   }
 
   /** Affiche (ou met à jour) une pièce fantôme semi-transparente — la
-   * pièce en cours de placement. `null` la masque. */
+   * pièce en cours de placement. `null` la masque. Remet aussi à zéro
+   * toute rotation de présentation en cours (voir `spinGhost`) : un
+   * changement réel de pièce/position doit toujours repartir d'un
+   * fantôme bien droit, l'appelant redemande l'animation lui-même
+   * juste après si besoin (voir `rotateArmed`/`mirrorArmed` dans
+   * `placement-controller.ts`/`reflection-controller.ts`). */
   setGhost(piece: Piece | null, valid: boolean = true): void {
     if (this.ghostMesh) {
-      this.pieceGroup.remove(this.ghostMesh);
+      this.ghostPivot.remove(this.ghostMesh);
       this.disposePieceMesh(this.ghostMesh);
       this.ghostMesh = null;
     }
+    this.ghostPivot.rotation.set(0, 0, 0);
+    this.ghostSpinAnim = null;
     if (!piece) return;
     this.ghostValid = valid;
     this.ghostMesh = this.buildPieceMesh(piece, "ghost");
-    this.pieceGroup.add(this.ghostMesh);
+    // Recentre le pivot sur le centre RÉEL de la pièce (voir docstring du
+    // champ `ghostPivot`) : sans ça, `spinGhost` ferait tourner la pièce
+    // autour du centre du plateau.
+    this.ghostMesh.geometry.computeBoundingBox();
+    const bb = this.ghostMesh.geometry.boundingBox!;
+    const centerX = (bb.min.x + bb.max.x) / 2;
+    const centerY = (bb.min.y + bb.max.y) / 2; // devient -Z une fois couché, voir `buildPieceMesh`
+    this.ghostRestY = this.ghostMesh.position.y;
+    this.ghostPivot.position.set(centerX, this.ghostRestY, -centerY);
+    this.ghostMesh.position.set(-centerX, 0, centerY);
+    this.ghostPivot.add(this.ghostMesh);
+  }
+
+  /** Petite animation de présentation (retour utilisateur direct —
+   * "lorsque je pivote ou retourne une pièce, je souhaite avoir une
+   * petite animation") : au lieu de refaire tourner le fantôme pas à pas
+   * (sa géométrie est déjà celle, correcte, de la nouvelle orientation —
+   * voir `buildPieceMesh`/`piece-render.ts`), on le fait juste partir
+   * d'un léger angle de présentation puis revenir à zéro (voir `tick`) —
+   * la pièce "arrive" dans sa nouvelle orientation plutôt que d'y sauter
+   * directement. Sans effet si aucun fantôme n'est affiché (rien
+   * d'armé). À appeler juste après `setGhost` (qui vient de remettre le
+   * pivot bien droit). */
+  spinGhost(kind: "rotate" | "mirror"): void {
+    if (!this.ghostMesh) return;
+    this.ghostSpinAnim =
+      kind === "rotate"
+        ? { axis: "y", from: -Math.PI / 2, startTime: performance.now(), duration: 260 }
+        : { axis: "z", from: Math.PI, startTime: performance.now(), duration: 320 };
   }
 
   /** Ajoute une pièce de réflexion (voir `reflection-controller.ts`) —
@@ -723,7 +794,7 @@ export class BoardScene {
     const geometry = new THREE.ExtrudeGeometry(shape, {
       depth: GEM_HEIGHT,
       bevelEnabled: true,
-      bevelThickness: 0.1,
+      bevelThickness: PIECE_BEVEL_THICKNESS,
       bevelSize: 0.08,
       bevelSegments: 2,
     });
@@ -761,7 +832,11 @@ export class BoardScene {
     if (isGhost) this.tintGhost(material);
     const mesh = new THREE.Mesh(geometry, material);
     mesh.rotation.x = -Math.PI / 2;
-    if (isReflection) mesh.position.y = REFLECTION_HOVER_Y;
+    // Une pièce "reflection" flotte déjà nettement plus haut que ça
+    // (`REFLECTION_HOVER_Y`) : inutile d'y ajouter encore `PIECE_REST_LIFT`.
+    // Solide et fantôme, eux, doivent vraiment toucher la case — voir
+    // `PIECE_REST_LIFT`.
+    mesh.position.y = isReflection ? REFLECTION_HOVER_Y : PIECE_REST_LIFT;
     return mesh;
   }
 
@@ -887,7 +962,16 @@ export class BoardScene {
     }
 
     if (this.ghostMesh) {
-      this.ghostMesh.position.y = Math.sin(this.timer.getElapsed() * 3) * 0.04;
+      this.ghostPivot.position.y = this.ghostRestY + Math.sin(this.timer.getElapsed() * 3) * 0.04;
+    }
+
+    if (this.ghostSpinAnim) {
+      const { axis, from, startTime, duration } = this.ghostSpinAnim;
+      const t = Math.min(1, (performance.now() - startTime) / duration);
+      const angle = from * (1 - easeOutCubic(t));
+      this.ghostPivot.rotation.set(0, 0, 0);
+      this.ghostPivot.rotation[axis] = angle;
+      if (t >= 1) this.ghostSpinAnim = null;
     }
 
     if (this.rayDot && this.rayCurve) {
@@ -918,6 +1002,15 @@ function easeOutBack(t: number): number {
   const c1 = 1.70158;
   const c3 = c1 + 1;
   return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
+}
+
+/** Décélération simple, sans dépassement — pour l'arrivée du fantôme
+ * après un pivot/miroir (voir `spinGhost`) : moins ludique qu'un rebond,
+ * mais un léger dépassement de rotation ferait tourner la pièce au-delà
+ * de sa vraie orientation avant de revenir, trompeur pour un geste censé
+ * en confirmer l'angle exact. */
+function easeOutCubic(t: number): number {
+  return 1 - Math.pow(1 - t, 3);
 }
 
 function buildCrossMark(): THREE.Object3D {
