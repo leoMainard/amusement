@@ -258,6 +258,9 @@ export class ReflectionController {
     if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) return;
     if (event.key === "r" || event.key === "R") this.rotateArmed();
     else if (event.key === "f" || event.key === "F") this.mirrorArmed();
+    // Échap désélectionne la gemme/le repère armé (retour utilisateur
+    // direct) — même effet qu'un reclic sur la pièce déjà armée.
+    else if (event.key === "Escape" && this.armed) this.disarm();
   };
 
   private handleCornerClick(corner: Position): boolean {

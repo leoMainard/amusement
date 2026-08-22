@@ -47,6 +47,29 @@ export interface GameStatePayload {
   asked_this_turn?: boolean;
 }
 
+/** Écran de résultats (retour utilisateur direct) : envoyé une seule
+ * fois, au moment où la partie se termine (voir `game_ws.py`) — le
+ * client garde ces données pour "revoir la révélation" sans redemander
+ * au serveur. Miroir de `OrapaMineSession.results_payload`. */
+export interface GameResultsPayload {
+  mode: RoomMode;
+  players: RoomPlayer[];
+  winner: string | null;
+  /** Duel seulement. */
+  draw?: boolean;
+  /** Duel seulement : `boards[playerId]` décrit le plateau RÉEL de
+   * `playerId`, et comment son UNIQUE adversaire (2 joueurs en Duel)
+   * s'en est sorti à le deviner — `guess`/`found` sont donc la dernière
+   * proposition de l'ADVERSAIRE contre CE plateau, pas celle de
+   * `playerId` lui-même. */
+  boards?: Record<string, { board: Record<string, unknown>[]; found: boolean[]; guess: Record<string, unknown>[]; found_count: number }>;
+  /** Fouille seulement : un seul plateau partagé. */
+  board?: Record<string, unknown>[];
+  /** Fouille seulement : `results[playerId]` = la dernière proposition
+   * de `playerId` contre `board` ci-dessus, et ce qu'elle a trouvé. */
+  results?: Record<string, { guess: Record<string, unknown>[]; found: boolean[]; found_count: number }>;
+}
+
 export interface RayResultPayload {
   entry: Position;
   entry_direction: Direction;

@@ -18,10 +18,9 @@ proposition de solution le font avancer — ce qui réarme aussi le droit
 Le premier joueur à soumettre une solution complète et correcte gagne
 immédiatement. Une proposition erronée n'élimine pas son auteur tout de
 suite : il faut une SECONDE proposition erronée pour être éliminé. Si
-tous les joueurs sont éliminés, personne ne gagne.
-
-(Ce comportement de pénalité est le défaut retenu ; c'est encore une
-décision produit ouverte — voir docs/plan.md.)
+tous les joueurs sont éliminés, personne ne gagne. Mêmes règles qu'en
+Duel (retour utilisateur direct : "peu importe le mode de jeu, je peux
+faire deux propositions" — voir `duel.py`).
 """
 
 from __future__ import annotations
@@ -49,6 +48,10 @@ class FouilleGame:
     _wrong_attempts: dict[str, int] = field(init=False)
     eliminated: set[str] = field(default_factory=set, init=False)
     _turn_index: int = field(default=0, init=False)
+    # Dernière proposition soumise par chaque joueur (voir l'écran de
+    # résultats, `OrapaMineSession.results_payload`) — écrasée à chaque
+    # nouvel essai, seule la plus récente compte pour l'affichage.
+    last_guess: dict[str, list[Piece]] = field(default_factory=dict, init=False)
     # Une seule question par tour (voir docstring du module) — remis à
     # `False` à chaque vrai changement de tour, voir `_advance_turn`.
     asked_this_turn: bool = field(default=False, init=False)
@@ -109,6 +112,7 @@ class FouilleGame:
 
     def submit_solution(self, player: str, guess: list[Piece]) -> None:
         self._require_can_play(player)
+        self.last_guess[player] = guess
 
         if check_solution(self.board, guess):
             self.finished = True

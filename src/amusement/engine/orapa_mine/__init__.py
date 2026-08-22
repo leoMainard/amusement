@@ -28,7 +28,7 @@ from .generation import BASE_PIECE_SET, EXTENSION_PIECE_SET, PieceSpec, random_b
 from .geometry import Quadrant
 from .pieces import PieceShape
 from .raycast import Direction, RayResult, fire_ray, peek
-from .solution import check_solution
+from .solution import check_solution, piece_results
 
 __all__ = [
     "Board",
@@ -52,6 +52,7 @@ __all__ = [
     "PieceSpec",
     "random_board",
     "check_solution",
+    "piece_results",
     "DuelGame",
     "DuelError",
     "LogEntry",

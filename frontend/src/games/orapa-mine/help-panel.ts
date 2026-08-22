@@ -25,7 +25,9 @@ export function mountHelpDialog(root: HTMLElement): HelpDialog {
         <li><strong>Tirer un rayon</strong> : clique un point d'entrée du plateau (ou saisis-le, ex. « 7 » ou « K »), puis « Envoyer » — il rebondit sur les gemmes qu'il croise et ressort teinté.</li>
         <li><strong>Interroger une case</strong> : clique une case, puis « Demander » — on te dit directement ce qu'elle contient.</li>
         <li><strong>Pivoter / retourner</strong> une gemme avant de la poser : boutons dédiés, ou les touches <kbd>R</kbd> / <kbd>F</kbd> au clavier.</li>
-        <li><strong>Proposer la disposition</strong> quand tu penses savoir où sont les gemmes — une proposition fausse coûte cher (voir la notice pour le détail par mode).</li>
+        <li><strong>Retirer</strong> une gemme déjà posée : reclique dessus sur le plateau.</li>
+        <li><strong>Désélectionner</strong> une gemme ou un repère armé sans le poser : reclique-le dans la palette, ou appuie sur <kbd>Échap</kbd>.</li>
+        <li><strong>Proposer la disposition</strong> quand tu penses savoir où sont les gemmes — deux essais avant d'être définitivement éliminé (voir la notice pour le détail).</li>
       </ul>
       <h3>Les couleurs</h3>
       <p class="om-help-dialog__hint">

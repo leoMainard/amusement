@@ -62,68 +62,78 @@ def test_cannot_act_out_of_turn() -> None:
         game.ask_peek("bob", (0, 0))
 
 
-def test_wrong_guess_loses_immediately() -> None:
-    game = make_game()
-    wrong_guess = [Piece.normal(PieceShape.MEDIUM_TRIANGLE, Color.BLUE, origin=(4, 4))]
-    game.submit_solution("alice", wrong_guess)
-    assert game.finished
-    assert game.winner == "bob"
-    assert not game.draw
-
-
-def test_non_starting_player_correct_guess_wins_immediately() -> None:
-    game = make_game(starting_player="alice")
-    game.pass_turn("alice")  # passe la main à bob
-    correct_guess = game.boards["alice"].pieces()
-    game.submit_solution("bob", correct_guess)
-    assert game.finished
-    assert game.winner == "bob"
-
-
-def test_starting_player_correct_guess_gives_opponent_a_final_turn() -> None:
+def test_correct_guess_wins_immediately() -> None:
     game = make_game(starting_player="alice")
     correct_guess = game.boards["bob"].pieces()
     game.submit_solution("alice", correct_guess)
-    assert not game.finished
-    assert game.current_prospector == "bob"
-
-
-def test_opponent_wrong_on_final_turn_confirms_starting_player_win() -> None:
-    game = make_game(starting_player="alice")
-    game.submit_solution("alice", game.boards["bob"].pieces())
-    wrong_guess = [Piece.normal(PieceShape.RHOMBUS, Color.RED, origin=(0, 0))]
-    game.submit_solution("bob", wrong_guess)
     assert game.finished
     assert game.winner == "alice"
     assert not game.draw
 
 
-def test_opponent_correct_on_final_turn_is_a_draw() -> None:
-    game = make_game(starting_player="alice")
-    game.submit_solution("alice", game.boards["bob"].pieces())
-    game.submit_solution("bob", game.boards["alice"].pieces())
+def test_wrong_guess_does_not_end_the_game() -> None:
+    # "Peu importe le mode de jeu, je peux faire deux propositions. Si la
+    # première proposition n'est pas bonne, un message me l'indique, mais
+    # ne met pas fin à la partie" (retour utilisateur direct) — même
+    # règle qu'en Fouille désormais (voir duel.py).
+    game = make_game()
+    wrong_guess = [Piece.normal(PieceShape.MEDIUM_TRIANGLE, Color.BLUE, origin=(4, 4))]
+    game.submit_solution("alice", wrong_guess)
+    assert not game.finished
+    assert "alice" not in game.eliminated
+    # Une proposition (juste ou fausse) termine le tour de son auteur,
+    # comme `pass_turn`.
+    assert game.current_prospector == "bob"
+
+
+def test_second_wrong_guess_eliminates_but_opponent_keeps_playing() -> None:
+    game = make_game()
+    wrong_guess = [Piece.normal(PieceShape.MEDIUM_TRIANGLE, Color.BLUE, origin=(4, 4))]
+    game.submit_solution("alice", wrong_guess)
+    game.pass_turn("bob")  # bob joue entre les deux essais d'alice
+    game.submit_solution("alice", wrong_guess)  # 2e erreur -> éliminée
+    assert "alice" in game.eliminated
+    assert not game.finished  # bob peut encore trouver/se tromper
+    # Il n'y a que 2 joueurs : une fois alice éliminée, bob garde la main
+    # en continu (personne d'autre à qui la passer) — retour utilisateur
+    # direct, sans quoi la partie resterait bloquée sur le tour d'alice.
+    assert game.current_prospector == "bob"
+    game.pass_turn("bob")
+    assert game.current_prospector == "bob"
+
+
+def test_both_players_eliminated_is_a_draw() -> None:
+    game = make_game()
+    wrong_alice = [Piece.normal(PieceShape.MEDIUM_TRIANGLE, Color.BLUE, origin=(4, 4))]
+    wrong_bob = [Piece.normal(PieceShape.RHOMBUS, Color.RED, origin=(0, 0))]
+    game.submit_solution("alice", wrong_alice)
+    game.submit_solution("bob", wrong_bob)
+    game.submit_solution("alice", wrong_alice)  # alice éliminée
+    assert not game.finished
+    game.submit_solution("bob", wrong_bob)  # bob éliminé aussi
     assert game.finished
     assert game.draw
     assert game.winner is None
 
 
-def test_opponent_asking_during_final_turn_does_not_confirm_win_yet() -> None:
-    # Poser une question ne consomme plus le tour (voir docstring du
-    # module) : bob peut interroger le plateau pendant son dernier tour
-    # sans le perdre pour autant — seule sa fin (pass_turn) tranche.
-    game = make_game(starting_player="alice")
-    game.submit_solution("alice", game.boards["bob"].pieces())
-    game.ask_peek("bob", (0, 0))
-    assert not game.finished
-    assert game.current_prospector == "bob"
+def test_eliminated_player_cannot_act_again() -> None:
+    game = make_game()
+    wrong_guess = [Piece.normal(PieceShape.MEDIUM_TRIANGLE, Color.BLUE, origin=(4, 4))]
+    game.submit_solution("alice", wrong_guess)
+    game.pass_turn("bob")
+    game.submit_solution("alice", wrong_guess)  # 2e erreur -> éliminée
+    assert "alice" in game.eliminated
+    with pytest.raises(DuelError):
+        game.ask_peek("alice", (0, 0))
+    with pytest.raises(DuelError):
+        game.pass_turn("alice")
 
 
-def test_opponent_skipping_final_turn_confirms_starting_player_win() -> None:
-    game = make_game(starting_player="alice")
-    game.submit_solution("alice", game.boards["bob"].pieces())
-    game.pass_turn("bob")  # bob termine son tour sans proposer
-    assert game.finished
-    assert game.winner == "alice"
+def test_last_guess_is_recorded_for_the_results_screen() -> None:
+    game = make_game()
+    wrong_guess = [Piece.normal(PieceShape.MEDIUM_TRIANGLE, Color.BLUE, origin=(4, 4))]
+    game.submit_solution("alice", wrong_guess)
+    assert game.last_guess["alice"] == wrong_guess
 
 
 def test_replay_does_not_consume_a_turn() -> None:
@@ -147,15 +157,3 @@ def test_pass_turn_out_of_turn_raises() -> None:
     game = make_game()
     with pytest.raises(DuelError):
         game.pass_turn("bob")
-
-
-def test_pass_turn_on_final_turn_confirms_starting_player_win() -> None:
-    # Même cas particulier que "l'adversaire n'utilise pas son dernier
-    # tour pour proposer" (voir test_opponent_skipping_final_turn_...),
-    # mais via "Terminer mon tour"/expiration du chrono plutôt qu'une
-    # vraie question.
-    game = make_game(starting_player="alice")
-    game.submit_solution("alice", game.boards["bob"].pieces())
-    game.pass_turn("bob")
-    assert game.finished
-    assert game.winner == "alice"

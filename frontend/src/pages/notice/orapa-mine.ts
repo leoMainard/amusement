@@ -129,11 +129,10 @@ export function mountOrapaMineNotice(root: HTMLElement): () => void {
           jeu</strong> en regardant son propre plateau.
         </p>
         <p>
-          Le premier à proposer la disposition exacte des gemmes adverses gagne — mais une
-          proposition erronée fait perdre immédiatement. Exception : si c'est le joueur qui a
-          commencé la partie qui devine juste en premier, son adversaire a encore un tour pour
-          proposer à son tour (victoire confirmée s'il se trompe, égalité s'il devine juste
-          aussi).
+          Le premier à proposer la disposition exacte des gemmes adverses gagne. Une
+          proposition erronée ne fait pas perdre tout de suite : il faut se tromper deux fois
+          pour être éliminé — l'adversaire garde alors la main pour continuer à chercher seul.
+          Si les deux se trompent deux fois, la partie se termine sur une égalité.
         </p>
       </section>
 

@@ -113,10 +113,7 @@ export class PlacementController {
         // réarmer inutilement (retour utilisateur direct : aucun moyen de
         // "relâcher" une pièce sans en armer une autre).
         if (button.classList.contains("is-selected")) {
-          this.armed = null;
-          this.updateSwatchSelection(null);
-          this.refreshGhost();
-          this.refreshPreview();
+          this.disarm();
           return;
         }
         this.armed = {
@@ -195,6 +192,16 @@ export class PlacementController {
     document.removeEventListener("keydown", this.handleKeyDown);
   }
 
+  /** Désarme la gemme en cours de sélection, sans rien poser — recliquer
+   * une gemme déjà armée (voir plus haut) et la touche Échap (voir
+   * `handleKeyDown`) y mènent tous les deux. */
+  private disarm(): void {
+    this.armed = null;
+    this.updateSwatchSelection(null);
+    this.refreshGhost();
+    this.refreshPreview();
+  }
+
   private rotateArmed(): void {
     if (!this.armed || this.locked) return;
     this.armed = { ...this.armed, rotationSteps: (this.armed.rotationSteps + 1) % 4 };
@@ -209,8 +216,9 @@ export class PlacementController {
     this.refreshPreview();
   }
 
-  // Raccourcis clavier optionnels (R = pivoter, F = retourner), en plus
-  // des boutons — plus rapide pour ajuster une pièce avant de la poser.
+  // Raccourcis clavier optionnels (R = pivoter, F = retourner, Échap =
+  // désélectionner), en plus des boutons — plus rapide pour ajuster une
+  // pièce avant de la poser (retour utilisateur direct pour Échap).
   // Ignorés si le focus est dans un champ texte (ex : le bloc-notes) ou
   // si aucune pièce n'est armée.
   private handleKeyDown = (event: KeyboardEvent): void => {
@@ -218,6 +226,7 @@ export class PlacementController {
     if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) return;
     if (event.key === "r" || event.key === "R") this.rotateArmed();
     else if (event.key === "f" || event.key === "F") this.mirrorArmed();
+    else if (event.key === "Escape" && this.armed) this.disarm();
   };
 
   private requiredUsedCount(): number {

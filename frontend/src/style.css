@@ -1909,10 +1909,213 @@ kbd {
   letter-spacing: 0.04em;
 }
 
-.orapa-mp__result-banner {
-  font-size: 1.2rem;
-  font-weight: 700;
+/* --- Écran de résultats (retour utilisateur direct) ----------------- */
+/* Plein cadre, à part de la mise en page canvas+panneau latéral de
+ * PLACING (voir `renderResults` dans multiplayer.ts) : le plateau y est
+ * bien plus grand, rien à poser à côté. */
+
+.orapa-results {
+  max-width: 980px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.orapa-results__topbar {
+  text-align: center;
+}
+
+.orapa-results__title {
+  margin: 0;
   font-family: "Chakra Petch", sans-serif;
+  font-weight: 700;
+  font-size: 26px;
+  letter-spacing: 0.03em;
+  color: var(--om-gold);
+}
+
+.orapa-results__layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(240px, 1fr);
+  gap: 22px;
+  align-items: start;
+}
+
+@media (max-width: 760px) {
+  .orapa-results__layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.orapa-results__board-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* Non manipulable (retour utilisateur direct — voir `BoardScene.setInteractive`) :
+ * tourne tout seul, rien à faire dessus, donc pas de curseur "grab" ni de
+ * survol interactif contrairement au plateau en jeu. */
+.orapa-results__board {
+  height: min(480px, 60vh);
+  border-radius: 16px;
+  overflow: hidden;
+  cursor: default;
+}
+
+.orapa-results__board canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.orapa-results__board-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.orapa-results__board-switch {
+  display: flex;
+  gap: 8px;
+}
+
+.orapa-results__board-btn,
+.orapa-results__guess-toggle {
+  padding: 9px 16px;
+  border-radius: 10px;
+  border: 1px solid var(--om-border);
+  background: var(--om-panel-soft);
+  color: var(--om-text-2);
+  font-family: "Chakra Petch", sans-serif;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+}
+
+.orapa-results__board-btn:hover,
+.orapa-results__guess-toggle:hover {
+  border-color: var(--om-gold);
+  color: var(--om-text);
+}
+
+.orapa-results__board-btn.is-selected {
+  background: var(--om-gold);
+  border-color: var(--om-gold);
+  color: var(--om-surface);
+}
+
+.orapa-results__side {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  border-radius: 16px;
+  background: var(--om-panel);
+  border: 1px solid var(--om-border);
+  padding: 16px;
+}
+
+.orapa-results__pieces {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 10px;
+}
+
+.orapa-results__loading {
+  margin: 0;
+  color: var(--om-text-4);
+  font-size: 13px;
+}
+
+.orapa-results__piece {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 10px;
+  border-radius: 10px;
+  background: var(--om-panel-soft);
+  border: 1px solid var(--om-border-soft);
+}
+
+.orapa-results__piece.is-found {
+  border-color: rgba(46, 204, 113, 0.5);
+  background: rgba(46, 204, 113, 0.08);
+}
+
+.orapa-results__piece.is-missed {
+  border-color: rgba(231, 76, 60, 0.5);
+  background: rgba(231, 76, 60, 0.08);
+}
+
+.orapa-results__piece-label {
+  font-family: "Chakra Petch", sans-serif;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.orapa-results__piece.is-found .orapa-results__piece-label {
+  color: var(--om-green);
+}
+
+.orapa-results__piece.is-missed .orapa-results__piece-label {
+  color: #e74c3c;
+}
+
+.orapa-results__counts {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--om-text-3);
+  padding-top: 12px;
+  border-top: 1px solid var(--om-border-soft);
+}
+
+.orapa-results__counts strong {
+  color: var(--om-text);
+}
+
+/* Trois boutons en majuscules (retour utilisateur direct) — celui du
+ * milieu ("Rejouer") ressort en or, les deux autres restent neutres. */
+.orapa-results__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 14px;
+  padding-bottom: 24px;
+}
+
+.orapa-results__actions button {
+  padding: 13px 26px;
+  border-radius: 10px;
+  border: 1px solid var(--om-border);
+  background: var(--om-panel-soft);
+  color: var(--om-text-2);
+  font-family: "Chakra Petch", sans-serif;
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.orapa-results__actions button:hover {
+  border-color: var(--om-gold);
+  color: var(--om-text);
+}
+
+.orapa-results__actions .orapa-results__rematch {
+  background: var(--om-gold);
+  border-color: var(--om-gold);
+  color: var(--om-surface);
+}
+
+.orapa-results__actions .orapa-results__rematch:hover {
+  background: var(--om-gold-hover);
 }
 
 .orapa-mp__wait {

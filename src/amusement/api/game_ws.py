@@ -289,6 +289,11 @@ async def _handle_message(
             await connections.broadcast(code, {"type": "game_state", **game_state_payload(session)})
             if room.status == RoomStatus.FINISHED:
                 await connections.broadcast(code, {"type": "room_update", "room": room_payload(room)})
+                # Écran de résultats (retour utilisateur direct) : envoyé
+                # une seule fois, à l'instant où la partie se termine — le
+                # client garde ces données pour "revoir la révélation"
+                # sans redemander au serveur.
+                await connections.broadcast(code, {"type": "game_results", **session.results_payload()})
 
         else:
             await connections.send_to(code, player_id, {"type": "error", "message": f"Type de message inconnu : {msg_type!r}"})

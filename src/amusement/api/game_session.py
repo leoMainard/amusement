@@ -23,6 +23,7 @@ from amusement.engine.orapa_mine import (
     Piece,
     PieceShape,
     Position,
+    piece_results,
     random_board,
 )
 from amusement.rooms.room import Room, RoomError, RoomMode, RoomStatus
@@ -204,6 +205,59 @@ class OrapaMineSession:
         if self._active_game.finished:
             self.room.status = RoomStatus.FINISHED
         self._after_turn_action()
+
+    def results_payload(self) -> dict:
+        """Assemble tout ce qu'il faut pour l'écran de résultats (retour
+        utilisateur direct) une fois la partie terminée : plateau(x)
+        réel(s), dernière proposition de chaque joueur, et quelles
+        pièces ont été trouvées/manquées. Diffusé une seule fois par
+        `game_ws.py` au moment où la partie se termine ; le client garde
+        ces données pour "revoir la révélation" sans redemander au
+        serveur. Ne doit être appelé qu'une fois la partie terminée
+        (avant, les plateaux adverses sont encore secrets)."""
+        names = {p.id: p.name for p in self.room.players}
+        players_payload = [{"id": pid, "name": names.get(pid, pid)} for pid in names]
+
+        if self.room.mode == RoomMode.DUEL:
+            game = self.duel
+            assert game is not None
+            boards: dict[str, dict] = {}
+            for player_id, board in game.boards.items():
+                opponent_id = next(pid for pid in game.players if pid != player_id)
+                opponent_guess = game.last_guess.get(opponent_id, [])
+                pairs = piece_results(board, opponent_guess)
+                boards[player_id] = {
+                    "board": [piece_to_payload(p) for p, _ in pairs],
+                    "found": [found for _, found in pairs],
+                    "guess": [piece_to_payload(p) for p in opponent_guess],
+                    "found_count": sum(1 for _, found in pairs if found),
+                }
+            return {
+                "mode": "DUEL",
+                "players": players_payload,
+                "winner": game.winner,
+                "draw": game.draw,
+                "boards": boards,
+            }
+
+        game = self.fouille
+        assert game is not None
+        players_results: dict[str, dict] = {}
+        for player_id in game.players:
+            guess = game.last_guess.get(player_id, [])
+            pairs = piece_results(game.board, guess)
+            players_results[player_id] = {
+                "guess": [piece_to_payload(p) for p in guess],
+                "found": [found for _, found in pairs],
+                "found_count": sum(1 for _, found in pairs if found),
+            }
+        return {
+            "mode": "FOUILLE",
+            "players": players_payload,
+            "winner": game.winner,
+            "board": [piece_to_payload(p) for p in game.board.pieces()],
+            "results": players_results,
+        }
 
     def end_turn(self, player_id: str) -> None:
         """Termine volontairement le tour de `player_id` sans poser de

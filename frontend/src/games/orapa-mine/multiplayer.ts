@@ -28,16 +28,19 @@ import { LabelScheme } from "./borders";
 import { colorBadgeHtml, colorNameHtml, colorSquareHtml, hexColor } from "./color-swatch";
 import { cellLabel, labelForExit } from "./entry-labels";
 import { toContinuousCorner } from "./geometry";
+import { pieceIconSvg } from "./piece-icon";
 import { PlacementController } from "./placement-controller";
 import { fireRayPreview } from "./preview-engine";
 import { ReflectionController, type ReflectionPaletteEntry } from "./reflection-controller";
 import { mountHelpDialog } from "./help-panel";
 import {
+  type GameResultsPayload,
   type GameStatePayload,
   type RayResultPayload,
   type RoomMode,
   type RoomPayload,
   createRoom,
+  pieceFromPayload,
   sendAskPeek,
   sendAskRay,
   sendEndTurn,
@@ -155,6 +158,19 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
   // reste vrai (le statut change, mais ce texte ne change plus avant la
   // question suivante).
   let lastOpponentActionStatus: string | null = null;
+  // Écran de résultats (retour utilisateur direct) : reçu une seule fois
+  // à la fin de la partie (voir `ws.on("game_results", ...)`), gardé pour
+  // "revoir la révélation" et pour changer de vue (quel plateau, quelle
+  // proposition afficher) sans redemander au serveur.
+  let lastGameResults: GameResultsPayload | null = null;
+  // Duel seulement : de qui le plateau RÉEL affiché est-il ? Par défaut
+  // l'adversaire (celui que je devais trouver) — voir `renderResults`.
+  let resultsBoardOwner: string | null = null;
+  // Duel : affiche la dernière proposition contre `resultsBoardOwner` en
+  // surimpression, ou non. Fouille : quel joueur regarder (`null` = moi-
+  // même par défaut) — voir `renderResults`.
+  let resultsShowGuessOverlay = false;
+  let resultsFouillePlayer: string | null = null;
   // Ré-affiche le compte à rebours chaque seconde tant qu'on est en
   // PLAYING à plusieurs (voir `renderTimers`) — démarré/arrêté par
   // `renderPlaying`/le nettoyage en fin de partie, jamais recalculé côté
@@ -569,10 +585,20 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
       timerInterval = null;
     }
 
-    // PLACING / FINISHED : mise en page canvas + panneau latéral. Pas de
-    // bloc-notes pendant PLACING (retour utilisateur direct — inutile
-    // tant qu'on ne fait que poser ses propres gemmes, rien à déduire
-    // encore) ; il réapparaît en FINISHED comme avant.
+    if (room.status === "FINISHED") {
+      // Écran de résultats à part entière (retour utilisateur direct) —
+      // ne partage plus la mise en page canvas+panneau latéral de
+      // PLACING : le plateau y est bien plus grand, pas de palette de
+      // pose à côté.
+      ownScene?.dispose();
+      ownScene = null;
+      renderResults(host);
+      return;
+    }
+
+    // PLACING : mise en page canvas + panneau latéral. Pas de bloc-notes
+    // (retour utilisateur direct — inutile tant qu'on ne fait que poser
+    // ses propres gemmes, rien à déduire encore).
     host.innerHTML = `
       <div class="orapa-demo">
         <div class="orapa-demo__canvas"></div>
@@ -584,15 +610,6 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
           <div class="orapa-mp__phase"></div>
           <div class="orapa-mp__game-controls"></div>
           <div class="orapa-demo__result orapa-mp__log" aria-live="polite"></div>
-          ${
-            room.status === "PLACING"
-              ? ""
-              : `
-          <details class="orapa-mp__notepad-block">
-            <summary>Bloc-notes (personnel, non partagé)</summary>
-            <textarea class="orapa-mp__notepad" placeholder="Note ce que tu veux ici — déductions, cases à retenir..."></textarea>
-          </details>`
-          }
         </aside>
       </div>
     `;
@@ -607,18 +624,11 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
 
     const phaseHost = host.querySelector<HTMLDivElement>(".orapa-mp__phase")!;
     const controlsHost = host.querySelector<HTMLDivElement>(".orapa-mp__game-controls")!;
-    const notepadEl = host.querySelector<HTMLTextAreaElement>(".orapa-mp__notepad");
-    if (notepadEl) setUpNotepad(notepadEl);
     renderHistory();
     const placingHelpDialog = mountHelpDialog(host);
     host.querySelector<HTMLButtonElement>(".orapa-mp__help-btn")!.addEventListener("click", () => placingHelpDialog.open());
 
-    if (room.status === "PLACING") {
-      renderPlacing(phaseHost, controlsHost);
-    } else if (room.status === "FINISHED") {
-      renderFinished(phaseHost);
-      scene.setGhost(null);
-    }
+    renderPlacing(phaseHost, controlsHost);
   }
 
   // --- Bloc-notes personnel -------------------------------------------------
@@ -890,13 +900,204 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
     refreshGating();
   }
 
-  function renderFinished(phaseHost: HTMLElement): void {
-    const state = lastGameState;
-    let text = "Partie terminée.";
-    if (state?.draw) text = "Match nul !";
-    else if (state?.winner === playerId) text = "🎉 Tu as gagné !";
-    else if (state?.winner) text = "Tu as perdu — l'adversaire a trouvé la solution.";
-    phaseHost.innerHTML = `<p class="orapa-mp__result-banner">${text}</p>`;
+  // --- Écran de résultats (retour utilisateur direct) ----------------------
+  // Plateau plein cadre (non manipulable, tourne tout seul), pièces
+  // trouvées/manquées en dessous, et 3 actions. Duel : bascule entre les
+  // deux plateaux (le sien, celui de l'adversaire) avec une surimpression
+  // optionnelle de la proposition en face. Fouille : un seul plateau
+  // partagé, bascule entre les propositions de chaque joueur.
+
+  function resultsWinnerText(): string {
+    const results = lastGameResults;
+    if (!results) return "Partie terminée.";
+    if (results.mode === "DUEL" && results.draw) return "Match nul !";
+    if (results.winner === playerId) return "🎉 Tu as gagné !";
+    if (results.winner) {
+      const name = results.players.find((p) => p.id === results.winner)?.name ?? results.winner;
+      return `${escapeHtml(name)} a gagné.`;
+    }
+    return "Personne n'a trouvé la solution.";
+  }
+
+  function renderResults(host: HTMLElement): void {
+    host.innerHTML = `
+      <div class="orapa-results">
+        <div class="orapa-results__topbar">
+          <h2 class="orapa-results__title"></h2>
+        </div>
+        <div class="orapa-results__layout">
+          <div class="orapa-results__board-panel">
+            <div class="orapa-results__board"></div>
+            <div class="orapa-results__board-controls"></div>
+          </div>
+          <div class="orapa-results__side">
+            <div class="orapa-results__pieces"></div>
+            <div class="orapa-results__counts"></div>
+          </div>
+        </div>
+        <div class="orapa-results__actions">
+          <button type="button" class="orapa-results__reveal">Revoir la révélation</button>
+          <button type="button" class="orapa-results__rematch">Rejouer</button>
+          <button type="button" class="orapa-results__back">Retour au jeu</button>
+        </div>
+      </div>
+    `;
+
+    const boardHost = host.querySelector<HTMLDivElement>(".orapa-results__board")!;
+    if (!scene) {
+      scene = new BoardScene(boardHost, DEFAULT_DIMENSIONS);
+    } else {
+      scene.attachTo(boardHost);
+    }
+    scene.setInteractive(false);
+    scene.setAutoRotate(true);
+    scene.setGhost(null);
+    scene.clearMarks();
+    scene.clearMarkerColors();
+    scene.clearRay();
+
+    host.querySelector<HTMLHeadingElement>(".orapa-results__title")!.textContent = resultsWinnerText();
+
+    host.querySelector<HTMLButtonElement>(".orapa-results__reveal")!.addEventListener("click", () => {
+      // Rejoue simplement l'apparition des pièces (retour utilisateur
+      // direct — "revoir la révélation") : pas besoin de redemander quoi
+      // que ce soit au serveur, tout est déjà côté client.
+      scene?.setPieces([]);
+      setTimeout(() => renderResultsView(host), 400);
+    });
+    host.querySelector<HTMLButtonElement>(".orapa-results__rematch")!.addEventListener("click", () => {
+      // Repart de zéro dans CE même salon/écran (retour utilisateur
+      // direct — "rejouer") : ferme la connexion en cours, oublie tout
+      // l'état de la partie qui vient de se terminer, revient à l'écran
+      // de création/adhésion.
+      socket?.close();
+      socket = null;
+      room = null;
+      lastGameState = null;
+      lastGameResults = null;
+      render();
+    });
+    host.querySelector<HTMLButtonElement>(".orapa-results__back")!.addEventListener("click", () => {
+      // "Retour au jeu" = retour au portail (retour utilisateur direct) —
+      // réutilise la navigation déjà branchée dans le chrome de la page
+      // plutôt que de dupliquer sa logique ici.
+      document.querySelector<HTMLButtonElement>("[data-go-home]")?.click();
+    });
+
+    renderResultsView(host);
+  }
+
+  /** (Ré)affiche le contenu qui dépend de `lastGameResults`/du plateau et
+   * de la proposition actuellement choisis — appelé au premier rendu, à
+   * chaque bascule de vue, et une fois `game_results` reçu (peut arriver
+   * après le premier rendu de l'écran, voir `wireSocket`). */
+  function renderResultsView(host: HTMLElement): void {
+    const results = lastGameResults;
+    const controlsHost = host.querySelector<HTMLDivElement>(".orapa-results__board-controls");
+    const piecesHost = host.querySelector<HTMLDivElement>(".orapa-results__pieces");
+    const countsHost = host.querySelector<HTMLDivElement>(".orapa-results__counts");
+    if (!results || !controlsHost || !piecesHost || !countsHost || !scene) {
+      if (piecesHost) piecesHost.innerHTML = `<p class="orapa-results__loading">Calcul des résultats...</p>`;
+      return;
+    }
+
+    const nameOf = (id: string) => results.players.find((p) => p.id === id)?.name ?? id;
+
+    if (results.mode === "DUEL" && results.boards) {
+      const [a, b] = results.players;
+      if (!resultsBoardOwner) resultsBoardOwner = b?.id ?? a?.id ?? null;
+      const ownerId = resultsBoardOwner!;
+      const view = results.boards[ownerId]!;
+      const isMine = ownerId === playerId;
+
+      controlsHost.innerHTML = `
+        <div class="orapa-results__board-switch">
+          <button type="button" class="orapa-results__board-btn" data-owner="${escapeHtml(results.players.find((p) => p.id !== ownerId)?.id ?? "")}">Plateau adverse</button>
+          <button type="button" class="orapa-results__board-btn" data-owner="${escapeHtml(playerId)}">Mon plateau</button>
+        </div>
+        <button type="button" class="orapa-results__guess-toggle">
+          ${resultsShowGuessOverlay ? "Masquer" : "Afficher"} ${isMine ? "sa proposition" : "ma proposition"}
+        </button>
+      `;
+      for (const btn of controlsHost.querySelectorAll<HTMLButtonElement>(".orapa-results__board-btn")) {
+        btn.classList.toggle("is-selected", btn.dataset.owner === ownerId);
+        btn.addEventListener("click", () => {
+          resultsBoardOwner = btn.dataset.owner!;
+          resultsShowGuessOverlay = false;
+          renderResultsView(host);
+        });
+      }
+      controlsHost.querySelector<HTMLButtonElement>(".orapa-results__guess-toggle")!.addEventListener("click", () => {
+        resultsShowGuessOverlay = !resultsShowGuessOverlay;
+        renderResultsView(host);
+      });
+
+      applyResultsBoard(view.board, view.found, resultsShowGuessOverlay ? view.guess : null);
+      renderResultsPieceList(piecesHost, view.board, view.found);
+
+      const aView = results.boards[a!.id]!;
+      const bView = results.boards[b!.id]!;
+      countsHost.innerHTML = `
+        <p><strong>${escapeHtml(nameOf(b!.id))}</strong> a trouvé ${aView.found_count}/5 des gemmes de ${escapeHtml(nameOf(a!.id))}.</p>
+        <p><strong>${escapeHtml(nameOf(a!.id))}</strong> a trouvé ${bView.found_count}/5 des gemmes de ${escapeHtml(nameOf(b!.id))}.</p>
+      `;
+      return;
+    }
+
+    if (results.mode === "FOUILLE" && results.results && results.board) {
+      if (!resultsFouillePlayer) resultsFouillePlayer = results.players[0]?.id ?? null;
+      const activeId = resultsFouillePlayer!;
+      const active = results.results[activeId];
+
+      controlsHost.innerHTML = results.players
+        .map((p) => `<button type="button" class="orapa-results__board-btn" data-player="${escapeHtml(p.id)}">${escapeHtml(p.name)}</button>`)
+        .join("");
+      for (const btn of controlsHost.querySelectorAll<HTMLButtonElement>(".orapa-results__board-btn")) {
+        btn.classList.toggle("is-selected", btn.dataset.player === activeId);
+        btn.addEventListener("click", () => {
+          resultsFouillePlayer = btn.dataset.player!;
+          renderResultsView(host);
+        });
+      }
+
+      applyResultsBoard(results.board, active?.found ?? results.board.map(() => false), active?.guess ?? null);
+      renderResultsPieceList(piecesHost, results.board, active?.found ?? results.board.map(() => false));
+
+      countsHost.innerHTML = results.players
+        .map((p) => `<p><strong>${escapeHtml(p.name)}</strong> a trouvé ${results.results![p.id]?.found_count ?? 0}/5 gemmes.</p>`)
+        .join("");
+    }
+  }
+
+  /** Affiche `boardPayload` (plateau réel) sur `scene`, teinté vert/rouge
+   * selon `found`, avec `guessPayload` en surimpression semi-transparente
+   * si fourni (voir `BoardScene.addReflectionPiece`, déjà conçu pour ça). */
+  function applyResultsBoard(boardPayload: Record<string, unknown>[], found: boolean[], guessPayload: Record<string, unknown>[] | null): void {
+    if (!scene) return;
+    const pieces = boardPayload.map((p) => pieceFromPayload(p));
+    const foundMap = new Map<Piece, boolean>();
+    pieces.forEach((piece, i) => foundMap.set(piece, found[i] ?? false));
+    scene.setPieces(pieces, foundMap);
+    scene.clearReflectionPieces();
+    if (guessPayload) {
+      for (const payload of guessPayload) scene.addReflectionPiece(pieceFromPayload(payload));
+    }
+  }
+
+  function renderResultsPieceList(host: HTMLElement, boardPayload: Record<string, unknown>[], found: boolean[]): void {
+    host.innerHTML = boardPayload
+      .map((payload, i) => {
+        const piece = pieceFromPayload(payload);
+        const isFound = found[i] ?? false;
+        const icon = pieceIconSvg(piece.shape, piece.color, 34, piece.kind, piece.rotationSteps, piece.mirrored);
+        return `
+          <div class="orapa-results__piece ${isFound ? "is-found" : "is-missed"}">
+            <span class="orapa-results__piece-icon">${icon}</span>
+            <span class="orapa-results__piece-label">${isFound ? "Trouvée" : "Manquée"}</span>
+          </div>
+        `;
+      })
+      .join("");
   }
 
   function updateTurnIndicator(): void {
@@ -1077,9 +1278,10 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
     });
     ws.on("game_state", (msg) => {
       lastGameState = msg as unknown as GameStatePayload;
-      const phaseHost = root.querySelector<HTMLDivElement>(".orapa-mp__phase");
-      if (room?.status === "FINISHED" && phaseHost) renderFinished(phaseHost);
-      else updateTurnIndicator();
+      // La transition vers l'écran de résultats est pilotée par
+      // `room_update` (changement de statut) puis `game_results` (données
+      // à afficher) — voir plus bas — pas par ce message-ci.
+      updateTurnIndicator();
     });
     ws.on("placement_ack", () => {
       /* la pose optimiste locale a déjà mis à jour l'affichage */
@@ -1149,6 +1351,20 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
       const text = msg.result as string;
       lastOpponentActionStatus = `Il a interrogé la case ${cellLabel(position)}. Réponse transmise : ${text}`;
       updateOwnBoardPanel();
+    });
+    // Écran de résultats (retour utilisateur direct) : reçu une seule
+    // fois, au moment où la partie se termine (voir game_ws.py). Vue par
+    // défaut : Duel = le plateau adverse, sans surimpression de ma
+    // proposition ; Fouille = mes propres résultats.
+    ws.on("game_results", (msg) => {
+      lastGameResults = msg as unknown as GameResultsPayload;
+      resultsBoardOwner = room?.players.find((p) => p.id !== playerId)?.id ?? null;
+      resultsShowGuessOverlay = false;
+      resultsFouillePlayer = playerId;
+      // Arrive après `room_update` (voir game_ws.py) : l'écran de
+      // résultats est déjà monté à ce stade, mais sans données — un
+      // second rendu les affiche dès qu'elles arrivent.
+      render();
     });
     ws.on("error", (msg) => {
       // ⚠️ Limite connue (voir docs/plan.md) : une pose optimiste que le

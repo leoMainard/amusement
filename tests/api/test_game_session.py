@@ -50,6 +50,53 @@ def test_duel_full_flow() -> None:
     assert result == "Une gemme rouge"
 
 
+def test_duel_results_payload_after_win() -> None:
+    # Écran de résultats (retour utilisateur direct) : plateau réel de
+    # chaque joueur, dernière proposition de l'adversaire contre lui, et
+    # quelles pièces ont été trouvées/manquées.
+    room = Room(code="ABCDE", game="orapa_mine", mode=RoomMode.DUEL, max_players=2)
+    alice = room.add_player("Alice")
+    bob = room.add_player("Bob")
+    session = OrapaMineSession(room, BoardDimensions(width=9, height=9))
+    session.start()
+
+    payload = base_pieces_payload()  # même disposition des deux côtés
+    for entry in payload:
+        session.place_piece(alice.id, piece_from_payload(entry))
+        session.place_piece(bob.id, piece_from_payload(entry))
+    session.validate_placement(alice.id)
+    session.validate_placement(bob.id)
+    assert session.duel.current_prospector == alice.id
+
+    wrong_guess = [piece_to_payload(Piece.normal(PieceShape.RHOMBUS, Color.RED, origin=(0, 0)))]
+    session.submit_solution(alice.id, wrong_guess)  # 1er essai, faux -> continue
+    assert not session.duel.finished
+
+    session.end_turn(bob.id)  # bob joue entre les deux essais d'alice
+
+    correct_guess = payload  # même disposition -> devine juste le plateau de bob
+    session.submit_solution(alice.id, correct_guess)
+    assert session.duel.finished
+    assert session.duel.winner == alice.id
+
+    results = session.results_payload()
+    assert results["mode"] == "DUEL"
+    assert results["winner"] == alice.id
+    assert not results["draw"]
+    assert {p["id"] for p in results["players"]} == {alice.id, bob.id}
+
+    bob_board = results["boards"][bob.id]  # le plateau de bob, qu'alice devait trouver
+    assert len(bob_board["board"]) == 5
+    assert bob_board["found"] == [True] * 5  # dernier essai d'alice = juste
+    assert bob_board["found_count"] == 5
+    assert bob_board["guess"] == correct_guess  # la dernière proposition d'alice contre bob
+
+    alice_board = results["boards"][alice.id]  # bob n'a jamais proposé contre alice
+    assert alice_board["guess"] == []
+    assert alice_board["found"] == [False] * 5
+    assert alice_board["found_count"] == 0
+
+
 def test_place_piece_before_start_raises() -> None:
     room = Room(code="ABCDE", game="orapa_mine", mode=RoomMode.DUEL, max_players=2)
     alice = room.add_player("Alice")
@@ -194,6 +241,34 @@ def test_fouille_full_flow() -> None:
     # personne (l'exception vient directement du moteur, voir fouille.py).
     with pytest.raises(FouilleError):
         session.ask_peek(bob.id, (0, 0))
+
+
+def test_fouille_results_payload_after_win() -> None:
+    room = Room(code="ABCDE", game="orapa_mine", mode=RoomMode.FOUILLE, max_players=2)
+    alice = room.add_player("Alice")
+    bob = room.add_player("Bob")
+    session = OrapaMineSession(room, BoardDimensions(width=9, height=9))
+    session.start()
+
+    # Alice a rejoint en premier -> premier tour (voir `OrapaMineSession.start`).
+    wrong_guess = [piece_to_payload(Piece.normal(PieceShape.RHOMBUS, Color.RED, origin=(0, 0)))]
+    session.submit_solution(alice.id, wrong_guess)  # 1er essai d'alice, faux -> continue
+    assert not session.fouille.finished
+
+    correct_guess = [piece_to_payload(p) for p in session.fouille.board.pieces()]
+    session.submit_solution(bob.id, correct_guess)
+    assert session.fouille.finished
+    assert session.fouille.winner == bob.id
+
+    results = session.results_payload()
+    assert results["mode"] == "FOUILLE"
+    assert results["winner"] == bob.id
+    assert len(results["board"]) == 5
+    assert results["results"][bob.id]["guess"] == correct_guess
+    assert results["results"][bob.id]["found"] == [True] * 5
+    assert results["results"][bob.id]["found_count"] == 5
+    assert results["results"][alice.id]["guess"] == wrong_guess
+    assert results["results"][alice.id]["found_count"] < 5
 
 
 def test_fouille_solo_flow() -> None:

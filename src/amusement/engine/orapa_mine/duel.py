@@ -11,25 +11,25 @@ positionner ses repères, pas à enchaîner d'autres questions ; seule
 `pass_turn` fait effectivement passer la main (bouton "Terminer mon
 tour" côté client, ou expiration du chrono côté serveur), ce qui
 réarme aussi le droit à une nouvelle question pour le tour suivant.
-Règles de fin de partie reprises du livret :
 
-- une proposition erronée fait perdre immédiatement son auteur ;
-- une proposition correcte du joueur qui N'A PAS débuté la partie le
-  fait gagner immédiatement ;
-- une proposition correcte du joueur qui A débuté la partie ne gagne pas
-  tout de suite : son adversaire a encore UN tour pour proposer à son
-  tour. S'il se trompe (ou n'utilise pas ce tour pour proposer, voir
-  ci-dessous), la victoire du premier joueur est confirmée. S'il devine
-  juste, la partie se termine sur une égalité.
+Règles de fin de partie (retour utilisateur direct — alignées sur le
+mode Fouille, "peu importe le mode de jeu, je peux faire deux
+propositions") :
 
-Interprétation retenue pour « il a encore un tour » : ce tour se termine
-comme n'importe quel autre (`pass_turn`, volontaire ou par expiration du
-chrono) — poser des questions pendant ce tour ne le consomme plus (voir
-ci-dessus), mais s'il se termine sans proposition correcte, la victoire
-du premier joueur est confirmée.
-
-Demander confirmation d'une réponse déjà donnée ne consomme pas de tour
-(`replay`), conformément au livret.
+- une proposition correcte fait gagner immédiatement son auteur ;
+- une proposition erronée ne fait PAS perdre tout de suite : il faut se
+  tromper deux fois pour être éliminé (`eliminated`) — définitivement
+  incapable de gagner, mais peut continuer à poser des questions
+  (purement pour le plaisir/la déduction, voir `_require_current_prospector`
+  — en pratique bloqué aussi, comme en Fouille : un joueur éliminé ne
+  peut plus rien faire) ;
+- soumettre une proposition (juste ou fausse) termine le tour de son
+  auteur, comme `pass_turn` — SAUF si elle est juste (la partie est
+  alors terminée, plus de tour à donner) ;
+- une fois l'un des deux éliminé, l'autre garde la main en continu (il
+  n'y a que 2 joueurs, personne d'autre à qui passer le relai) ;
+- si les deux sont éliminés, la partie se termine sur une égalité
+  (`draw`) — ni l'un ni l'autre n'a trouvé.
 """
 
 from __future__ import annotations
@@ -68,10 +68,14 @@ class DuelGame:
     draw: bool = field(default=False, init=False)
     log: list[LogEntry] = field(default_factory=list, init=False)
     # Une seule question par tour (voir docstring du module) — remis à
-    # `False` à chaque vrai changement de tour (voir `_consume_turn` et
-    # la branche correspondante de `submit_solution`).
+    # `False` à chaque vrai changement de tour (voir `_consume_turn`).
     asked_this_turn: bool = field(default=False, init=False)
-    _awaiting_final_guess_from: str | None = field(default=None, init=False)
+    _wrong_attempts: dict[str, int] = field(init=False)
+    eliminated: set[str] = field(default_factory=set, init=False)
+    # Dernière proposition soumise par chaque joueur (voir l'écran de
+    # résultats, `OrapaMineSession.results_payload`) — écrasée à chaque
+    # nouvel essai, seule la plus récente compte pour l'affichage.
+    last_guess: dict[str, list[Piece]] = field(default_factory=dict, init=False)
 
     def __post_init__(self) -> None:
         if self.starting_player not in self.players:
@@ -79,6 +83,7 @@ class DuelGame:
         if set(self.boards) != set(self.players):
             raise ValueError("boards doit contenir exactement un plateau par joueur.")
         self.current_prospector = self.starting_player
+        self._wrong_attempts = {p: 0 for p in self.players}
 
     def _opponent(self, player: str) -> str:
         a, b = self.players
@@ -87,6 +92,8 @@ class DuelGame:
     def _require_current_prospector(self, player: str) -> None:
         if self.finished:
             raise DuelError("La partie est terminée.")
+        if player in self.eliminated:
+            raise DuelError(f"{player} est éliminé.")
         if player != self.current_prospector:
             raise DuelError(f"Ce n'est pas le tour de {player}.")
 
@@ -128,51 +135,38 @@ class DuelGame:
         """Termine volontairement le tour de `player` sans poser de
         question ni proposer de solution — bouton "Terminer mon tour"
         côté client, ou forcé par le serveur quand le chrono de tour
-        expire (voir `amusement.api.game_session`). Consomme le tour
-        exactement comme une question normale (même cas particulier de
-        fin de partie, voir `_consume_turn`)."""
+        expire (voir `amusement.api.game_session`)."""
         self._require_current_prospector(player)
         self._consume_turn(player)
 
     def _consume_turn(self, player: str) -> None:
-        if self._awaiting_final_guess_from == player:
-            # L'adversaire du premier joueur avait un unique tour pour
-            # proposer une solution ; il ne l'a pas fait (question
-            # normale à la place) : la victoire du premier joueur est
-            # confirmée (voir docstring du module).
-            self.finished = True
-            self.winner = self._opponent(player)
-            return
-        self.current_prospector = self._opponent(self.current_prospector)
         self.asked_this_turn = False
+        opponent = self._opponent(player)
+        # Une fois l'un des deux éliminé, l'autre garde la main en continu
+        # (voir docstring du module) : alterner reviendrait sinon à
+        # donner la main à un joueur qui ne peut plus rien faire, ce qui
+        # bloquerait la partie.
+        self.current_prospector = player if opponent in self.eliminated else opponent
 
     def submit_solution(self, player: str, guess: list[Piece]) -> None:
         """Utilise le tour de prospecteur de `player` pour soumettre une
-        proposition complète du plateau adverse."""
+        proposition complète du plateau adverse — voir les règles de fin
+        de partie dans la docstring du module."""
         self._require_current_prospector(player)
         opponent = self._opponent(player)
+        self.last_guess[player] = guess
         correct = check_solution(self.boards[opponent], guess)
 
-        if self._awaiting_final_guess_from == player:
-            self.finished = True
-            if correct:
-                self.draw = True
-            else:
-                self.winner = opponent  # = starting_player
-            return
-
-        if not correct:
-            self.finished = True
-            self.winner = opponent
-            return
-
-        if player != self.starting_player:
+        if correct:
             self.finished = True
             self.winner = player
             return
 
-        # Le joueur qui a débuté devine juste en premier : l'adversaire a
-        # encore un tour pour proposer à son tour.
-        self.current_prospector = opponent
-        self._awaiting_final_guess_from = opponent
-        self.asked_this_turn = False
+        self._wrong_attempts[player] += 1
+        if self._wrong_attempts[player] >= 2:
+            self.eliminated.add(player)
+        self._consume_turn(player)
+
+        if len(self.eliminated) == len(self.players):
+            self.finished = True
+            self.draw = True

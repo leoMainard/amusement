@@ -241,8 +241,12 @@ export class BoardScene {
     (mesh.material as THREE.Material).dispose();
   }
 
-  /** Remplace toutes les pièces affichées par `pieces`. */
-  setPieces(pieces: Piece[]): void {
+  /** Remplace toutes les pièces affichées par `pieces`. `found`, si
+   * fourni, teinte chaque pièce en vert (trouvée) ou rouge (manquée) —
+   * écran de résultats (retour utilisateur direct : "l'ensemble des
+   * pièces avec marqué trouvé ou manqué en rouge ou en vert"), absent
+   * sinon (rendu normal, couleur propre de la pièce). */
+  setPieces(pieces: Piece[], found?: Map<Piece, boolean>): void {
     for (const mesh of this.pieceMeshes.values()) {
       this.pieceGroup.remove(mesh);
       this.disposePieceMesh(mesh);
@@ -256,9 +260,35 @@ export class BoardScene {
     for (const piece of pieces) {
       const mesh = this.buildPieceMesh(piece, "solid");
       mesh.userData.piece = piece;
+      const status = found?.get(piece);
+      if (status !== undefined) {
+        const material = mesh.material as THREE.MeshPhysicalMaterial;
+        const tint = new THREE.Color(status ? 0x2ecc71 : 0xe74c3c);
+        material.color.lerp(tint, 0.6);
+        material.emissive = tint;
+        material.emissiveIntensity = 0.3;
+      }
       this.pieceGroup.add(mesh);
       this.pieceMeshes.set(piece, mesh);
     }
+  }
+
+  /** Écran de résultats (retour utilisateur direct) : plateau consultable
+   * (glisser/zoomer reste possible) mais rien à y poser/interroger —
+   * `false` désactive aussi la rotation manuelle, pour un plateau
+   * purement décoratif qui tourne tout seul (voir `setAutoRotate`). */
+  setInteractive(enabled: boolean): void {
+    this.controls.enabled = enabled;
+  }
+
+  /** Légère rotation automatique autour du plateau (écran de résultats,
+   * retour utilisateur direct — "il tournera légèrement sur lui-même
+   * avec les pièces"), portée par `OrbitControls` lui-même : `tick`
+   * appelle déjà `controls.update()` à chaque frame, donc rien d'autre à
+   * faire ici. */
+  setAutoRotate(enabled: boolean): void {
+    this.controls.autoRotate = enabled;
+    this.controls.autoRotateSpeed = 1.6;
   }
 
   /** Affiche (ou met à jour) une pièce fantôme semi-transparente — la
