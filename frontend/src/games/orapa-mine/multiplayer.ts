@@ -264,7 +264,7 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
           <section class="orapa-mp__panel">
             <h3>Code de la partie</h3>
             <button type="button" class="orapa-mp__code" title="Copier le code" ${created || previewCode ? "" : "disabled"}>${created ? room!.code : (previewCode ?? "···")}</button>
-            <input type="text" readonly class="orapa-mp__code-fallback" value="${created ? room!.code : (previewCode ?? "")}" />
+            <p class="orapa-mp__code-hint" aria-live="polite"></p>
             ${
               created && room
                 ? `
@@ -330,27 +330,31 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
       const errorHost = host.querySelector<HTMLParagraphElement>(".orapa-mp__error")!;
 
       // Le code (aperçu ou réel une fois rejoint) est toujours cliquable
-      // pour le copier — `codeFallbackInput` (invisible) sert seulement
-      // de cible de secours à `copyToClipboard` si `navigator.clipboard`
-      // est indisponible (voir sa docstring).
+      // pour le copier — repli sur le texte du bouton lui-même (voir
+      // `copyToClipboard`/`selectText`) si `navigator.clipboard` est
+      // indisponible.
       const codeButton = host.querySelector<HTMLButtonElement>(".orapa-mp__code")!;
-      const codeFallbackInput = host.querySelector<HTMLInputElement>(".orapa-mp__code-fallback")!;
+      const codeHint = host.querySelector<HTMLParagraphElement>(".orapa-mp__code-hint")!;
       const currentCode = created && room ? room.code : previewCode;
       if (currentCode) {
         const originalCodeLabel = codeButton.textContent ?? currentCode;
         codeButton.addEventListener("click", async () => {
-          const copied = await copyToClipboard(currentCode, codeFallbackInput);
-          // Retour utilisateur direct : "le copier-coller du code ne
-          // fonctionne pas" — en échec, la version précédente réaffichait
-          // silencieusement le code sans rien indiquer (contrairement au
-          // bouton "Copier le lien", qui a toujours eu ce filet de
-          // sécurité). Même filet ici : le code reste sélectionné dans
-          // `codeFallbackInput` (déjà fait par `copyToClipboard`), un
-          // Ctrl+C manuel fonctionne donc tout de suite après ce message.
-          codeButton.textContent = copied ? "Copié !" : "Sélectionné — Ctrl+C pour copier";
-          setTimeout(() => {
-            codeButton.textContent = originalCodeLabel;
-          }, 2000);
+          const copied = await copyToClipboard(currentCode, codeButton);
+          if (copied) {
+            codeButton.textContent = "Copié !";
+            setTimeout(() => {
+              codeButton.textContent = originalCodeLabel;
+            }, 2000);
+          } else {
+            // Ne touche pas au texte du bouton : le repli vient de
+            // sélectionner CE texte pour un Ctrl+C manuel (voir
+            // `selectText`) — le remplacer casserait la sélection avant
+            // que l'utilisateur ait pu copier.
+            codeHint.textContent = "Sélectionné — Ctrl+C pour copier";
+            setTimeout(() => {
+              codeHint.textContent = "";
+            }, 3000);
+          }
         });
       }
 
@@ -965,7 +969,7 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
     const results = lastGameResults;
     if (!results) return "";
     if (results.mode === "DUEL" && results.draw) return "Match nul !";
-    if (results.winner === playerId) return "🎉 Tu as gagné !";
+    if (results.winner === playerId) return "Tu as gagné !";
     if (results.winner) {
       const name = results.players.find((p) => p.id === results.winner)?.name ?? results.winner;
       return `${escapeHtml(name)} a gagné.`;
@@ -989,9 +993,8 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
         <div class="orapa-results__pieces"></div>
         <div class="orapa-results__counts"></div>
         <div class="orapa-results__actions">
-          <button type="button" class="orapa-results__reveal">Revoir la révélation</button>
           <button type="button" class="orapa-results__rematch">Rejouer</button>
-          <button type="button" class="orapa-results__back">Retour au jeu</button>
+          <button type="button" class="orapa-results__back">Retour aux jeux</button>
         </div>
       </div>
     `;
@@ -1014,13 +1017,6 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
 
     host.querySelector<HTMLParagraphElement>(".orapa-results__outcome")!.textContent = resultsOutcomeText();
 
-    host.querySelector<HTMLButtonElement>(".orapa-results__reveal")!.addEventListener("click", () => {
-      // Rejoue simplement l'apparition des pièces (retour utilisateur
-      // direct — "revoir la révélation") : pas besoin de redemander quoi
-      // que ce soit au serveur, tout est déjà côté client.
-      scene?.setPieces([]);
-      setTimeout(() => renderResultsView(host), 400);
-    });
     host.querySelector<HTMLButtonElement>(".orapa-results__rematch")!.addEventListener("click", () => {
       // Repart de zéro dans CE même salon/écran (retour utilisateur
       // direct — "rejouer") : ferme la connexion en cours, oublie tout
@@ -1034,7 +1030,7 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
       render();
     });
     host.querySelector<HTMLButtonElement>(".orapa-results__back")!.addEventListener("click", () => {
-      // "Retour au jeu" = retour au portail (retour utilisateur direct) —
+      // "Retour aux jeux" = retour au portail (retour utilisateur direct) —
       // réutilise la navigation déjà branchée dans le chrome de la page
       // plutôt que de dupliquer sa logique ici.
       document.querySelector<HTMLButtonElement>("[data-go-home]")?.click();
@@ -1067,14 +1063,19 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
 
     if (results.mode === "DUEL" && results.boards) {
       const [a, b] = results.players;
-      if (!resultsBoardOwner) resultsBoardOwner = b?.id ?? a?.id ?? null;
+      // Fixe par rapport à MOI, jamais recalculé par rapport à la vue en
+      // cours (bug corrigé — retour utilisateur direct : "Plateau
+      // adverse" ne devenait jamais doré) : l'adversaire, en Duel, est
+      // toujours le même joueur, peu importe quel plateau est affiché.
+      const opponentId = results.players.find((p) => p.id !== playerId)?.id ?? "";
+      if (!resultsBoardOwner) resultsBoardOwner = opponentId || playerId;
       const ownerId = resultsBoardOwner!;
       const view = results.boards[ownerId]!;
       const isMine = ownerId === playerId;
 
       controlsHost.innerHTML = `
         <div class="orapa-results__board-switch">
-          <button type="button" class="orapa-results__board-btn" data-owner="${escapeHtml(results.players.find((p) => p.id !== ownerId)?.id ?? "")}">Plateau adverse</button>
+          <button type="button" class="orapa-results__board-btn" data-owner="${escapeHtml(opponentId)}">Plateau adverse</button>
           <button type="button" class="orapa-results__board-btn" data-owner="${escapeHtml(playerId)}">Mon plateau</button>
         </div>
         <button type="button" class="orapa-results__guess-toggle">
@@ -1099,10 +1100,9 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
 
       const aView = results.boards[a!.id]!;
       const bView = results.boards[b!.id]!;
-      countsHost.innerHTML = `
-        <p class="${results.winner === b!.id ? "is-best" : ""}"><strong>${escapeHtml(nameOf(b!.id))}</strong> a trouvé ${aView.found_count}/5 des gemmes de ${escapeHtml(nameOf(a!.id))}.</p>
-        <p class="${results.winner === a!.id ? "is-best" : ""}"><strong>${escapeHtml(nameOf(a!.id))}</strong> a trouvé ${bView.found_count}/5 des gemmes de ${escapeHtml(nameOf(b!.id))}.</p>
-      `;
+      countsHost.innerHTML =
+        resultsCountRowHtml(nameOf(b!.id), aView.found_count, b!.id === playerId, results.winner === b!.id) +
+        resultsCountRowHtml(nameOf(a!.id), bView.found_count, a!.id === playerId, results.winner === a!.id);
       return;
     }
 
@@ -1126,27 +1126,62 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
       renderResultsPieceList(piecesHost, results.board, active?.found ?? results.board.map(() => false));
 
       countsHost.innerHTML = results.players
-        .map(
-          (p) =>
-            `<p class="${p.id === results.winner ? "is-best" : ""}"><strong>${escapeHtml(p.name)}</strong> a trouvé ${results.results![p.id]?.found_count ?? 0}/5 gemmes.</p>`,
-        )
+        .map((p) => resultsCountRowHtml(p.name, results.results![p.id]?.found_count ?? 0, p.id === playerId, p.id === results.winner))
         .join("");
     }
   }
 
+  /** Une ligne du récapitulatif des scores (retour utilisateur direct —
+   * "Joueur 2   5/5" plutôt qu'une phrase complète) : triangle doré pour
+   * MOI, bleu pour un adversaire — même code couleur que le reste de
+   * l'écran de jeu (chronos, bordure "en attente"...). */
+  function resultsCountRowHtml(name: string, count: number, isMe: boolean, isBest: boolean): string {
+    const roleClass = isMe ? "is-me" : "is-opponent";
+    return `
+      <div class="orapa-results__count ${roleClass}${isBest ? " is-best" : ""}">
+        <span class="orapa-results__count-marker"></span>
+        <span class="orapa-results__count-name">${escapeHtml(name)}</span>
+        <span class="orapa-results__count-score">${count}/5</span>
+      </div>
+    `;
+  }
+
+  // Incrémenté à chaque appel d'`applyResultsBoard` : annule les
+  // `setTimeout` d'une révélation précédente encore en vol si on
+  // rebascule de vue avant qu'elle finisse (retour utilisateur direct —
+  // "ajoute une animation... pour que la révélation soit plus stylée" :
+  // sans ce garde-fou, une ancienne pose différée pourrait s'appliquer
+  // après la nouvelle vue et mélanger les deux plateaux).
+  let resultsRevealGeneration = 0;
+
   /** Affiche `boardPayload` (plateau réel) sur `scene`, dans leurs
    * couleurs normales — pas de vert/rouge sur les pièces elles-mêmes
    * (retour utilisateur direct, voir `renderResultsPieceList` pour le
-   * trouvé/manqué). `guessPayload`, si fourni, se superpose en
+   * trouvé/manqué) — posées une à une plutôt que d'un coup, pour un effet
+   * de révélation. `guessPayload`, si fourni, se superpose ensuite en
    * légèrement transparent pour se distinguer des vraies pièces (voir
    * `BoardScene.addReflectionPiece`, déjà conçu pour ça). */
   function applyResultsBoard(boardPayload: Record<string, unknown>[], guessPayload: Record<string, unknown>[] | null): void {
     if (!scene) return;
     const pieces = boardPayload.map((p) => pieceFromPayload(p));
-    scene.setPieces(pieces);
+    const myGeneration = ++resultsRevealGeneration;
+    scene.setPieces([]);
     scene.clearReflectionPieces();
+    const REVEAL_STEP_MS = 220;
+    pieces.forEach((_piece, i) => {
+      setTimeout(() => {
+        if (myGeneration !== resultsRevealGeneration || !scene) return;
+        scene!.setPieces(pieces.slice(0, i + 1));
+      }, i * REVEAL_STEP_MS);
+    });
     if (guessPayload) {
-      for (const payload of guessPayload) scene.addReflectionPiece(pieceFromPayload(payload));
+      setTimeout(
+        () => {
+          if (myGeneration !== resultsRevealGeneration || !scene) return;
+          for (const payload of guessPayload) scene.addReflectionPiece(pieceFromPayload(payload));
+        },
+        pieces.length * REVEAL_STEP_MS + 200,
+      );
     }
   }
 
@@ -1155,10 +1190,13 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
       .map((payload, i) => {
         const piece = pieceFromPayload(payload);
         const isFound = found[i] ?? false;
-        const icon = pieceIconSvg(piece.shape, piece.color, 34, piece.kind, piece.rotationSteps, piece.mirrored);
+        const icon = pieceIconSvg(piece.shape, piece.color, 52, piece.kind, piece.rotationSteps, piece.mirrored);
+        const entry = BASE_PIECE_PALETTE.find((e) => e.shape === piece.shape && e.color === piece.color);
+        const name = entry?.label ?? "Gemme";
         return `
           <div class="orapa-results__piece ${isFound ? "is-found" : "is-missed"}">
             <span class="orapa-results__piece-icon">${icon}</span>
+            <span class="orapa-results__piece-name">${escapeHtml(name)}</span>
             <span class="orapa-results__piece-label">${isFound ? "Trouvée" : "Manquée"}</span>
           </div>
         `;
@@ -1511,15 +1549,37 @@ function colorizePeekResult(text: string): string {
   return text;
 }
 
+/** Sélectionne le texte de `target` pour un `execCommand("copy")` — via
+ * `.select()` pour un champ, sinon via l'API `Selection`/`Range` (retour
+ * utilisateur direct : "quand je clique sur le code, il n'est pas
+ * copié" — le bouton "Copier le code" utilisait un `<input>` invisible
+ * hors-écran comme cible de repli, contrairement à "Copier le lien" qui
+ * sélectionne un champ bien VISIBLE ; certains navigateurs refusent de
+ * donner le focus/la sélection à un champ effectivement invisible,
+ * faisant silencieusement échouer tout le repli. Sélectionner l'élément
+ * visible directement (le bouton lui-même, `user-select: all` en CSS)
+ * élimine ce problème plutôt que de le contourner au cas par cas). */
+function selectText(target: HTMLElement): void {
+  if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) {
+    target.focus();
+    target.select();
+    return;
+  }
+  const range = document.createRange();
+  range.selectNodeContents(target);
+  const selection = window.getSelection();
+  selection?.removeAllRanges();
+  selection?.addRange(range);
+}
+
 /** `navigator.clipboard` n'existe que dans un contexte sécurisé (HTTPS
  * ou `localhost`) — absent (ou qui lève) sur une IP locale en HTTP
- * (test sur le même Wi-Fi, voir README) ou un tunnel sans TLS, d'où le
- * bouton "Copier le lien" silencieusement inopérant rapporté par
- * l'utilisateur. Repli sur `execCommand("copy")` (déprécié mais encore
- * largement supporté, exactement pour ce cas) ; si les deux échouent,
- * sélectionne au moins le texte dans `fallbackInput` pour un Ctrl+C
- * manuel. Renvoie `true` seulement si une vraie copie a eu lieu. */
-async function copyToClipboard(text: string, fallbackInput: HTMLInputElement): Promise<boolean> {
+ * (test sur le même Wi-Fi, voir README) ou un tunnel sans TLS. Repli sur
+ * `execCommand("copy")` (déprécié mais encore largement supporté,
+ * exactement pour ce cas) ; si les deux échouent, sélectionne au moins
+ * le texte de `fallbackTarget` pour un Ctrl+C manuel (voir `selectText`).
+ * Renvoie `true` seulement si une vraie copie a eu lieu. */
+async function copyToClipboard(text: string, fallbackTarget: HTMLElement): Promise<boolean> {
   if (navigator.clipboard?.writeText) {
     try {
       await navigator.clipboard.writeText(text);
@@ -1528,8 +1588,7 @@ async function copyToClipboard(text: string, fallbackInput: HTMLInputElement): P
       // repli ci-dessous
     }
   }
-  fallbackInput.focus();
-  fallbackInput.select();
+  selectText(fallbackTarget);
   try {
     if (document.execCommand("copy")) return true;
   } catch {

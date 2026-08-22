@@ -1818,18 +1818,11 @@ kbd {
   cursor: default;
 }
 
-/* Cible de secours invisible pour `copyToClipboard` (voir sa docstring
-   dans multiplayer.ts) — reste dans la mise en page (pas `display: none`)
-   pour rester focalisable/sélectionnable, juste hors champ visuel. */
-.orapa-mp__code-fallback {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  border: 0;
-  opacity: 0;
+.orapa-mp__code-hint {
+  margin: 4px 0 0;
+  min-height: 1.2em;
+  font-size: 12.5px;
+  color: var(--om-gold);
 }
 
 .orapa-mp__wait-text {
@@ -2059,15 +2052,50 @@ kbd {
   font-size: 13px;
 }
 
+/* Chaque carte apparaît en fondu/glissement à son tour (retour
+ * utilisateur direct — "ajoute une animation... sur l'affichage des
+ * pièces trouvées/manquées") : `renderResultsPieceList` reconstruit ces
+ * 5 cartes à chaque rendu (bascule de vue comprise), donc l'animation
+ * rejoue à chaque fois, sans bouton "revoir" dédié. */
 .orapa-results__piece {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 8px;
-  padding: 14px 10px;
+  padding: 18px 10px;
   border-radius: 14px;
   background: var(--om-panel);
   border: 1px solid var(--om-border);
+  opacity: 0;
+  transform: translateY(14px);
+  animation: orapa-results-piece-in 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+
+@keyframes orapa-results-piece-in {
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.orapa-results__piece:nth-child(1) {
+  animation-delay: 0.1s;
+}
+
+.orapa-results__piece:nth-child(2) {
+  animation-delay: 0.3s;
+}
+
+.orapa-results__piece:nth-child(3) {
+  animation-delay: 0.5s;
+}
+
+.orapa-results__piece:nth-child(4) {
+  animation-delay: 0.7s;
+}
+
+.orapa-results__piece:nth-child(5) {
+  animation-delay: 0.9s;
 }
 
 /* Cette carte 2D (légende, pas le plateau 3D — voir `applyResultsBoard`)
@@ -2080,6 +2108,14 @@ kbd {
 
 .orapa-results__piece.is-missed {
   border-color: rgba(216, 68, 60, 0.5);
+}
+
+.orapa-results__piece-name {
+  margin-top: 2px;
+  font-size: 12.5px;
+  line-height: 1.3;
+  text-align: center;
+  color: var(--om-text-2);
 }
 
 .orapa-results__piece-label {
@@ -2104,34 +2140,68 @@ kbd {
   gap: 12px;
 }
 
-.orapa-results__counts p {
-  margin: 0;
+/* "Joueur 2   5/5" (retour utilisateur direct, plutôt qu'une phrase
+ * complète) : triangle doré pour MOI, bleu pour un adversaire — bordure
+ * de la carte bleue également pour un adversaire, même logique de
+ * couleurs que le reste de l'écran de jeu (chronos, bloc "en attente"). */
+.orapa-results__count {
+  display: flex;
+  align-items: center;
+  gap: 12px;
   padding: 14px 16px;
   border-radius: 12px;
   background: var(--om-panel-soft);
   border: 1px solid var(--om-border-soft);
-  font-size: 13.5px;
-  color: var(--om-text-3);
 }
 
-.orapa-results__counts strong {
+.orapa-results__count.is-opponent {
+  border-color: rgba(47, 111, 208, 0.45);
+}
+
+.orapa-results__count-marker {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+}
+
+.orapa-results__count.is-me .orapa-results__count-marker {
+  background: var(--om-gold);
+}
+
+.orapa-results__count.is-opponent .orapa-results__count-marker {
+  background: var(--om-blue);
+}
+
+.orapa-results__count-name {
+  flex: 1;
+  font-family: "Chakra Petch", sans-serif;
+  font-size: 14px;
+  letter-spacing: 0.02em;
+  color: var(--om-text-2);
+}
+
+.orapa-results__count-score {
+  font-family: "Chakra Petch", sans-serif;
+  font-weight: 700;
+  font-size: 20px;
   color: var(--om-text);
 }
 
 /* Le joueur (ou l'équipe) qui a trouvé le plus de gemmes ressort en or —
  * pas forcément le "gagnant" au sens strict (Fouille à plusieurs), juste
  * qui s'en est le mieux sorti. */
-.orapa-results__counts p.is-best {
+.orapa-results__count.is-best {
   background: linear-gradient(180deg, rgba(242, 194, 75, 0.16) 0%, rgba(11, 19, 48, 0.6) 100%);
   border-color: rgba(242, 194, 75, 0.4);
 }
 
-.orapa-results__counts p.is-best strong {
+.orapa-results__count.is-best .orapa-results__count-score {
   color: var(--om-gold);
 }
 
-/* Trois boutons en majuscules (retour utilisateur direct) — celui du
- * milieu ("Rejouer") ressort en or, les deux autres restent neutres. */
+/* Deux boutons en majuscules (retour utilisateur direct) — "Rejouer"
+ * ressort en or, l'autre reste neutre. */
 .orapa-results__actions {
   margin-top: 22px;
   display: flex;
@@ -2165,8 +2235,15 @@ kbd {
   color: var(--om-surface);
 }
 
+/* `color` explicite ici (pas seulement hérité de `.orapa-results__rematch`
+ * de base) : sans ça, la règle générale `.orapa-results__actions
+ * button:hover` (spécificité plus faible mais seule à fixer `color`)
+ * l'emportait sur `color`, laissant un texte clair illisible sur le
+ * fond doré au survol (retour utilisateur direct — bug corrigé). */
 .orapa-results__actions .orapa-results__rematch:hover {
   background: var(--om-gold-hover);
+  border-color: var(--om-gold-hover);
+  color: var(--om-surface);
 }
 
 .orapa-mp__wait {
