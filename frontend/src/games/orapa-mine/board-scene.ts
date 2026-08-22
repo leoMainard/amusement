@@ -58,8 +58,29 @@ const HOVER_LERP_SPEED = 0.22;
 // que de s'arrêter pile dessus — retour utilisateur direct ("il y a un
 // léger espace actuellement").
 const ENTRY_TOUCH_OFFSET = 0.15;
+// Une pièce "reflection" (repère personnel pendant une partie, ou
+// proposition affichée sur l'écran de résultats) flotte nettement
+// au-dessus du plateau plutôt que de reposer au ras des cases (retour
+// utilisateur direct — "trouve un moyen de rendre les pièces de
+// proposition plus différenciables des pièces originales" : la
+// transparence seule ne suffisait pas) — les vraies pièces, elles,
+// restent posées à même le plateau.
+const REFLECTION_HOVER_Y = 0.4;
+// Chute des pièces à l'apparition de l'écran de résultats (retour
+// utilisateur direct — "je préférerais qu'elles tombent du ciel") : voir
+// `setPiecesWithDropAnimation`/`tick`.
+const DROP_HEIGHT = 6;
+const DROP_DURATION_MS = 650;
 
 type PieceMeshStyle = "solid" | "ghost" | "reflection";
+
+interface DropAnimation {
+  mesh: THREE.Mesh;
+  fromY: number;
+  toY: number;
+  startTime: number;
+  duration: number;
+}
 
 // Reprises de la maquette Claude Design (`claude_design/orapa-board.js`,
 // table `COLOR_RESULTS`) — mêmes teintes que les gemmes elles-mêmes
@@ -109,6 +130,9 @@ export class BoardScene {
 
   private pieceGroup = new THREE.Group();
   private pieceMeshes = new Map<Piece, THREE.Mesh>();
+  // Chute animée des pièces (voir `setPiecesWithDropAnimation`/`tick`) —
+  // traitée à chaque frame, vidée pièce par pièce une fois arrivée.
+  private dropAnimations: DropAnimation[] = [];
   private ghostMesh: THREE.Mesh | null = null;
   private ghostValid = true;
   private rayGroup = new THREE.Group();
@@ -252,6 +276,9 @@ export class BoardScene {
       this.disposePieceMesh(mesh);
     }
     this.pieceMeshes.clear();
+    // Une chute encore en vol référencerait des maillages qu'on vient de
+    // jeter (voir `disposePieceMesh` ci-dessus) — `tick` y toucherait sinon.
+    this.dropAnimations = [];
     // Les maillages ci-dessus disparaissent : toute référence à l'un
     // d'eux pour la surbrillance "retirer" serait périmée.
     this.removeHighlightMesh = null;
@@ -271,6 +298,42 @@ export class BoardScene {
       this.pieceGroup.add(mesh);
       this.pieceMeshes.set(piece, mesh);
     }
+  }
+
+  /** Comme `setPieces`, mais chaque pièce "tombe du ciel" jusqu'à sa
+   * position finale plutôt que d'apparaître directement posée (retour
+   * utilisateur direct, écran de résultats) — échelonnées par
+   * `staggerMs` pour un effet de pluie de gemmes plutôt qu'une chute
+   * groupée. La rotation du maillage (`mesh.rotation.x`, posée par
+   * `buildPieceMesh`) ne change pas : seule sa hauteur (`position.y`,
+   * dans le repère du monde puisque `pieceGroup` lui-même n'est pas
+   * tourné) est animée, voir `tick`. */
+  setPiecesWithDropAnimation(pieces: Piece[], staggerMs: number = 160): void {
+    for (const mesh of this.pieceMeshes.values()) {
+      this.pieceGroup.remove(mesh);
+      this.disposePieceMesh(mesh);
+    }
+    this.pieceMeshes.clear();
+    this.dropAnimations = [];
+    this.removeHighlightMesh = null;
+    this.removeHighlightOriginalColor = null;
+
+    const now = performance.now();
+    pieces.forEach((piece, i) => {
+      const mesh = this.buildPieceMesh(piece, "solid");
+      mesh.userData.piece = piece;
+      const restY = mesh.position.y;
+      mesh.position.y = restY + DROP_HEIGHT;
+      this.pieceGroup.add(mesh);
+      this.pieceMeshes.set(piece, mesh);
+      this.dropAnimations.push({
+        mesh,
+        fromY: mesh.position.y,
+        toY: restY,
+        startTime: now + i * staggerMs,
+        duration: DROP_DURATION_MS,
+      });
+    });
   }
 
   /** Écran de résultats (retour utilisateur direct) : plateau consultable
@@ -685,7 +748,12 @@ export class BoardScene {
       clearcoat: isBlackBody ? 0 : isDiamond ? 0.9 : 0.65,
       clearcoatRoughness: 0.12,
       emissive: isBlackBody ? 0x000000 : color,
-      emissiveIntensity: isBlackBody ? 0 : isDiamond ? 0.08 : 0.22,
+      // Une pièce "reflection" (repère personnel, ou proposition affichée
+      // sur l'écran de résultats) brille nettement plus que son
+      // équivalent posé — voir aussi `REFLECTION_HOVER_Y` ci-dessous : la
+      // transparence seule ne suffisait pas à la distinguer d'une vraie
+      // pièce (retour utilisateur direct).
+      emissiveIntensity: isBlackBody ? 0 : isReflection ? 0.55 : isDiamond ? 0.08 : 0.22,
       flatShading: true,
       transparent,
       opacity,
@@ -693,6 +761,7 @@ export class BoardScene {
     if (isGhost) this.tintGhost(material);
     const mesh = new THREE.Mesh(geometry, material);
     mesh.rotation.x = -Math.PI / 2;
+    if (isReflection) mesh.position.y = REFLECTION_HOVER_Y;
     return mesh;
   }
 
@@ -827,9 +896,28 @@ export class BoardScene {
       if (p) this.rayDot.position.copy(p);
     }
 
+    if (this.dropAnimations.length > 0) {
+      const now = performance.now();
+      this.dropAnimations = this.dropAnimations.filter((anim) => {
+        if (now < anim.startTime) return true; // pas encore son tour (échelonnement)
+        const t = Math.min(1, (now - anim.startTime) / anim.duration);
+        anim.mesh.position.y = anim.fromY + (anim.toY - anim.fromY) * easeOutBack(t);
+        return t < 1;
+      });
+    }
+
     this.renderer.render(this.scene, this.camera);
     this.animationHandle = requestAnimationFrame(this.tick);
   };
+}
+
+/** Léger dépassement puis retour ("overshoot") — une pièce qui tombe se
+ * pose avec un petit rebond plutôt que de s'arrêter net, pour un
+ * atterrissage moins mécanique (voir `setPiecesWithDropAnimation`). */
+function easeOutBack(t: number): number {
+  const c1 = 1.70158;
+  const c3 = c1 + 1;
+  return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
 }
 
 function buildCrossMark(): THREE.Object3D {

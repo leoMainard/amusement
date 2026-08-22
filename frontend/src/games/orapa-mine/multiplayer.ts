@@ -989,6 +989,7 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
         <div class="orapa-results__board-frame">
           <div class="orapa-results__board"></div>
           <div class="orapa-results__board-controls"></div>
+          <button type="button" class="orapa-results__rotate-toggle" title="Arrêter la rotation">⏸</button>
         </div>
         <div class="orapa-results__pieces"></div>
         <div class="orapa-results__counts"></div>
@@ -1014,6 +1015,19 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
     scene.clearMarks();
     scene.clearMarkerColors();
     scene.clearRay();
+
+    // Petit bouton pour arrêter la rotation automatique (retour
+    // utilisateur direct) — bascule simple, pas besoin de suivre son
+    // propre état à part : `BoardScene.setAutoRotate` fait déjà tout,
+    // seul le texte/titre du bouton doit suivre.
+    let resultsAutoRotating = true;
+    const rotateToggle = host.querySelector<HTMLButtonElement>(".orapa-results__rotate-toggle")!;
+    rotateToggle.addEventListener("click", () => {
+      resultsAutoRotating = !resultsAutoRotating;
+      scene?.setAutoRotate(resultsAutoRotating);
+      rotateToggle.textContent = resultsAutoRotating ? "⏸" : "▶";
+      rotateToggle.title = resultsAutoRotating ? "Arrêter la rotation" : "Reprendre la rotation";
+    });
 
     host.querySelector<HTMLParagraphElement>(".orapa-results__outcome")!.textContent = resultsOutcomeText();
 
@@ -1146,41 +1160,39 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
     `;
   }
 
-  // Incrémenté à chaque appel d'`applyResultsBoard` : annule les
-  // `setTimeout` d'une révélation précédente encore en vol si on
-  // rebascule de vue avant qu'elle finisse (retour utilisateur direct —
-  // "ajoute une animation... pour que la révélation soit plus stylée" :
-  // sans ce garde-fou, une ancienne pose différée pourrait s'appliquer
-  // après la nouvelle vue et mélanger les deux plateaux).
+  // Incrémenté à chaque appel d'`applyResultsBoard` : annule le repli
+  // différé qui superpose la proposition (`setTimeout` ci-dessous) si on
+  // rebascule de vue avant qu'il se déclenche — sans ce garde-fou, un
+  // ancien réglage pourrait s'appliquer après la nouvelle vue et
+  // mélanger les deux plateaux. La chute des pièces elle-même n'a pas
+  // besoin de ce garde-fou : `BoardScene.setPiecesWithDropAnimation`
+  // vide ses propres animations en vol à chaque appel.
   let resultsRevealGeneration = 0;
 
   /** Affiche `boardPayload` (plateau réel) sur `scene`, dans leurs
    * couleurs normales — pas de vert/rouge sur les pièces elles-mêmes
    * (retour utilisateur direct, voir `renderResultsPieceList` pour le
-   * trouvé/manqué) — posées une à une plutôt que d'un coup, pour un effet
-   * de révélation. `guessPayload`, si fourni, se superpose ensuite en
-   * légèrement transparent pour se distinguer des vraies pièces (voir
-   * `BoardScene.addReflectionPiece`, déjà conçu pour ça). */
+   * trouvé/manqué) — tombant du ciel jusqu'à leur position plutôt que
+   * d'apparaître déjà posées (retour utilisateur direct, voir
+   * `BoardScene.setPiecesWithDropAnimation`). `guessPayload`, si fourni,
+   * se superpose ensuite, en flottant nettement au-dessus du plateau
+   * (voir `BoardScene`, style "reflection") pour bien se distinguer des
+   * vraies pièces, posées au ras des cases. */
   function applyResultsBoard(boardPayload: Record<string, unknown>[], guessPayload: Record<string, unknown>[] | null): void {
     if (!scene) return;
     const pieces = boardPayload.map((p) => pieceFromPayload(p));
     const myGeneration = ++resultsRevealGeneration;
-    scene.setPieces([]);
+    scene.setPiecesWithDropAnimation(pieces);
     scene.clearReflectionPieces();
-    const REVEAL_STEP_MS = 220;
-    pieces.forEach((_piece, i) => {
-      setTimeout(() => {
-        if (myGeneration !== resultsRevealGeneration || !scene) return;
-        scene!.setPieces(pieces.slice(0, i + 1));
-      }, i * REVEAL_STEP_MS);
-    });
     if (guessPayload) {
+      const DROP_STAGGER_MS = 160;
+      const DROP_DURATION_MS = 650;
       setTimeout(
         () => {
           if (myGeneration !== resultsRevealGeneration || !scene) return;
           for (const payload of guessPayload) scene.addReflectionPiece(pieceFromPayload(payload));
         },
-        pieces.length * REVEAL_STEP_MS + 200,
+        pieces.length * DROP_STAGGER_MS + DROP_DURATION_MS,
       );
     }
   }

@@ -2001,6 +2001,33 @@ kbd {
   gap: 8px;
 }
 
+/* En bas à droite du cadre plutôt qu'en haut (retour utilisateur direct
+ * — "ajoute un petit bouton pour arrêter la rotation du plateau") : la
+ * rangée du haut porte déjà les boutons de vue, potentiellement sur
+ * plusieurs lignes sur un écran étroit — les deux ne se gênent pas ici. */
+.orapa-results__rotate-toggle {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  z-index: 2;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px solid rgba(242, 194, 75, 0.3);
+  background: rgba(7, 14, 38, 0.85);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  color: var(--om-text-2);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.orapa-results__rotate-toggle:hover {
+  border-color: var(--om-gold);
+  color: var(--om-text);
+}
+
 .orapa-results__board-btn,
 .orapa-results__guess-toggle {
   padding: 8px 14px;
