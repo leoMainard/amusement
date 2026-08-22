@@ -3660,3 +3660,314 @@ kbd {
   font-size: 13.5px;
   color: var(--om-text-3);
 }
+
+/* ================================================================ */
+/* Discussion entre joueurs (bulle flottante)                        */
+/* ================================================================ */
+/* Rattachée à `document.body`, pas à `#view-root` (voir la docstring
+   de `ChatWidget`) : `position: fixed` par rapport au viewport, donc
+   toujours en bas à droite quel que soit l'écran affiché derrière
+   (retour utilisateur direct — "positionné en bas à droite via une
+   petite bulle"). */
+
+.orapa-chat {
+  position: fixed;
+  right: clamp(14px, 3vw, 28px);
+  bottom: clamp(14px, 3vw, 28px);
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 12px;
+  font-family: "DM Sans", system-ui, sans-serif;
+}
+
+/* `.orapa-chat { display: flex }` ci-dessous l'emporterait sinon sur la
+ * règle `[hidden] { display: none }` de la feuille de style du
+ * navigateur (spécificité plus faible) : sans cette règle explicite,
+ * `root.hidden = true` (voir `ChatWidget.hide`) ne masquait RIEN, la
+ * bulle restait cliquable par-dessus le reste de l'écran (bug repéré
+ * via QA — pas un retour utilisateur direct). Même chose plus bas pour
+ * `.orapa-chat__panel[hidden]`. */
+.orapa-chat[hidden] {
+  display: none;
+}
+
+.orapa-chat__bubble {
+  position: relative;
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  border: 1px solid var(--om-border);
+  background: var(--om-surface);
+  color: var(--om-text);
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.45);
+  transition: transform 0.15s ease, border-color 0.15s ease;
+}
+
+.orapa-chat__bubble:hover {
+  border-color: var(--om-gold);
+  transform: translateY(-2px);
+}
+
+.orapa-chat__bubble.is-open {
+  border-color: var(--om-gold);
+  background: var(--om-gold);
+  color: var(--om-surface);
+}
+
+.orapa-chat__badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--om-red);
+  color: var(--om-cream);
+  font-family: "Chakra Petch", sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 20px;
+  text-align: center;
+}
+
+/* Petit rebond à l'arrivée d'un message pendant que le panneau est
+   fermé (retour utilisateur direct — "ludique et satisfaisant") : voir
+   `ChatWidget.bounceBubble`. */
+@keyframes orapa-chat-bounce {
+  0%,
+  100% {
+    transform: none;
+  }
+  30% {
+    transform: scale(1.18) rotate(-8deg);
+  }
+  55% {
+    transform: scale(0.95) rotate(6deg);
+  }
+  75% {
+    transform: scale(1.06) rotate(-2deg);
+  }
+}
+
+.orapa-chat__bubble--bounce {
+  animation: orapa-chat-bounce 0.55s ease;
+}
+
+.orapa-chat__panel[hidden] {
+  display: none;
+}
+
+.orapa-chat__panel {
+  display: flex;
+  flex-direction: column;
+  width: min(340px, calc(100vw - 28px));
+  height: min(460px, calc(100vh - 120px));
+  border-radius: 16px;
+  border: 1px solid var(--om-border);
+  background: linear-gradient(180deg, var(--om-surface-2) 0%, var(--om-surface) 100%);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+  animation: orapa-chat-panel-in 0.18s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@keyframes orapa-chat-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.orapa-chat__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--om-border);
+  font-family: "Chakra Petch", sans-serif;
+  font-size: 13px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--om-text);
+}
+
+.orapa-chat__close {
+  border: none;
+  background: transparent;
+  color: var(--om-text-3);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 2px 4px;
+}
+
+.orapa-chat__close:hover {
+  color: var(--om-gold);
+}
+
+.orapa-chat__messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.orapa-chat__message {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-width: 84%;
+  animation: orapa-chat-message-in 0.2s ease;
+}
+
+@keyframes orapa-chat-message-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.orapa-chat__message.is-mine {
+  align-self: flex-end;
+  align-items: flex-end;
+}
+
+.orapa-chat__message.is-other {
+  align-self: flex-start;
+  align-items: flex-start;
+}
+
+.orapa-chat__message-name {
+  font-family: "Chakra Petch", sans-serif;
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  color: var(--om-blue-light, #8fd0e8);
+}
+
+.orapa-chat__message-bubble {
+  padding: 8px 12px;
+  border-radius: 14px;
+  font-size: 13.5px;
+  line-height: 1.4;
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+
+.orapa-chat__message.is-mine .orapa-chat__message-bubble {
+  background: var(--om-gold);
+  color: var(--om-surface);
+  border-bottom-right-radius: 4px;
+}
+
+.orapa-chat__message.is-other .orapa-chat__message-bubble {
+  background: var(--om-panel);
+  border: 1px solid var(--om-blue-dark);
+  color: var(--om-text);
+  border-bottom-left-radius: 4px;
+}
+
+.orapa-chat__message-time {
+  font-size: 10px;
+  color: var(--om-text-5);
+  padding: 0 2px;
+}
+
+.orapa-chat__typing {
+  margin: 0;
+  padding: 0 16px 6px;
+  font-size: 11.5px;
+  font-style: italic;
+  color: var(--om-text-4);
+}
+
+.orapa-chat__quick {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 6px;
+  padding: 8px 14px;
+  overflow-x: auto;
+  border-top: 1px solid var(--om-border-soft);
+}
+
+.orapa-chat__chip {
+  flex-shrink: 0;
+  padding: 5px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--om-border);
+  background: var(--om-panel-soft);
+  color: var(--om-text-2);
+  font-size: 12.5px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.orapa-chat__chip:hover {
+  border-color: var(--om-gold);
+  color: var(--om-gold);
+}
+
+.orapa-chat__form {
+  display: flex;
+  gap: 8px;
+  padding: 10px 12px;
+  border-top: 1px solid var(--om-border);
+}
+
+.orapa-chat__input {
+  flex: 1;
+  padding: 9px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--om-border);
+  background: rgba(7, 14, 38, 0.6);
+  color: var(--om-text);
+  font-size: 13.5px;
+  font-family: inherit;
+}
+
+.orapa-chat__input:focus {
+  outline: none;
+  border-color: var(--om-gold);
+}
+
+.orapa-chat__send {
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  border: 1px solid var(--om-gold);
+  background: var(--om-gold);
+  color: var(--om-surface);
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.orapa-chat__send:hover {
+  background: var(--om-gold-hover);
+  border-color: var(--om-gold-hover);
+}
+
+@media (max-width: 480px) {
+  .orapa-chat {
+    right: 12px;
+    bottom: 12px;
+  }
+
+  .orapa-chat__panel {
+    width: calc(100vw - 24px);
+    height: min(420px, calc(100vh - 100px));
+  }
+}

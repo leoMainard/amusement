@@ -157,3 +157,32 @@ export function sendSubmitSolution(socket: RoomSocket, guess: Piece[]): void {
 export function sendEndTurn(socket: RoomSocket): void {
   socket.send({ type: "end_turn" });
 }
+
+/** Discussion entre joueurs d'un même salon (retour utilisateur direct —
+ * "je souhaite qu'il y'ait un chat entre joueurs"). Voir `game_ws.py` :
+ * diffusé à tout le salon, émetteur compris — pas d'écho local
+ * optimiste côté client, voir `multiplayer.ts`. */
+export interface ChatMessagePayload {
+  type: "chat_message";
+  player_id: string;
+  player_name: string;
+  text: string;
+  at: number;
+}
+
+export interface ChatTypingPayload {
+  type: "chat_typing";
+  player_id: string;
+  player_name: string;
+}
+
+export function sendChatMessage(socket: RoomSocket, text: string): void {
+  socket.send({ type: "chat_send", text });
+}
+
+/** Indicateur "X est en train d'écrire..." : à rappeler à chaque frappe
+ * (avec un peu de repli côté appelant, voir `multiplayer.ts`) — purement
+ * transitoire, aucun accusé de réception attendu. */
+export function sendChatTyping(socket: RoomSocket): void {
+  socket.send({ type: "chat_typing" });
+}

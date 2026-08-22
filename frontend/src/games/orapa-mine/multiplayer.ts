@@ -25,6 +25,7 @@
 
 import { BoardScene, RAY_COLOR_HEX } from "./board-scene";
 import { LabelScheme } from "./borders";
+import { ChatWidget } from "./chat-widget";
 import { colorBadgeHtml, colorNameHtml, colorSquareHtml, hexColor } from "./color-swatch";
 import { cellLabel, labelForExit } from "./entry-labels";
 import { toContinuousCorner } from "./geometry";
@@ -34,6 +35,8 @@ import { fireRayPreview } from "./preview-engine";
 import { ReflectionController, type ReflectionPaletteEntry } from "./reflection-controller";
 import { mountHelpDialog } from "./help-panel";
 import {
+  type ChatMessagePayload,
+  type ChatTypingPayload,
   type GameResultsPayload,
   type GameStatePayload,
   type RayResultPayload,
@@ -43,6 +46,8 @@ import {
   pieceFromPayload,
   sendAskPeek,
   sendAskRay,
+  sendChatMessage,
+  sendChatTyping,
   sendEndTurn,
   sendSubmitSolution,
   sendValidatePlacement,
@@ -192,6 +197,19 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
   // à une action de l'adversaire).
   let awaitingProposalResult = false;
   let updateProposeStatusFromState: (() => void) | null = null;
+
+  // Discussion entre joueurs (retour utilisateur direct) : un seul
+  // widget pour toute la durée du salon, monté à part de `root` (voir
+  // sa docstring) — survit donc à `render()`/`renderGame()`, qui ne
+  // reconstruisent que ce dernier.
+  const chat = new ChatWidget({
+    onSend: (text) => {
+      if (socket) sendChatMessage(socket, text);
+    },
+    onTyping: () => {
+      if (socket) sendChatTyping(socket);
+    },
+  });
 
   render();
 
@@ -1041,6 +1059,8 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
       room = null;
       lastGameState = null;
       lastGameResults = null;
+      chat.reset();
+      chat.hide();
       render();
     });
     host.querySelector<HTMLButtonElement>(".orapa-results__back")!.addEventListener("click", () => {
@@ -1412,7 +1432,16 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
     ws.on("joined", (msg) => {
       playerId = msg.player_id as string;
       room = msg.room as RoomPayload;
+      chat.setPlayerId(playerId);
+      chat.show();
       render();
+    });
+    ws.on("chat_message", (msg) => {
+      chat.addMessage(msg as unknown as ChatMessagePayload);
+    });
+    ws.on("chat_typing", (msg) => {
+      const typing = msg as unknown as ChatTypingPayload;
+      chat.showTyping(typing.player_name);
     });
     ws.on("room_update", (msg) => {
       room = msg.room as RoomPayload;
@@ -1529,6 +1558,7 @@ export function mountOrapaMineMultiplayer(root: HTMLElement): () => void {
     ownScene?.dispose();
     placementController?.dispose();
     reflectionController?.dispose();
+    chat.dispose();
   };
 }
 

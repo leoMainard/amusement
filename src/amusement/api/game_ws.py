@@ -290,6 +290,41 @@ async def _handle_message(
                 await _notify_defender(code, room, player_id, {**payload, "type": "opponent_peek_result"}, connections)
             await connections.broadcast(code, {"type": "game_state", **game_state_payload(session)})
 
+        elif msg_type == "chat_send":
+            # Discussion entre joueurs d'un même salon (retour utilisateur
+            # direct — "je souhaite qu'il y'ait un chat entre joueurs") :
+            # aucun état à conserver côté serveur, juste une diffusion à
+            # tout le salon (l'émetteur y compris — source unique de
+            # vérité pour l'ordre d'affichage, plutôt qu'un écho local
+            # optimiste côté client qui pourrait diverger). Le client
+            # garde lui-même l'historique affiché (voir `multiplayer.ts`)
+            # pour qu'il survive aux changements d'écran (placement, jeu,
+            # résultats) au sein d'un même salon.
+            text = str(message.get("text", "")).strip()
+            if not text:
+                raise ValueError("Message vide.")
+            text = text[:300]
+            sender_name = next((p.name for p in room.players if p.id == player_id), "?")
+            await connections.broadcast(
+                code,
+                {
+                    "type": "chat_message",
+                    "player_id": player_id,
+                    "player_name": sender_name,
+                    "text": text,
+                    "at": time.time(),
+                },
+            )
+
+        elif msg_type == "chat_typing":
+            # "X est en train d'écrire..." (retour utilisateur direct —
+            # rendre le chat "ludique et satisfaisant") : purement
+            # transitoire, aucun état conservé — le client qui reçoit
+            # efface lui-même l'indicateur après un court délai sans
+            # nouvel envoi (voir `multiplayer.ts`).
+            sender_name = next((p.name for p in room.players if p.id == player_id), "?")
+            await connections.broadcast(code, {"type": "chat_typing", "player_id": player_id, "player_name": sender_name}, exclude=player_id)
+
         elif msg_type == "submit_solution":
             session.submit_solution(player_id, message["guess"])
             await connections.broadcast(code, {"type": "game_state", **game_state_payload(session)})

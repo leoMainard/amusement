@@ -501,3 +501,65 @@ def test_error_message_on_invalid_action() -> None:
         error = alice_ws.receive_json()
         assert error["type"] == "error"
         assert "placement" in error["message"].lower()
+
+
+def test_chat_message_is_broadcast_to_sender_and_others() -> None:
+    code = create_room(mode="duel", max_players=2)
+    with client.websocket_connect(f"/ws/rooms/{code}?name=Alice") as alice_ws:
+        alice_ws.receive_json()  # joined
+        with client.websocket_connect(f"/ws/rooms/{code}?name=Bob") as bob_ws:
+            joined_bob = bob_ws.receive_json()
+            bob_id = joined_bob["player_id"]
+            alice_ws.receive_json()  # room_update (Bob a rejoint)
+            alice_ws.receive_json()  # room_update (PLACING)
+            bob_ws.receive_json()  # room_update (PLACING), direct pour Bob
+
+            bob_ws.send_json({"type": "chat_send", "text": "  Salut ! "})
+
+            # L'émetteur reçoit aussi son propre message (source unique de
+            # vérité pour l'ordre d'affichage, voir game_ws.py).
+            message_for_bob = bob_ws.receive_json()
+            assert message_for_bob["type"] == "chat_message"
+            assert message_for_bob["player_id"] == bob_id
+            assert message_for_bob["player_name"] == "Bob"
+            assert message_for_bob["text"] == "Salut !"  # espaces superflus retirés
+            assert isinstance(message_for_bob["at"], float)
+
+            message_for_alice = alice_ws.receive_json()
+            assert message_for_alice == message_for_bob
+
+
+def test_chat_message_empty_is_refused() -> None:
+    code = create_room(mode="duel", max_players=2)
+    with client.websocket_connect(f"/ws/rooms/{code}?name=Alice") as alice_ws:
+        alice_ws.receive_json()  # joined
+        alice_ws.send_json({"type": "chat_send", "text": "   "})
+        error = alice_ws.receive_json()
+        assert error["type"] == "error"
+
+
+def test_chat_message_is_truncated_to_300_characters() -> None:
+    code = create_room(mode="duel", max_players=2)
+    with client.websocket_connect(f"/ws/rooms/{code}?name=Alice") as alice_ws:
+        alice_ws.receive_json()  # joined
+        alice_ws.send_json({"type": "chat_send", "text": "x" * 400})
+        message = alice_ws.receive_json()
+        assert message["type"] == "chat_message"
+        assert len(message["text"]) == 300
+
+
+def test_chat_typing_is_broadcast_to_others_only() -> None:
+    code = create_room(mode="duel", max_players=2)
+    with client.websocket_connect(f"/ws/rooms/{code}?name=Alice") as alice_ws:
+        alice_ws.receive_json()  # joined
+        with client.websocket_connect(f"/ws/rooms/{code}?name=Bob") as bob_ws:
+            joined_bob = bob_ws.receive_json()
+            bob_id = joined_bob["player_id"]
+            alice_ws.receive_json()  # room_update (Bob a rejoint)
+            alice_ws.receive_json()  # room_update (PLACING)
+            bob_ws.receive_json()  # room_update (PLACING), direct pour Bob
+
+            bob_ws.send_json({"type": "chat_typing"})
+
+            typing = alice_ws.receive_json()
+            assert typing == {"type": "chat_typing", "player_id": bob_id, "player_name": "Bob"}
