@@ -24,6 +24,7 @@
  */
 
 import type { BoardScene } from "./board-scene";
+import { makeSwatchDraggable } from "./drag-drop";
 import { pieceIconSvg } from "./piece-icon";
 import { PlacementError, PreviewBoard } from "./preview-engine";
 import { GemKind, type Color, type Piece, type PieceShape, type Position } from "./types";
@@ -176,20 +177,23 @@ export class ReflectionController {
           this.disarm();
           return;
         }
-        this.armed = {
-          shape: entry.shape,
-          kind,
-          color: entry.color,
-          origin: this.hoveredCorner ?? [0, 0],
-          rotationSteps: 0,
-          mirrored: false,
-        };
-        this.armedIsGem = !isUnit;
-        this.updateSwatchSelection(button);
-        this.refreshGhost();
-        this.refreshPreview();
-        this.options.onArm?.();
+        this.armEntry(entry, kind, isUnit, button);
       });
+      // Glisser-déposer (retour utilisateur direct), EN PLUS du clic
+      // ci-dessus — voir `drag-drop.ts`.
+      makeSwatchDraggable(
+        button,
+        {
+          getCanvas: () => this.scene.canvasElement,
+          getCornerAt: (x, y) => this.scene.getCornerAt(x, y),
+          iconHtml: pieceIconSvg(entry.shape, entry.color, isUnit ? 26 : 40, kind),
+        },
+        {
+          onDragStart: () => this.armEntry(entry, kind, isUnit, button),
+          onDrop: (corner) => this.dropArmedAt(corner),
+          onCancel: () => this.disarm(),
+        },
+      );
       (isUnit ? unitHost : gemHost).appendChild(button);
     }
 
@@ -277,8 +281,18 @@ export class ReflectionController {
       return true;
     }
     if (!this.armed) return false;
+    this.placeArmedAt(corner);
+    return true;
+  }
+
+  /** Pose le repère actuellement armé sur `corner` — cœur commun au
+   * clic (voir `handleCornerClick`) et au glisser-déposer (voir
+   * `dropArmedAt`). */
+  private placeArmedAt(corner: Position): boolean {
+    if (!this.armed) return false;
     const positioned: Piece = { ...this.armed, origin: corner };
     const isGem = this.armedIsGem;
+    let placed = false;
     try {
       if (isGem) {
         // Vraie hypothèse de placement : mêmes règles de contact que le
@@ -290,6 +304,7 @@ export class ReflectionController {
       }
       this.scene.addReflectionPiece(positioned);
       this.setStatus("");
+      placed = true;
       if (isGem) {
         const key = pieceKey(positioned);
         this.usedGemKeys.add(key);
@@ -305,7 +320,21 @@ export class ReflectionController {
     // Un repère élémentaire reste armé pour en poser plusieurs d'affilée
     // sans repasser par la palette.
     if (isGem) this.disarm();
-    return true;
+    return placed;
+  }
+
+  /** Glisser-déposer (retour utilisateur direct) — voir
+   * `placement-controller.ts:dropArmedAt` pour la même idée : dépose
+   * SANS jamais retirer un repère déjà présent sur `corner`
+   * (contrairement à `handleCornerClick`, pensé pour un simple clic). */
+  private dropArmedAt(corner: Position): void {
+    if (!this.armed) return;
+    if (this.board.pieceAtCell(corner)) {
+      this.setStatus("Case déjà occupée — impossible d'y déposer une pièce.");
+      if (this.armedIsGem) this.disarm();
+      return;
+    }
+    this.placeArmedAt(corner);
   }
 
   /** Repose la sélection après une pose de gemme (voir `handleCornerClick`)
@@ -321,6 +350,24 @@ export class ReflectionController {
     this.updateSwatchSelection(null);
     this.refreshGhost();
     this.refreshPreview();
+  }
+
+  /** Arme `entry` — code commun au clic sur sa vignette et au début d'un
+   * glisser-déposer (voir `makeSwatchDraggable`, `drag-drop.ts`). */
+  private armEntry(entry: ReflectionPaletteEntry, kind: GemKind, isUnit: boolean, button: HTMLButtonElement): void {
+    this.armed = {
+      shape: entry.shape,
+      kind,
+      color: entry.color,
+      origin: this.hoveredCorner ?? [0, 0],
+      rotationSteps: 0,
+      mirrored: false,
+    };
+    this.armedIsGem = !isUnit;
+    this.updateSwatchSelection(button);
+    this.refreshGhost();
+    this.refreshPreview();
+    this.options.onArm?.();
   }
 
   /** Si `piece` est une des 5 gemmes majeures/extensions actuellement

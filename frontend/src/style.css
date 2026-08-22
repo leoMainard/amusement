@@ -1191,8 +1191,17 @@ body:has(#app.om-shell) {
   border-radius: 10px;
   border: 1px solid var(--om-border);
   background: var(--om-panel-soft);
-  cursor: pointer;
+  cursor: grab;
+  /* Empêche le geste tactile de faire défiler la page dès l'appui sur
+     une vignette (retour utilisateur direct — glisser-déposer) : sans
+     ça, le navigateur peut interpréter le premier mouvement comme un
+     défilement avant que `makeSwatchDraggable` n'ait pu réagir. */
+  touch-action: none;
   transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.orapa-demo__swatch:active:not(:disabled) {
+  cursor: grabbing;
 }
 
 .orapa-demo__swatch:hover:not(:disabled) {
@@ -3970,4 +3979,35 @@ kbd {
     width: calc(100vw - 24px);
     height: min(420px, calc(100vh - 100px));
   }
+}
+
+/* ================================================================ */
+/* Glisser-déposer d'une gemme (voir drag-drop.ts)                   */
+/* ================================================================ */
+
+/* Empêche la sélection de texte pendant qu'on glisse une vignette
+   au-dessus du reste de la page (retour utilisateur direct) — sans ça,
+   un déplacement un peu rapide de la souris sélectionnait du texte
+   autour du plateau au passage. */
+body.orapa-dragging {
+  cursor: grabbing;
+  user-select: none;
+}
+
+/* Petit aperçu de la pièce qui suit le curseur tant qu'il n'est pas
+   au-dessus du plateau (voir `makeSwatchDraggable`) — le vrai fantôme
+   3D prend le relais une fois dessus. */
+.orapa-drag-preview {
+  position: fixed;
+  z-index: 80;
+  left: 0;
+  top: 0;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  opacity: 0.9;
+  filter: drop-shadow(0 8px 14px rgba(0, 0, 0, 0.5));
+}
+
+.orapa-drag-preview svg {
+  display: block;
 }

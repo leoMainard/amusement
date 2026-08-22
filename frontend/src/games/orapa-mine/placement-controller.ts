@@ -18,6 +18,7 @@
  */
 
 import type { BoardScene } from "./board-scene";
+import { makeSwatchDraggable } from "./drag-drop";
 import { pieceIconSvg } from "./piece-icon";
 import { PlacementError, PreviewBoard } from "./preview-engine";
 import { BASE_PIECE_PALETTE, GemKind, type Piece, type PieceShape, type Position } from "./types";
@@ -116,18 +117,24 @@ export class PlacementController {
           this.disarm();
           return;
         }
-        this.armed = {
-          shape: entry.shape,
-          kind: entry.kind,
-          color: entry.color as Piece["color"],
-          origin: this.hoveredCorner ?? [0, 0],
-          rotationSteps: 0,
-          mirrored: false,
-        };
-        this.updateSwatchSelection(button);
-        this.refreshGhost();
-        this.refreshPreview();
+        this.armEntry(entry, button);
       });
+      // Glisser-déposer (retour utilisateur direct), EN PLUS du clic
+      // ci-dessus — voir `drag-drop.ts` pour pourquoi ce n'est pas
+      // l'API HTML5 Drag and Drop.
+      makeSwatchDraggable(
+        button,
+        {
+          getCanvas: () => this.scene.canvasElement,
+          getCornerAt: (x, y) => this.scene.getCornerAt(x, y),
+          iconHtml: pieceIconSvg(entry.shape, entry.color, 40, entry.kind),
+        },
+        {
+          onDragStart: () => this.armEntry(entry, button),
+          onDrop: (corner) => this.dropArmedAt(corner),
+          onCancel: () => this.disarm(),
+        },
+      );
       options.paletteHost.appendChild(button);
       this.swatchByKey.set(key, button);
       this.statusByKey.set(key, status);
@@ -202,6 +209,22 @@ export class PlacementController {
     this.refreshPreview();
   }
 
+  /** Arme `entry` — code commun au clic sur sa vignette et au début d'un
+   * glisser-déposer (voir `makeSwatchDraggable`, `drag-drop.ts`). */
+  private armEntry(entry: PaletteEntry, button: HTMLButtonElement): void {
+    this.armed = {
+      shape: entry.shape,
+      kind: entry.kind,
+      color: entry.color as Piece["color"],
+      origin: this.hoveredCorner ?? [0, 0],
+      rotationSteps: 0,
+      mirrored: false,
+    };
+    this.updateSwatchSelection(button);
+    this.refreshGhost();
+    this.refreshPreview();
+  }
+
   private rotateArmed(): void {
     if (!this.armed || this.locked) return;
     this.armed = { ...this.armed, rotationSteps: (this.armed.rotationSteps + 1) % 4 };
@@ -244,7 +267,16 @@ export class PlacementController {
       this.handlePieceClick(existing);
       return;
     }
-    if (!this.armed) return;
+    this.placeArmedAt(corner);
+  }
+
+  /** Pose la pièce actuellement armée sur `corner` — cœur commun au clic
+   * (voir `handleCornerClick`) et au glisser-déposer (voir
+   * `dropArmedAt`). Reste armée en cas d'échec (case déjà prise par une
+   * pièce plus grande, hors plateau...) : l'utilisateur peut retenter
+   * ailleurs sans repasser par la palette. */
+  private placeArmedAt(corner: Position): boolean {
+    if (!this.armed) return false;
     const positioned: Piece = { ...this.armed, origin: corner };
     try {
       this.board.placePiece(positioned);
@@ -257,9 +289,27 @@ export class PlacementController {
       this.updateAvailability();
       this.setStatus("");
       this.options.onPlace?.(positioned);
+      return true;
     } catch (error) {
       this.setStatus(error instanceof PlacementError ? error.message : String(error));
+      return false;
     }
+  }
+
+  /** Glisser-déposer (retour utilisateur direct — "je souhaite pouvoir
+   * glisser / déposer les pièces, en plus de... cliquer / déposer") :
+   * reprend `placeArmedAt`, mais échoue proprement si `corner` est déjà
+   * occupée plutôt que d'en retirer la pièce (voir `handleCornerClick`,
+   * dont c'est le comportement voulu pour un simple CLIC — surprenant
+   * pour un dépôt : on s'attend à ce qu'il échoue, pas à ce qu'il
+   * supprime ce qui s'y trouve). Appelée par `makeSwatchDraggable`. */
+  private dropArmedAt(corner: Position): void {
+    if (this.locked || !this.armed) return;
+    if (this.board.pieceAtCell(corner)) {
+      this.setStatus("Case déjà occupée — impossible d'y déposer une pièce.");
+      return;
+    }
+    this.placeArmedAt(corner);
   }
 
   private handlePieceClick(piece: Piece): void {

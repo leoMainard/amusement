@@ -380,6 +380,30 @@ export class BoardScene {
     this.controls.enabled = enabled;
   }
 
+  /** Le `<canvas>` du rendu — utilisé par le glisser-déposer d'une pièce
+   * depuis la palette (retour utilisateur direct, voir `drag-drop.ts`)
+   * pour savoir si le pointeur survole le plateau, et pour lui envoyer
+   * un `pointermove` de synthèse (fait vivre le fantôme de survol déjà
+   * en place, sans dupliquer sa logique ici). */
+  get canvasElement(): HTMLElement {
+    return this.renderer.domElement;
+  }
+
+  /** Case du plateau sous un point ÉCRAN donné (`clientX`/`clientY`,
+   * repère de `PointerEvent`) — même raycasting que le survol/clic
+   * natifs (voir `cornerUnderPointer`), mais utilisable depuis
+   * l'extérieur avec des coordonnées arbitraires : au relâchement d'un
+   * glisser-déposer, le pointeur n'est pas forcément la cible d'un
+   * événement natif SUR ce canevas (le glisser a démarré ailleurs, sur
+   * une vignette de palette) — voir `drag-drop.ts`. */
+  getCornerAt(clientX: number, clientY: number): Position | null {
+    const rect = this.renderer.domElement.getBoundingClientRect();
+    this.pointer.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+    this.pointer.y = -((clientY - rect.top) / rect.height) * 2 + 1;
+    this.raycaster.setFromCamera(this.pointer, this.camera);
+    return this.cornerUnderPointer();
+  }
+
   /** Légère rotation automatique autour du plateau (écran de résultats,
    * retour utilisateur direct — "il tournera légèrement sur lui-même
    * avec les pièces"), portée par `OrbitControls` lui-même : `tick`
